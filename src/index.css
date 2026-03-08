@@ -1,0 +1,135 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@layer base {
+  :root {
+    --background: 150 10% 97%;
+    --foreground: 160 30% 8%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 160 30% 8%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 160 30% 8%;
+
+    --primary: 160 84% 24%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 150 15% 93%;
+    --secondary-foreground: 160 30% 15%;
+
+    --muted: 150 10% 94%;
+    --muted-foreground: 160 10% 45%;
+
+    --accent: 150 15% 93%;
+    --accent-foreground: 160 30% 15%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 150 10% 90%;
+    --input: 150 10% 90%;
+    --ring: 160 84% 24%;
+
+    --radius: 0.75rem;
+
+    --sidebar-bg: 160 30% 8%;
+    --sidebar-fg: 150 15% 75%;
+    --sidebar-fg-active: 0 0% 100%;
+    --sidebar-border: 160 20% 14%;
+    --sidebar-accent: 160 84% 24%;
+
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --info: 217 91% 60%;
+    --info-foreground: 0 0% 100%;
+
+    --gold: 43 96% 56%;
+    --silver: 220 9% 60%;
+    --bronze: 25 75% 47%;
+
+    --shadow-sm: 0 1px 2px 0 hsl(160 30% 8% / 0.04);
+    --shadow-md: 0 4px 16px -2px hsl(160 30% 8% / 0.06);
+    --shadow-lg: 0 12px 40px -8px hsl(160 30% 8% / 0.08);
+  }
+
+  .dark {
+    --background: 160 30% 5%;
+    --foreground: 150 10% 95%;
+    --card: 160 25% 8%;
+    --card-foreground: 150 10% 95%;
+    --popover: 160 25% 8%;
+    --popover-foreground: 150 10% 95%;
+    --primary: 160 84% 39%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 160 20% 14%;
+    --secondary-foreground: 150 10% 90%;
+    --muted: 160 20% 14%;
+    --muted-foreground: 150 10% 55%;
+    --accent: 160 20% 14%;
+    --accent-foreground: 150 10% 90%;
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 160 20% 14%;
+    --input: 160 20% 14%;
+    --ring: 160 84% 39%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+}
+
+@layer components {
+  .erp-grid-layout {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto 1fr;
+    min-height: 100vh;
+  }
+  .erp-card {
+    @apply bg-card rounded-xl border p-5;
+    box-shadow: var(--shadow-sm);
+  }
+  .erp-card:hover {
+    box-shadow: var(--shadow-md);
+  }
+  .kpi-card {
+    @apply erp-card transition-shadow duration-200;
+  }
+  .traffic-light-red {
+    @apply bg-destructive/15 text-destructive;
+  }
+  .traffic-light-yellow {
+    @apply bg-warning/15 text-warning;
+  }
+  .traffic-light-green {
+    @apply bg-success/15 text-success;
+  }
+  .badge-gold {
+    background: hsl(var(--gold) / 0.15);
+    color: hsl(var(--gold));
+    border-color: hsl(var(--gold) / 0.3);
+  }
+  .badge-silver {
+    background: hsl(var(--silver) / 0.15);
+    color: hsl(var(--silver));
+    border-color: hsl(var(--silver) / 0.3);
+  }
+  .badge-bronze {
+    background: hsl(var(--bronze) / 0.15);
+    color: hsl(var(--bronze));
+    border-color: hsl(var(--bronze) / 0.3);
+  }
+}

@@ -1,0 +1,33 @@
+import { Search, Bell } from "lucide-react";
+import { useLocation } from "react-router-dom";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+
+const titles: Record<string, string> = {
+  "/": "Dashboard",
+  "/inventario": "Inventario",
+  "/facturacion": "Facturación",
+  "/crm": "CRM / Clientes",
+  "/ajustes": "Ajustes",
+};
+
+export default function AppHeader() {
+  const location = useLocation();
+  const title = Object.entries(titles).find(([path]) =>
+    path === "/" ? location.pathname === "/" : location.pathname.startsWith(path)
+  )?.[1] ?? "NaturERP";
+
+  return (
+    <header className="h-14 border-b flex items-center gap-4 px-6">
+      <h1 className="text-sm font-semibold">{title}</h1>
+      <div className="flex-1 max-w-md ml-auto relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input placeholder="Buscar productos, clientes, facturas…" className="pl-9 h-9 text-sm" />
+      </div>
+      <Button variant="ghost" size="icon" className="relative">
+        <Bell className="h-4 w-4" />
+        <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-destructive" />
+      </Button>
+    </header>
+  );
+}
