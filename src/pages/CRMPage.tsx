@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CustomersTable from "@/features/crm/components/CustomersTable";
 import TicketsList from "@/features/crm/components/TicketsList";
@@ -17,7 +18,9 @@ export default function CRMPage() {
       <Tabs defaultValue="customers" className="space-y-4">
         <TabsList>
           <TabsTrigger value="customers">Directorio de Clientes</TabsTrigger>
-          <TabsTrigger value="tickets">Tickets</TabsTrigger>
+          <TabsTrigger value="tickets" asChild>
+          <Link to="/crm/tickets">Tickets</Link>
+        </TabsTrigger>
           <TabsTrigger value="tasks">Tareas</TabsTrigger>
           <TabsTrigger value="loyalty">Fidelización</TabsTrigger>
         </TabsList>

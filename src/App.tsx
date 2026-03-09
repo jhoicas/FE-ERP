@@ -10,6 +10,8 @@ import BillingPage from "@/pages/BillingPage";
 import CRMPage from "@/pages/CRMPage";
 import ClientDetailPage from "@/pages/ClientDetailPage";
 import CustomerProfile360Page from "@/pages/CustomerProfile360Page";
+import TicketsPage from "@/pages/TicketsPage";
+import TicketDetailPage from "@/pages/TicketDetailPage";
 import SettingsPage from "@/pages/SettingsPage";
 import LoginPage from "@/pages/LoginPage";
 import ProtectedRoute from "@/features/auth/ProtectedRoute";
@@ -37,6 +39,8 @@ const App = () => (
             <Route path="/inventario" element={<InventoryPage />} />
             <Route path="/facturacion" element={<BillingPage />} />
             <Route path="/crm" element={<CRMPage />} />
+            <Route path="/crm/tickets" element={<TicketsPage />} />
+            <Route path="/crm/tickets/:id" element={<TicketDetailPage />} />
             <Route path="/crm/customers/:id" element={<CustomerProfile360Page />} />
             <Route path="/crm/:id" element={<ClientDetailPage />} />
             <Route path="/ajustes" element={<SettingsPage />} />
