@@ -13,6 +13,8 @@ import CustomerProfile360Page from "@/pages/CustomerProfile360Page";
 import TicketsPage from "@/pages/TicketsPage";
 import TicketDetailPage from "@/pages/TicketDetailPage";
 import InventoryProductsPage from "@/pages/InventoryProductsPage";
+import WarehousesListPage from "@/pages/WarehousesListPage";
+import WarehouseStockPage from "@/pages/WarehouseStockPage";
 import TasksPage from "@/pages/TasksPage";
 import TaskDetailPage from "@/pages/TaskDetailPage";
 import TasksKanbanPage from "@/pages/TasksKanbanPage";
@@ -45,6 +47,8 @@ const App = () => (
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/inventario" element={<InventoryPage />} />
             <Route path="/inventory/products" element={<InventoryProductsPage />} />
+            <Route path="/inventory/warehouses" element={<WarehousesListPage />} />
+            <Route path="/inventory/warehouses/:id/stock" element={<WarehouseStockPage />} />
             <Route path="/facturacion" element={<BillingPage />} />
             <Route path="/crm" element={<CRMPage />} />
             <Route path="/crm/tickets" element={<TicketsPage />} />
