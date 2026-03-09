@@ -14,8 +14,10 @@ import TicketsPage from "@/pages/TicketsPage";
 import TicketDetailPage from "@/pages/TicketDetailPage";
 import TasksPage from "@/pages/TasksPage";
 import TaskDetailPage from "@/pages/TaskDetailPage";
+import TasksKanbanPage from "@/pages/TasksKanbanPage";
 import CategoriesPage from "@/pages/CategoriesPage";
 import CategoryBenefitsPage from "@/pages/CategoryBenefitsPage";
+import MarketingAIPage from "@/pages/MarketingAIPage";
 import SettingsPage from "@/pages/SettingsPage";
 import LoginPage from "@/pages/LoginPage";
 import ProtectedRoute from "@/features/auth/ProtectedRoute";
@@ -47,8 +49,10 @@ const App = () => (
             <Route path="/crm/tickets/:id" element={<TicketDetailPage />} />
             <Route path="/crm/tasks" element={<TasksPage />} />
             <Route path="/crm/tasks/:id" element={<TaskDetailPage />} />
+            <Route path="/crm/tasks/kanban" element={<TasksKanbanPage />} />
             <Route path="/crm/categories" element={<CategoriesPage />} />
             <Route path="/crm/categories/:id/benefits" element={<CategoryBenefitsPage />} />
+            <Route path="/crm/marketing/ai" element={<MarketingAIPage />} />
             <Route path="/crm/customers/:id" element={<CustomerProfile360Page />} />
             <Route path="/crm/:id" element={<ClientDetailPage />} />
             <Route path="/ajustes" element={<SettingsPage />} />

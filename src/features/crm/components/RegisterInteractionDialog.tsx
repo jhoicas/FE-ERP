@@ -11,6 +11,7 @@ import {
   createInteractionSchema,
   type CreateInteractionRequest,
 } from "@/lib/validations/crm";
+import type { InteractionResponse } from "@/types/crm";
 import {
   Dialog,
   DialogContent,
@@ -51,6 +52,8 @@ interface RegisterInteractionDialogProps {
   customerId?: string;
   /** Invalidar perfil 360 tras crear */
   invalidateProfile360?: boolean;
+  /** Callback opcional para notificar la interacción creada (para timeline local) */
+  onCreated?: (interaction: InteractionResponse) => void;
 }
 
 export default function RegisterInteractionDialog({
@@ -58,6 +61,7 @@ export default function RegisterInteractionDialog({
   onOpenChange,
   customerId: initialCustomerId,
   invalidateProfile360 = false,
+  onCreated,
 }: RegisterInteractionDialogProps) {
   const queryClient = useQueryClient();
 
@@ -79,13 +83,16 @@ export default function RegisterInteractionDialog({
 
   const mutation = useMutation({
     mutationFn: createInteraction,
-    onSuccess: () => {
+    onSuccess: (interaction) => {
       if (invalidateProfile360 && initialCustomerId) {
         queryClient.invalidateQueries({
           queryKey: ["crm-profile360", initialCustomerId],
         });
       }
       queryClient.invalidateQueries({ queryKey: ["crm-interactions"] });
+      if (onCreated) {
+        onCreated(interaction as InteractionResponse);
+      }
       onOpenChange(false);
       form.reset({
         customer_id: initialCustomerId ?? "",

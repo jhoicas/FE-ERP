@@ -22,7 +22,7 @@ export default function CRMPage() {
             <Link to="/crm/tickets">Tickets</Link>
           </TabsTrigger>
           <TabsTrigger value="tasks" asChild>
-            <Link to="/crm/tasks">Tareas</Link>
+            <Link to="/crm/tasks/kanban">Tareas</Link>
           </TabsTrigger>
           <TabsTrigger value="loyalty">Fidelización</TabsTrigger>
         </TabsList>
