@@ -22,21 +22,29 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
 
 export default function CustomersTable() {
   const navigate = useNavigate();
+  const [pageSize, setPageSize] = useState(10);
   const [offset, setOffset] = useState(0);
 
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["customers", PAGE_SIZE, offset],
-    queryFn: () => listCustomers({ limit: PAGE_SIZE, offset }),
+    queryKey: ["customers", pageSize, offset],
+    queryFn: () => listCustomers({ limit: pageSize, offset }),
   });
 
   const items = data?.items ?? [];
   const total = data?.total ?? items.length;
-  const hasMore = offset + items.length < total || items.length === PAGE_SIZE;
+  const hasMore = offset + items.length < total || items.length === pageSize;
   const hasPrev = offset > 0;
 
   return (
@@ -114,35 +122,59 @@ export default function CustomersTable() {
           </Table>
 
           {(hasPrev || hasMore) && (
-            <div className="flex items-center justify-between border-t px-4 py-3">
+            <div className="flex items-center justify-between border-t px-4 py-3 gap-4">
               <p className="text-xs text-muted-foreground">
                 Mostrando {offset + 1}–{offset + items.length}
                 {typeof total === "number" && total > 0 ? ` de ${total}` : ""}
               </p>
-              <Pagination>
-                <PaginationContent>
-                  <PaginationItem>
-                    <PaginationPrevious
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        if (hasPrev) setOffset((o) => Math.max(0, o - PAGE_SIZE));
-                      }}
-                      className={!hasPrev ? "pointer-events-none opacity-50" : ""}
-                    />
-                  </PaginationItem>
-                  <PaginationItem>
-                    <PaginationNext
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        if (hasMore) setOffset((o) => o + PAGE_SIZE);
-                      }}
-                      className={!hasMore ? "pointer-events-none opacity-50" : ""}
-                    />
-                  </PaginationItem>
-                </PaginationContent>
-              </Pagination>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>Filas por página</span>
+                  <Select
+                    value={String(pageSize)}
+                    onValueChange={(value) => {
+                      const size = Number(value);
+                      setOffset(0);
+                      setPageSize(size);
+                    }}
+                  >
+                    <SelectTrigger className="h-8 w-16 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAGE_SIZE_OPTIONS.map((size) => (
+                        <SelectItem key={size} value={String(size)}>
+                          {size}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Pagination>
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          if (hasPrev) setOffset((o) => Math.max(0, o - pageSize));
+                        }}
+                        className={!hasPrev ? "pointer-events-none opacity-50" : ""}
+                      />
+                    </PaginationItem>
+                    <PaginationItem>
+                      <PaginationNext
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          if (hasMore) setOffset((o) => o + pageSize);
+                        }}
+                        className={!hasMore ? "pointer-events-none opacity-50" : ""}
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              </div>
             </div>
           )}
         </div>
