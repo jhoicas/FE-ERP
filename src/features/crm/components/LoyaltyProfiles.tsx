@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Star } from "lucide-react";
 
@@ -19,14 +20,22 @@ export default function LoyaltyProfiles() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <Star className="h-4 w-4 text-primary" />
-        <div>
-          <h2 className="text-sm font-semibold">Fidelización y perfiles</h2>
-          <p className="text-xs text-muted-foreground">
-            Analiza el valor de vida del cliente (LTV) y su categoría de fidelización.
-          </p>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Star className="h-4 w-4 text-primary" />
+          <div>
+            <h2 className="text-sm font-semibold">Fidelización y perfiles</h2>
+            <p className="text-xs text-muted-foreground">
+              Analiza el valor de vida del cliente (LTV) y su categoría de fidelización.
+            </p>
+          </div>
         </div>
+        <Link
+          to="/crm/categories"
+          className="text-xs text-primary hover:underline shrink-0"
+        >
+          Ver categorías
+        </Link>
       </div>
 
       {isLoading && (

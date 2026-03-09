@@ -59,8 +59,8 @@ export default function CustomerProfile360Page() {
   });
 
   const categoriesQuery = useQuery({
-    queryKey: ["crm-categories"],
-    queryFn: () => listCategories({ limit: 100 }),
+    queryKey: ["crm-categories", 100, 0],
+    queryFn: () => listCategories({ limit: 100, offset: 0 }),
     enabled: assignDialogOpen,
   });
 

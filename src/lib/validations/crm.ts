@@ -49,7 +49,9 @@ export const updateTicketSchema = z.object({
 export type UpdateTicketRequest = z.infer<typeof updateTicketSchema>;
 
 export const assignCategorySchema = z.object({
-  category_id: z.string().min(1, "La categoría es obligatoria"),
+  category_id: z
+    .union([z.string().min(1, "La categoría es obligatoria"), z.literal("")])
+    .transform((v) => (v === "" ? undefined : v)),
   ltv: z.union([z.string(), z.number()]).transform((v) => (typeof v === "string" ? parseFloat(v) : v)),
 });
 
