@@ -3,9 +3,10 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, Mail, Phone, FileText, Gift, User } from "lucide-react";
+import { ArrowLeft, Mail, Phone, FileText, Gift, User, MessageSquare } from "lucide-react";
 
 import { getProfile360, assignCategory, listCategories } from "@/features/crm/services";
+import RegisterInteractionDialog from "@/features/crm/components/RegisterInteractionDialog";
 import { assignCategorySchema, type AssignCategoryRequest } from "@/lib/validations/crm";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,6 +50,7 @@ export default function CustomerProfile360Page() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [interactionDialogOpen, setInteractionDialogOpen] = useState(false);
 
   const profileQuery = useQuery({
     queryKey: ["crm-profile360", customerId],
@@ -152,10 +154,18 @@ export default function CustomerProfile360Page() {
 
       {/* Datos del cliente */}
       <Card>
-        <CardHeader className="pb-2">
+        <CardHeader className="pb-2 flex flex-row items-center justify-between">
           <CardTitle className="text-base flex items-center gap-2">
             <User className="h-4 w-4" /> Datos del cliente
           </CardTitle>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setInteractionDialogOpen(true)}
+          >
+            <MessageSquare className="h-4 w-4 mr-2" />
+            Registrar interacción
+          </Button>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
@@ -317,6 +327,13 @@ export default function CustomerProfile360Page() {
           )}
         </CardContent>
       </Card>
+
+      <RegisterInteractionDialog
+        open={interactionDialogOpen}
+        onOpenChange={setInteractionDialogOpen}
+        customerId={customerId}
+        invalidateProfile360
+      />
     </div>
   );
 }

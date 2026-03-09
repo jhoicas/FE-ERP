@@ -12,6 +12,8 @@ import ClientDetailPage from "@/pages/ClientDetailPage";
 import CustomerProfile360Page from "@/pages/CustomerProfile360Page";
 import TicketsPage from "@/pages/TicketsPage";
 import TicketDetailPage from "@/pages/TicketDetailPage";
+import TasksPage from "@/pages/TasksPage";
+import TaskDetailPage from "@/pages/TaskDetailPage";
 import SettingsPage from "@/pages/SettingsPage";
 import LoginPage from "@/pages/LoginPage";
 import ProtectedRoute from "@/features/auth/ProtectedRoute";
@@ -41,6 +43,8 @@ const App = () => (
             <Route path="/crm" element={<CRMPage />} />
             <Route path="/crm/tickets" element={<TicketsPage />} />
             <Route path="/crm/tickets/:id" element={<TicketDetailPage />} />
+            <Route path="/crm/tasks" element={<TasksPage />} />
+            <Route path="/crm/tasks/:id" element={<TaskDetailPage />} />
             <Route path="/crm/customers/:id" element={<CustomerProfile360Page />} />
             <Route path="/crm/:id" element={<ClientDetailPage />} />
             <Route path="/ajustes" element={<SettingsPage />} />

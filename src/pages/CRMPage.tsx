@@ -19,9 +19,11 @@ export default function CRMPage() {
         <TabsList>
           <TabsTrigger value="customers">Directorio de Clientes</TabsTrigger>
           <TabsTrigger value="tickets" asChild>
-          <Link to="/crm/tickets">Tickets</Link>
-        </TabsTrigger>
-          <TabsTrigger value="tasks">Tareas</TabsTrigger>
+            <Link to="/crm/tickets">Tickets</Link>
+          </TabsTrigger>
+          <TabsTrigger value="tasks" asChild>
+            <Link to="/crm/tasks">Tareas</Link>
+          </TabsTrigger>
           <TabsTrigger value="loyalty">Fidelización</TabsTrigger>
         </TabsList>
 
