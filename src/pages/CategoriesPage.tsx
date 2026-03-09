@@ -6,6 +6,7 @@ import { Gift, ChevronRight } from "lucide-react";
 import { listCategories } from "@/features/crm/services";
 import { getApiErrorMessage } from "@/lib/api/errors";
 import type { CategoryResponse } from "@/types/crm";
+import ExplainableAcronym from "@/components/shared/ExplainableAcronym";
 import {
   Table,
   TableBody,
@@ -81,7 +82,8 @@ export default function CategoriesPage() {
             Categorías de fidelización
           </h1>
           <p className="text-sm text-muted-foreground">
-            LTV mínimo y beneficios asociados a cada categoría (solo lectura).
+            <ExplainableAcronym sigla="LTV" /> mínimo y beneficios asociados a cada categoría
+            (solo lectura).
           </p>
         </div>
       </div>
@@ -109,7 +111,7 @@ export default function CategoriesPage() {
                   Nombre
                 </TableHead>
                 <TableHead className="text-xs text-muted-foreground">
-                  LTV mínimo
+                  <ExplainableAcronym sigla="LTV" /> mínimo
                 </TableHead>
                 <TableHead className="text-xs text-muted-foreground">
                   Creado

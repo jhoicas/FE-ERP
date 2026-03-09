@@ -62,6 +62,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import ExplainableAcronym from "@/components/shared/ExplainableAcronym";
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
 const STATUS_OPTIONS = [
@@ -198,13 +199,15 @@ export default function TicketsPage() {
         to="/crm"
         className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4"
       >
-        ← Volver al CRM
+        ← Volver al <ExplainableAcronym sigla="CRM" />
       </Link>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <MessageCircle className="h-4 w-4 text-primary" />
           <div>
-            <h1 className="text-lg font-semibold tracking-tight">Tickets PQR</h1>
+            <h1 className="text-lg font-semibold tracking-tight">
+              Tickets <ExplainableAcronym sigla="PQR" />
+            </h1>
             <p className="text-sm text-muted-foreground">
               Gestión de solicitudes, quejas y reclamos de clientes.
             </p>

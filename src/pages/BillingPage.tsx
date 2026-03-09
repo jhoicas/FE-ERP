@@ -2,6 +2,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import InvoicesTable from "@/features/billing/components/InvoicesTable";
 import CreditNotesList from "@/features/billing/components/CreditNotesList";
 import DianTransmission from "@/features/billing/components/DianTransmission";
+import ExplainableAcronym from "@/components/shared/ExplainableAcronym";
 
 export default function BillingPage() {
   return (
@@ -9,7 +10,8 @@ export default function BillingPage() {
       <div>
         <h1 className="text-lg font-semibold tracking-tight">Facturación Electrónica</h1>
         <p className="text-sm text-muted-foreground">
-          Administra las ventas, notas de crédito y el estado de la transmisión a la DIAN.
+          Administra las ventas, notas de crédito y el estado de la transmisión a la{" "}
+          <ExplainableAcronym sigla="DIAN" />.
         </p>
       </div>
 

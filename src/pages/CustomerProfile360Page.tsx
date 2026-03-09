@@ -64,6 +64,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import ExplainableAcronym from "@/components/shared/ExplainableAcronym";
 
 const TICKETS_PAGE_SIZE = 50;
 
@@ -218,7 +219,9 @@ function ProfileHeader({
         </div>
       </CardHeader>
       <CardContent className="pt-0">
-        <p className="text-xs text-muted-foreground mb-1">LTV estimado</p>
+        <p className="text-xs text-muted-foreground mb-1">
+          <ExplainableAcronym sigla="LTV" /> estimado
+        </p>
         <p className="text-xl font-semibold font-mono">
           {formatCurrency(ltv)}
         </p>
@@ -653,7 +656,9 @@ export default function CustomerProfile360Page() {
                         name="ltv"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>LTV (valor de vida)</FormLabel>
+            <FormLabel>
+              <ExplainableAcronym sigla="LTV" /> (valor de vida)
+            </FormLabel>
                             <FormControl>
                               <Input
                                 type="number"

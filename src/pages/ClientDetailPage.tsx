@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { getApiErrorMessage } from "@/lib/api/errors";
 import { getCustomers, getTickets } from "@/features/crm/services";
+import ExplainableAcronym from "@/components/shared/ExplainableAcronym";
 
 export default function ClientDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -86,7 +87,9 @@ export default function ClientDetailPage() {
 
       {tickets.length > 0 && (
         <div className="erp-card">
-          <h3 className="text-sm font-semibold mb-4">Tickets PQR</h3>
+          <h3 className="text-sm font-semibold mb-4">
+            Tickets <ExplainableAcronym sigla="PQR" />
+          </h3>
           <div className="space-y-3">
             {tickets.slice(0, 10).map((t) => (
               <div key={t.id} className="p-3 rounded-lg bg-muted/50 border">

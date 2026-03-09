@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import ExplainableAcronym from "@/components/shared/ExplainableAcronym";
 
 export default function DianTransmission() {
   // Valores mockeados por ahora; más adelante se pueden conectar a un endpoint real
@@ -11,9 +12,12 @@ export default function DianTransmission() {
   return (
     <div className="erp-card space-y-4">
       <div>
-        <h2 className="text-sm font-semibold">Resumen de transmisión DIAN</h2>
+        <h2 className="text-sm font-semibold">
+          Resumen de transmisión <ExplainableAcronym sigla="DIAN" />
+        </h2>
         <p className="text-xs text-muted-foreground">
-          Estado general de los documentos electrónicos enviados en la jornada.
+          Estado general de los documentos electrónicos enviados en la jornada a la{" "}
+          <ExplainableAcronym sigla="DIAN" />.
         </p>
       </div>
 
@@ -50,7 +54,8 @@ export default function DianTransmission() {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Este resumen es informativo y no reemplaza el detalle de los acuses de recibo de la DIAN.
+        Este resumen es informativo y no reemplaza el detalle de los acuses de recibo de la{" "}
+        <ExplainableAcronym sigla="DIAN" />.
       </p>
     </div>
   );

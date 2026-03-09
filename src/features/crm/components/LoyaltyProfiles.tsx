@@ -6,6 +6,7 @@ import { getCustomers } from "@/features/crm/services";
 import { getApiErrorMessage } from "@/lib/api/errors";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import ExplainableAcronym from "@/components/shared/ExplainableAcronym";
 
 export default function LoyaltyProfiles() {
   const { data, isLoading, isError, error } = useQuery({
@@ -26,7 +27,9 @@ export default function LoyaltyProfiles() {
           <div>
             <h2 className="text-sm font-semibold">Fidelización y perfiles</h2>
             <p className="text-xs text-muted-foreground">
-              Analiza el valor de vida del cliente (LTV) y su categoría de fidelización.
+              Analiza el valor de vida del cliente (
+              <ExplainableAcronym sigla="LTV" />
+              ) y su categoría de fidelización.
             </p>
           </div>
         </div>
@@ -58,7 +61,9 @@ export default function LoyaltyProfiles() {
                 <tr className="border-b bg-muted/50">
                   <th className="text-left py-3 px-4 font-medium text-muted-foreground text-xs">Cliente</th>
                   <th className="text-left py-3 px-4 font-medium text-muted-foreground text-xs">Categoría</th>
-                  <th className="text-right py-3 px-4 font-medium text-muted-foreground text-xs">LTV</th>
+                  <th className="text-right py-3 px-4 font-medium text-muted-foreground text-xs">
+                    <ExplainableAcronym sigla="LTV" />
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -82,7 +87,7 @@ export default function LoyaltyProfiles() {
             </table>
           ) : (
             <p className="p-4 text-sm text-muted-foreground">
-              Aún no hay información de LTV disponible para los clientes.
+              Aún no hay información de <ExplainableAcronym sigla="LTV" /> disponible para los clientes.
             </p>
           )}
         </div>

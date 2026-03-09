@@ -6,6 +6,7 @@ import { getApiErrorMessage } from "@/lib/api/errors";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import ExplainableAcronym from "@/components/shared/ExplainableAcronym";
 
 function StatusBadge({ status }: { status: string }) {
   const normalized = status.toUpperCase();
@@ -72,7 +73,9 @@ export default function InvoicesTable() {
                   <th className="text-left py-3 px-4 font-medium text-muted-foreground text-xs">Factura</th>
                   <th className="text-left py-3 px-4 font-medium text-muted-foreground text-xs">Fecha</th>
                   <th className="text-right py-3 px-4 font-medium text-muted-foreground text-xs">Total</th>
-                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-xs">Estado DIAN</th>
+                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-xs">
+                    Estado <ExplainableAcronym sigla="DIAN" />
+                  </th>
                   <th className="text-right py-3 px-4 font-medium text-muted-foreground text-xs">Acciones</th>
                 </tr>
               </thead>

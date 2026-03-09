@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import ExplainableAcronym from "@/components/shared/ExplainableAcronym";
 
 export default function SettingsPage() {
   return (
@@ -24,7 +25,9 @@ export default function SettingsPage() {
             <Input defaultValue="NaturERP S.A.S" className="h-9 text-sm" />
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">NIT</label>
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+              <ExplainableAcronym sigla="NIT" />
+            </label>
             <Input defaultValue="900.123.456-7" className="h-9 text-sm" />
           </div>
           <div>
@@ -48,7 +51,11 @@ export default function SettingsPage() {
         <Separator />
         <SettingRow label="Resumen diario por email" description="Recibir un resumen de ventas y actividad cada mañana" defaultChecked />
         <Separator />
-        <SettingRow label="Nuevos tickets PQR" description="Notificar cuando se abra un nuevo caso de soporte" defaultChecked={false} />
+        <SettingRow
+          label={`Nuevos tickets PQR`}
+          description="Notificar cuando se abra un nuevo caso de soporte"
+          defaultChecked={false}
+        />
       </section>
 
       {/* Preferences */}

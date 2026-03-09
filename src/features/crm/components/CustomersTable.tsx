@@ -22,6 +22,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import ExplainableAcronym from "@/components/shared/ExplainableAcronym";
 import {
   Select,
   SelectContent,
@@ -54,7 +55,9 @@ export default function CustomersTable() {
         <div>
           <h2 className="text-sm font-semibold">Directorio de clientes</h2>
           <p className="text-xs text-muted-foreground">
-            Listado paginado con NIT, contacto y acceso al Perfil 360.
+            Listado paginado con{" "}
+            <ExplainableAcronym sigla="NIT" />
+            , contacto y acceso al Perfil 360.
           </p>
         </div>
       </div>
@@ -79,7 +82,9 @@ export default function CustomersTable() {
             <TableHeader>
               <TableRow className="bg-muted/50 hover:bg-muted/50">
                 <TableHead className="text-xs text-muted-foreground">Nombre</TableHead>
-                <TableHead className="text-xs text-muted-foreground">NIT / Tax ID</TableHead>
+                <TableHead className="text-xs text-muted-foreground">
+                  <ExplainableAcronym sigla="NIT" /> / Tax ID
+                </TableHead>
                 <TableHead className="text-xs text-muted-foreground">Email</TableHead>
                 <TableHead className="text-xs text-muted-foreground">Teléfono</TableHead>
                 <TableHead className="text-right text-xs text-muted-foreground">Acciones</TableHead>
