@@ -35,7 +35,7 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 
-const ROWS_PER_PAGE_OPTIONS = [10, 20, 50];
+const ROWS_PER_PAGE_OPTIONS = [5, 10, 20, 50];
 
 function formatDecimal(value: string) {
   const n = Number(value);
