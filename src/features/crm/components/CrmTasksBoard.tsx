@@ -67,7 +67,9 @@ export default function CrmTasksBoard() {
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate">{t.title}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Vence el {new Date(t.due_date).toLocaleDateString()}
+                      {t.due_at
+                        ? `Vence el ${new Date(t.due_at).toLocaleDateString()}`
+                        : "Sin vencimiento"}
                     </p>
                   </div>
                   <TaskStatusBadge status={t.status} />
