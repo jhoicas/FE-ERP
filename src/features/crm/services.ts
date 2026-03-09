@@ -28,9 +28,10 @@ import {
   type AssignCategoryRequest,
 } from "@/lib/validations/crm";
 import { z } from "zod";
-import { CustomerSchema, type CustomerDTO } from "./schemas";
+import { CustomerSchema, CustomerListResponseSchema, type CustomerDTO, type CustomerListResponse } from "./schemas";
 
 const CRM_BASE = "/api/crm";
+const CUSTOMERS_BASE = "/api/customers";
 
 function throwOnApiError(error: unknown): never {
   if (axios.isAxiosError(error) && error.response?.data && isApiError(error.response.data)) {
@@ -41,8 +42,22 @@ function throwOnApiError(error: unknown): never {
   throw error;
 }
 
+export async function listCustomers(params?: {
+  limit?: number;
+  offset?: number;
+}): Promise<CustomerListResponse> {
+  const { data } = await apiClient.get(CUSTOMERS_BASE, {
+    params: { limit: params?.limit ?? 10, offset: params?.offset ?? 0 },
+  });
+  if (Array.isArray(data)) {
+    const items = z.array(CustomerSchema).parse(data);
+    return { items, total: items.length };
+  }
+  return CustomerListResponseSchema.parse(data);
+}
+
 export async function getCustomers(): Promise<CustomerDTO[]> {
-  const response = await apiClient.get("/api/customers");
+  const response = await apiClient.get(CUSTOMERS_BASE);
   return z.array(CustomerSchema).parse(response.data);
 }
 

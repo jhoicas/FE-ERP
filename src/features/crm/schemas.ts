@@ -3,16 +3,23 @@ import { z } from "zod";
 export const CustomerSchema = z.object({
   id: z.string(),
   name: z.string(),
-  email: z.string().email(),
-  phone: z.string(),
+  email: z.string().optional(),
+  phone: z.string().optional(),
   tax_id: z.string().optional(),
-  category_name: z.string(),
+  category_name: z.string().optional(),
   ltv: z.number().optional(),
   created_at: z.string().optional(),
   updated_at: z.string().optional(),
 });
 
 export type CustomerDTO = z.infer<typeof CustomerSchema>;
+
+export const CustomerListResponseSchema = z.object({
+  items: z.array(CustomerSchema),
+  total: z.number().optional(),
+});
+
+export type CustomerListResponse = z.infer<typeof CustomerListResponseSchema>;
 
 export const TicketSchema = z.object({
   id: z.string(),
