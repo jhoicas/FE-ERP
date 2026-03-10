@@ -22,6 +22,7 @@ import TasksKanbanPage from "@/pages/TasksKanbanPage";
 import CategoriesPage from "@/pages/CategoriesPage";
 import CategoryBenefitsPage from "@/pages/CategoryBenefitsPage";
 import MarketingAIPage from "@/pages/MarketingAIPage";
+import AiCampaignGenerator from "@/features/crm/components/AiCampaignGenerator";
 import SettingsPage from "@/pages/SettingsPage";
 import LoginPage from "@/pages/LoginPage";
 import ProtectedRoute from "@/features/auth/ProtectedRoute";
@@ -63,6 +64,7 @@ const App = () => (
             <Route path="/crm/categories/:id/benefits" element={<CategoryBenefitsPage />} />
             <Route path="/crm/loyalty" element={<LoyaltyPage />} />
             <Route path="/crm/marketing/ai" element={<MarketingAIPage />} />
+            <Route path="/crm/campaigns" element={<AiCampaignGenerator />} />
             <Route path="/crm/customers/:id" element={<CustomerProfile360Page />} />
             <Route path="/crm/:id" element={<ClientDetailPage />} />
             <Route path="/ajustes" element={<SettingsPage />} />
