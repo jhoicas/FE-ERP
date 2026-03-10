@@ -391,7 +391,7 @@ export default function TicketsPage() {
             </TableBody>
           </Table>
 
-          {(hasPrev || hasMore) && (
+          {items.length > 0 && (
             <div className="flex items-center justify-between border-t px-4 py-3 gap-4">
               <p className="text-xs text-muted-foreground">
                 Mostrando {offset + 1}–{offset + items.length}

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -186,6 +187,13 @@ export default function LoyaltyPage() {
 
   return (
     <div className="animate-fade-in space-y-4 max-w-6xl">
+      <Link
+        to="/crm"
+        className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+      >
+        ← Volver al CRM
+      </Link>
+
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Star className="h-5 w-5 text-primary" />

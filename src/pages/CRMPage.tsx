@@ -26,6 +26,9 @@ export default function CRMPage() {
           <TabsTrigger value="tasks" asChild>
             <Link to="/crm/tasks/kanban">Tareas</Link>
           </TabsTrigger>
+          <TabsTrigger value="campaigns" asChild>
+            <Link to="/crm/campaigns">Laboratorio de campañas</Link>
+          </TabsTrigger>
           <TabsTrigger value="loyalty" asChild>
             <Link to="/crm/loyalty">Fidelización</Link>
           </TabsTrigger>
@@ -42,6 +45,8 @@ export default function CRMPage() {
         <TabsContent value="tasks">
           <CrmTasksBoard />
         </TabsContent>
+
+        <TabsContent value="campaigns" />
 
         <TabsContent value="loyalty" />
       </Tabs>

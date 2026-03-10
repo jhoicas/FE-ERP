@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { MessageCircle } from "lucide-react";
 
@@ -5,6 +6,20 @@ import { getTickets } from "@/features/crm/services";
 import { getApiErrorMessage } from "@/lib/api/errors";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 function StatusBadge({ status }: { status: "open" | "resolved" }) {
   const label = status === "open" ? "Abierto" : "Resuelto";
@@ -27,11 +42,23 @@ function SentimentBadge({ sentiment }: { sentiment: "positive" | "neutral" | "ne
   return <span className={`${base} bg-amber-50 text-amber-700`}>Neutral</span>;
 }
 
+const ROWS_PER_PAGE_OPTIONS = [5, 10, 20, 50];
+
 export default function TicketsList() {
+  const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [page, setPage] = useState(0);
+
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["crm", "tickets"],
     queryFn: getTickets,
   });
+
+  const total = data?.length ?? 0;
+  const start = page * rowsPerPage;
+  const end = Math.min(start + rowsPerPage, total);
+  const pageItems = data?.slice(start, end) ?? [];
+  const hasPrev = page > 0;
+  const hasNext = end < total;
 
   return (
     <div className="space-y-4">
@@ -59,21 +86,81 @@ export default function TicketsList() {
 
       {!isLoading && !isError && (
         <div className="erp-card p-0 overflow-hidden">
-          {data && data.length > 0 ? (
-            <ul className="divide-y">
-              {data.map((t) => (
-                <li key={t.id} className="p-4 flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-medium truncate">{t.subject}</p>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <StatusBadge status={t.status} />
-                      <SentimentBadge sentiment={t.sentiment} />
+          {total > 0 ? (
+            <>
+              <ul className="divide-y">
+                {pageItems.map((t) => (
+                  <li key={t.id} className="p-4 flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-medium truncate">{t.subject}</p>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <StatusBadge status={t.status} />
+                        <SentimentBadge sentiment={t.sentiment} />
+                      </div>
                     </div>
+                    <p className="text-xs text-muted-foreground line-clamp-2">
+                      {t.description}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+
+              {total > rowsPerPage && (
+                <div className="flex items-center justify-between border-t px-4 py-3 gap-4">
+                  <p className="text-xs text-muted-foreground">
+                    Mostrando {total === 0 ? 0 : start + 1}–{end} de {total}
+                  </p>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>Filas por página</span>
+                      <Select
+                        value={String(rowsPerPage)}
+                        onValueChange={(value) => {
+                          const size = Number(value);
+                          setRowsPerPage(size);
+                          setPage(0);
+                        }}
+                      >
+                        <SelectTrigger className="h-8 w-16 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ROWS_PER_PAGE_OPTIONS.map((size) => (
+                            <SelectItem key={size} value={String(size)}>
+                              {size}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Pagination>
+                      <PaginationContent>
+                        <PaginationItem>
+                          <PaginationPrevious
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              if (hasPrev) setPage((p) => Math.max(0, p - 1));
+                            }}
+                            className={!hasPrev ? "pointer-events-none opacity-50" : ""}
+                          />
+                        </PaginationItem>
+                        <PaginationItem>
+                          <PaginationNext
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              if (hasNext) setPage((p) => p + 1);
+                            }}
+                            className={!hasNext ? "pointer-events-none opacity-50" : ""}
+                          />
+                        </PaginationItem>
+                      </PaginationContent>
+                    </Pagination>
                   </div>
-                  <p className="text-xs text-muted-foreground line-clamp-2">{t.description}</p>
-                </li>
-              ))}
-            </ul>
+                </div>
+              )}
+            </>
           ) : (
             <p className="p-4 text-sm text-muted-foreground">No hay tickets registrados.</p>
           )}
