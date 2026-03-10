@@ -329,6 +329,98 @@ function ActiveTicketsList({
   );
 }
 
+function ActiveTasksCard({
+  tasks,
+  isLoading,
+  isError,
+  error,
+}: {
+  tasks: TaskResponse[];
+  isLoading: boolean;
+  isError: boolean;
+  error: unknown;
+}) {
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader className="pb-2 flex items-center gap-2">
+          <Activity className="h-4 w-4 text-primary" />
+          <CardTitle className="text-sm">Tareas activas</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-11/12" />
+          <Skeleton className="h-4 w-10/12" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Card>
+        <CardHeader className="pb-2 flex items-center gap-2">
+          <Activity className="h-4 w-4 text-primary" />
+          <CardTitle className="text-sm">Tareas activas</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-destructive">
+            {(error as Error).message}
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (tasks.length === 0) {
+    return (
+      <Card>
+        <CardHeader className="pb-2 flex items-center gap-2">
+          <Activity className="h-4 w-4 text-primary" />
+          <CardTitle className="text-sm">Tareas activas</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            Este cliente no tiene tareas activas.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const sorted = [...tasks].sort((a, b) => {
+    const ad = a.due_at || a.created_at;
+    const bd = b.due_at || b.created_at;
+    return new Date(ad).getTime() - new Date(bd).getTime();
+  });
+
+  return (
+    <Card>
+      <CardHeader className="pb-2 flex items-center gap-2">
+        <Activity className="h-4 w-4 text-primary" />
+        <CardTitle className="text-sm">Tareas activas</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {sorted.map((t) => (
+          <div key={t.id} className="border rounded-md px-3 py-2 flex flex-col gap-1">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-medium truncate">{t.title}</p>
+              <Badge variant="outline" className="text-[11px]">
+                {t.status}
+              </Badge>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              {t.due_at
+                ? `Vence el ${formatDateTime(t.due_at)}`
+                : `Creada el ${formatDateTime(t.created_at)}`}
+            </p>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
 function InteractionsTimeline({
   interactions,
 }: {
@@ -478,6 +570,12 @@ export default function CustomerProfile360Page() {
     enabled: !!customerId,
   });
 
+  const tasksQuery = useQuery({
+    queryKey: ["crm-tasks", customerId],
+    queryFn: () => listTasks({ limit: 50, offset: 0, customer_id: customerId }),
+    enabled: !!customerId,
+  });
+
   const summarizeMutation = useMutation({
     mutationFn: () => summarizeTimeline({ customer_id: customerId! }),
     onSuccess: (data) => {
@@ -569,6 +667,11 @@ export default function CustomerProfile360Page() {
         t.customer_id === customerId &&
         t.status.toLowerCase() !== "closed",
     ) ?? [];
+  const activeTasks: TaskResponse[] =
+    tasksQuery.data?.items.filter((t) => {
+      const s = t.status.toLowerCase();
+      return t.customer_id === customerId && s !== "done" && s !== "cancelled";
+    }) ?? [];
 
   return (
     <div className="animate-fade-in space-y-4 max-w-6xl">
@@ -730,7 +833,7 @@ export default function CustomerProfile360Page() {
           <BenefitsList benefits={benefits} />
         </div>
 
-        {/* Columna derecha: Tabs Timeline / Tickets */}
+        {/* Columna derecha: Tabs Timeline / Tickets + tareas activas */}
         <div className="space-y-4 lg:col-span-2">
           <Tabs defaultValue="timeline" className="space-y-4">
             <TabsList>
@@ -767,6 +870,13 @@ export default function CustomerProfile360Page() {
               )}
             </TabsContent>
           </Tabs>
+
+          <ActiveTasksCard
+            tasks={activeTasks}
+            isLoading={tasksQuery.isLoading}
+            isError={!!tasksQuery.isError}
+            error={tasksQuery.error}
+          />
         </div>
       </div>
 

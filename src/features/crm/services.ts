@@ -49,9 +49,14 @@ function throwOnApiError(error: unknown): never {
 export async function listCustomers(params?: {
   limit?: number;
   offset?: number;
+  search?: string;
 }): Promise<CustomerListResponse> {
   const { data } = await apiClient.get(CUSTOMERS_BASE, {
-    params: { limit: params?.limit ?? 10, offset: params?.offset ?? 0 },
+    params: {
+      limit: params?.limit ?? 10,
+      offset: params?.offset ?? 0,
+      search: params?.search,
+    },
   });
   if (Array.isArray(data)) {
     const items = z.array(CustomerSchema).parse(data);
@@ -165,10 +170,16 @@ export async function listTasks(params?: {
   limit?: number;
   offset?: number;
   status?: string;
+  customer_id?: string;
 }): Promise<TaskResponseList> {
   try {
     const { data } = await apiClient.get<TaskResponseList>(`${CRM_BASE}/tasks`, {
-      params: { limit: params?.limit, offset: params?.offset, status: params?.status },
+      params: {
+        limit: params?.limit,
+        offset: params?.offset,
+        status: params?.status,
+        customer_id: params?.customer_id,
+      },
     });
     return data;
   } catch (error) {
@@ -227,10 +238,19 @@ export async function createTicket(body: CreateTicketRequest): Promise<TicketRes
 export async function listTickets(params?: {
   limit?: number;
   offset?: number;
+  status?: string;
+  search?: string;
+  sort?: string;
 }): Promise<TicketResponseList> {
   try {
     const { data } = await apiClient.get<TicketResponseList>(`${CRM_BASE}/tickets`, {
-      params: { limit: params?.limit, offset: params?.offset },
+      params: {
+        limit: params?.limit,
+        offset: params?.offset,
+        status: params?.status,
+        search: params?.search,
+        sort: params?.sort,
+      },
     });
     return data;
   } catch (error) {

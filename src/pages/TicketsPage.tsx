@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
@@ -120,13 +120,32 @@ export default function TicketsPage() {
   const queryClient = useQueryClient();
   const [pageSize, setPageSize] = useState(20);
   const [offset, setOffset] = useState(0);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string | "_all">("_all");
+  const [sort, setSort] = useState<"date_desc" | "date_asc">("date_desc");
   const [createOpen, setCreateOpen] = useState(false);
   const [createCustomerOpen, setCreateCustomerOpen] = useState(false);
   const [editTicket, setEditTicket] = useState<TicketResponse | null>(null);
 
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setOffset(0);
+    }, 400);
+    return () => clearTimeout(handle);
+  }, [search]);
+
   const ticketsQuery = useQuery({
-    queryKey: ["crm-tickets", pageSize, offset],
-    queryFn: () => listTickets({ limit: pageSize, offset }),
+    queryKey: ["crm-tickets", pageSize, offset, debouncedSearch, statusFilter, sort],
+    queryFn: () =>
+      listTickets({
+        limit: pageSize,
+        offset,
+        status: statusFilter === "_all" ? undefined : statusFilter,
+        search: debouncedSearch || undefined,
+        sort,
+      }),
   });
 
   const customersQuery = useQuery({
@@ -195,6 +214,14 @@ export default function TicketsPage() {
     updateMutation.mutate({ id: editTicket.id, body: values });
   };
 
+  const escalateMutation = useMutation({
+    mutationFn: (id: string) => updateTicket(id, { status: "escalated" }),
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: ["crm-ticket", id] });
+      queryClient.invalidateQueries({ queryKey: ["crm-tickets"] });
+    },
+  });
+
   return (
     <div className="animate-fade-in space-y-4">
       <Link
@@ -219,6 +246,56 @@ export default function TicketsPage() {
           <Plus className="h-4 w-4 mr-2" />
           Nuevo ticket
         </Button>
+      </div>
+
+      {/* Filtros y búsqueda */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <span>Filtrar por estado:</span>
+          <Select
+            value={statusFilter}
+            onValueChange={(value) => {
+              setStatusFilter(value as typeof statusFilter);
+              setOffset(0);
+            }}
+          >
+            <SelectTrigger className="h-8 w-40 text-xs">
+              <SelectValue placeholder="Todos los estados" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="_all">Todos</SelectItem>
+              {STATUS_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <span>Ordenar por fecha:</span>
+          <Select
+            value={sort}
+            onValueChange={(value) => {
+              setSort(value as typeof sort);
+              setOffset(0);
+            }}
+          >
+            <SelectTrigger className="h-8 w-40 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="date_desc">Más recientes primero</SelectItem>
+              <SelectItem value="date_asc">Más antiguos primero</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="w-full sm:w-64">
+          <Input
+            placeholder="Buscar por asunto o cliente…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-9 text-sm"
+          />
+        </div>
       </div>
 
       {ticketsQuery.isLoading && (
@@ -296,6 +373,15 @@ export default function TicketsPage() {
                           onClick={() => openEdit(t)}
                         >
                           Editar
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs"
+                          disabled={escalateMutation.isPending}
+                          onClick={() => escalateMutation.mutate(t.id)}
+                        >
+                          Escalar
                         </Button>
                       </div>
                     </TableCell>

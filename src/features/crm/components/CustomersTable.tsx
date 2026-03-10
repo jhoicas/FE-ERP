@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { UserCircle, Pencil } from "lucide-react";
@@ -33,6 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
 
@@ -43,10 +44,25 @@ export default function CustomersTable() {
   const [offset, setOffset] = useState(0);
   const [editCustomer, setEditCustomer] = useState<CustomerDTO | null>(null);
   const isAdmin = user?.role === "admin";
+   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setOffset(0);
+    }, 400);
+    return () => clearTimeout(handle);
+  }, [search]);
 
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["customers", pageSize, offset],
-    queryFn: () => listCustomers({ limit: pageSize, offset }),
+    queryKey: ["customers", pageSize, offset, debouncedSearch],
+    queryFn: () =>
+      listCustomers({
+        limit: pageSize,
+        offset,
+        search: debouncedSearch || undefined,
+      }),
   });
 
   const items = data?.items ?? [];
@@ -66,6 +82,14 @@ export default function CustomersTable() {
             , contacto y acceso al Perfil 360.
           </p>
         </div>
+        </div>
+        <div className="ml-auto w-full sm:w-64">
+          <Input
+            placeholder="Buscar por nombre, NIT o email…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-8 text-xs"
+          />
       </div>
 
       {isLoading && (
