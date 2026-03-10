@@ -3,7 +3,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CustomersTable from "@/features/crm/components/CustomersTable";
 import TicketsList from "@/features/crm/components/TicketsList";
 import CrmTasksBoard from "@/features/crm/components/CrmTasksBoard";
-import LoyaltyProfiles from "@/features/crm/components/LoyaltyProfiles";
 import ExplainableAcronym from "@/components/shared/ExplainableAcronym";
 
 export default function CRMPage() {
@@ -27,7 +26,9 @@ export default function CRMPage() {
           <TabsTrigger value="tasks" asChild>
             <Link to="/crm/tasks/kanban">Tareas</Link>
           </TabsTrigger>
-          <TabsTrigger value="loyalty">Fidelización</TabsTrigger>
+          <TabsTrigger value="loyalty" asChild>
+            <Link to="/crm/loyalty">Fidelización</Link>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="customers">
@@ -42,9 +43,7 @@ export default function CRMPage() {
           <CrmTasksBoard />
         </TabsContent>
 
-        <TabsContent value="loyalty">
-          <LoyaltyProfiles />
-        </TabsContent>
+        <TabsContent value="loyalty" />
       </Tabs>
     </div>
   );

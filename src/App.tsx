@@ -26,6 +26,7 @@ import SettingsPage from "@/pages/SettingsPage";
 import LoginPage from "@/pages/LoginPage";
 import ProtectedRoute from "@/features/auth/ProtectedRoute";
 import NotFound from "./pages/NotFound";
+import LoyaltyPage from "@/pages/LoyaltyPage";
 
 const queryClient = new QueryClient();
 
@@ -60,6 +61,7 @@ const App = () => (
             <Route path="/crm/tasks/kanban" element={<TasksKanbanPage />} />
             <Route path="/crm/categories" element={<CategoriesPage />} />
             <Route path="/crm/categories/:id/benefits" element={<CategoryBenefitsPage />} />
+            <Route path="/crm/loyalty" element={<LoyaltyPage />} />
             <Route path="/crm/marketing/ai" element={<MarketingAIPage />} />
             <Route path="/crm/customers/:id" element={<CustomerProfile360Page />} />
             <Route path="/crm/:id" element={<ClientDetailPage />} />

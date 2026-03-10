@@ -94,3 +94,17 @@ export const updateCustomerSchema = z.object({
 }));
 
 export type UpdateCustomerRequest = z.infer<typeof updateCustomerSchema>;
+
+export const createBenefitSchema = z.object({
+  name: z.string().min(1, "El nombre es obligatorio"),
+  description: z.string().min(1, "La descripción es obligatoria"),
+});
+
+export type CreateBenefitRequest = z.infer<typeof createBenefitSchema>;
+
+export const updateBenefitSchema = z.object({
+  name: z.string().min(1, "El nombre es obligatorio").optional(),
+  description: z.string().min(1, "La descripción es obligatoria").optional(),
+});
+
+export type UpdateBenefitRequest = z.infer<typeof updateBenefitSchema>;

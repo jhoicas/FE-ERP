@@ -22,6 +22,8 @@ import {
   summarizeTimelineSchema,
   createCustomerSchema,
   updateCustomerSchema,
+  createBenefitSchema,
+  updateBenefitSchema,
   type CreateTaskRequest,
   type UpdateTaskRequest,
   type CreateInteractionRequest,
@@ -30,6 +32,8 @@ import {
   type AssignCategoryRequest,
   type CreateCustomerRequest,
   type UpdateCustomerRequest,
+  type CreateBenefitRequest,
+  type UpdateBenefitRequest,
 } from "@/lib/validations/crm";
 import { z } from "zod";
 import { CustomerSchema, CustomerListResponseSchema, type CustomerDTO, type CustomerListResponse } from "./schemas";
@@ -116,6 +120,38 @@ export async function assignCategory(
     const { data } = await apiClient.put<{ status: string }>(
       `${CRM_BASE}/customers/${customerId}/category`,
       payload
+    );
+    return data;
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}
+
+export async function createBenefit(
+  categoryId: string,
+  body: CreateBenefitRequest,
+): Promise<BenefitResponse> {
+  const payload = createBenefitSchema.parse(body);
+  try {
+    const { data } = await apiClient.post<BenefitResponse>(
+      `${CRM_BASE}/categories/${categoryId}/benefits`,
+      payload,
+    );
+    return data;
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}
+
+export async function updateBenefit(
+  benefitId: string,
+  body: UpdateBenefitRequest,
+): Promise<BenefitResponse> {
+  const payload = updateBenefitSchema.parse(body);
+  try {
+    const { data } = await apiClient.put<BenefitResponse>(
+      `${CRM_BASE}/benefits/${benefitId}`,
+      payload,
     );
     return data;
   } catch (error) {
