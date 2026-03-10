@@ -1,11 +1,67 @@
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CustomersTable from "@/features/crm/components/CustomersTable";
 import TicketsList from "@/features/crm/components/TicketsList";
 import CrmTasksBoard from "@/features/crm/components/CrmTasksBoard";
 import ExplainableAcronym from "@/components/shared/ExplainableAcronym";
+import { useAuthUser } from "@/features/auth/useAuthUser";
+import { hasAccess } from "@/features/auth/permissions";
+
+const CRM_TABS: {
+  value: string;
+  label: string;
+  path?: string;
+  allowedRoles: string[];
+  content?: React.ReactNode;
+}[] = [
+  {
+    value: "customers",
+    label: "Directorio de Clientes",
+    allowedRoles: ["sales", "support", "marketing", "admin"],
+    content: <CustomersTable />,
+  },
+  {
+    value: "tickets",
+    label: "Tickets",
+    path: "/crm/tickets",
+    allowedRoles: ["support", "admin"],
+    content: <TicketsList />,
+  },
+  {
+    value: "tasks",
+    label: "Tareas",
+    path: "/crm/tasks/kanban",
+    allowedRoles: ["sales", "admin"],
+    content: <CrmTasksBoard />,
+  },
+  {
+    value: "campaigns",
+    label: "Laboratorio de campañas",
+    path: "/crm/campaigns",
+    allowedRoles: ["marketing", "admin"],
+    content: null,
+  },
+  {
+    value: "loyalty",
+    label: "Fidelización",
+    path: "/crm/loyalty",
+    allowedRoles: ["admin"],
+    content: null,
+  },
+];
 
 export default function CRMPage() {
+  const user = useAuthUser();
+  const roles = user?.roles ?? (user?.role ? [user.role] : []);
+
+  const visibleTabs = useMemo(
+    () => CRM_TABS.filter((tab) => hasAccess(roles, tab.allowedRoles)),
+    [roles],
+  );
+
+  const defaultTab = visibleTabs[0]?.value ?? "customers";
+
   return (
     <div className="animate-fade-in space-y-4">
       <div>
@@ -17,38 +73,26 @@ export default function CRMPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="customers" className="space-y-4">
+      <Tabs defaultValue={defaultTab} className="space-y-4">
         <TabsList>
-          <TabsTrigger value="customers">Directorio de Clientes</TabsTrigger>
-          <TabsTrigger value="tickets" asChild>
-            <Link to="/crm/tickets">Tickets</Link>
-          </TabsTrigger>
-          <TabsTrigger value="tasks" asChild>
-            <Link to="/crm/tasks/kanban">Tareas</Link>
-          </TabsTrigger>
-          <TabsTrigger value="campaigns" asChild>
-            <Link to="/crm/campaigns">Laboratorio de campañas</Link>
-          </TabsTrigger>
-          <TabsTrigger value="loyalty" asChild>
-            <Link to="/crm/loyalty">Fidelización</Link>
-          </TabsTrigger>
+          {visibleTabs.map((tab) =>
+            tab.path ? (
+              <TabsTrigger key={tab.value} value={tab.value} asChild>
+                <Link to={tab.path}>{tab.label}</Link>
+              </TabsTrigger>
+            ) : (
+              <TabsTrigger key={tab.value} value={tab.value}>
+                {tab.label}
+              </TabsTrigger>
+            ),
+          )}
         </TabsList>
 
-        <TabsContent value="customers">
-          <CustomersTable />
-        </TabsContent>
-
-        <TabsContent value="tickets">
-          <TicketsList />
-        </TabsContent>
-
-        <TabsContent value="tasks">
-          <CrmTasksBoard />
-        </TabsContent>
-
-        <TabsContent value="campaigns" />
-
-        <TabsContent value="loyalty" />
+        {visibleTabs.map((tab) => (
+          <TabsContent key={tab.value} value={tab.value}>
+            {tab.content}
+          </TabsContent>
+        ))}
       </Tabs>
     </div>
   );

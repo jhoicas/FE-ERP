@@ -26,6 +26,7 @@ import AiCampaignGenerator from "@/features/crm/components/AiCampaignGenerator";
 import SettingsPage from "@/pages/SettingsPage";
 import LoginPage from "@/pages/LoginPage";
 import ProtectedRoute from "@/features/auth/ProtectedRoute";
+import UsersManagement from "@/features/auth/components/UsersManagement";
 import NotFound from "./pages/NotFound";
 import LoyaltyPage from "@/pages/LoyaltyPage";
 
@@ -48,26 +49,182 @@ const App = () => (
           >
             <Route path="/" element={<DashboardPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/inventario" element={<InventoryPage />} />
-            <Route path="/inventory/products" element={<InventoryProductsPage />} />
-            <Route path="/inventory/warehouses" element={<WarehousesListPage />} />
-            <Route path="/inventory/warehouses/:id/stock" element={<WarehouseStockPage />} />
-            <Route path="/inventory/movements" element={<InventoryMovementsPage />} />
-            <Route path="/facturacion" element={<BillingPage />} />
-            <Route path="/crm" element={<CRMPage />} />
-            <Route path="/crm/tickets" element={<TicketsPage />} />
-            <Route path="/crm/tickets/:id" element={<TicketDetailPage />} />
-            <Route path="/crm/tasks" element={<TasksPage />} />
-            <Route path="/crm/tasks/:id" element={<TaskDetailPage />} />
-            <Route path="/crm/tasks/kanban" element={<TasksKanbanPage />} />
-            <Route path="/crm/categories" element={<CategoriesPage />} />
-            <Route path="/crm/categories/:id/benefits" element={<CategoryBenefitsPage />} />
-            <Route path="/crm/loyalty" element={<LoyaltyPage />} />
-            <Route path="/crm/marketing/ai" element={<MarketingAIPage />} />
-            <Route path="/crm/campaigns" element={<AiCampaignGenerator />} />
-            <Route path="/crm/customers/:id" element={<CustomerProfile360Page />} />
-            <Route path="/crm/:id" element={<ClientDetailPage />} />
-            <Route path="/ajustes" element={<SettingsPage />} />
+            {/* Inventario y facturación: solo admin */}
+            <Route
+              path="/inventario"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <InventoryPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/inventory/products"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <InventoryProductsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/inventory/warehouses"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <WarehousesListPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/inventory/warehouses/:id/stock"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <WarehouseStockPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/inventory/movements"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <InventoryMovementsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/facturacion"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <BillingPage />
+                </ProtectedRoute>
+              }
+            />
+            {/* CRM */}
+            <Route
+              path="/crm"
+              element={
+                <ProtectedRoute allowedRoles={["sales", "support", "marketing", "admin"]}>
+                  <CRMPage />
+                </ProtectedRoute>
+              }
+            />
+            {/* Tickets: soporte y admin */}
+            <Route
+              path="/crm/tickets"
+              element={
+                <ProtectedRoute allowedRoles={["support", "admin"]}>
+                  <TicketsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/crm/tickets/:id"
+              element={
+                <ProtectedRoute allowedRoles={["support", "admin"]}>
+                  <TicketDetailPage />
+                </ProtectedRoute>
+              }
+            />
+            {/* Tareas: ventas y admin */}
+            <Route
+              path="/crm/tasks"
+              element={
+                <ProtectedRoute allowedRoles={["sales", "admin"]}>
+                  <TasksPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/crm/tasks/:id"
+              element={
+                <ProtectedRoute allowedRoles={["sales", "admin"]}>
+                  <TaskDetailPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/crm/tasks/kanban"
+              element={
+                <ProtectedRoute allowedRoles={["sales", "admin"]}>
+                  <TasksKanbanPage />
+                </ProtectedRoute>
+              }
+            />
+            {/* Configuración de fidelización: solo admin */}
+            <Route
+              path="/crm/categories"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <CategoriesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/crm/categories/:id/benefits"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <CategoryBenefitsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/crm/loyalty"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <LoyaltyPage />
+                </ProtectedRoute>
+              }
+            />
+            {/* Marketing / campañas IA */}
+            <Route
+              path="/crm/marketing/ai"
+              element={
+                <ProtectedRoute allowedRoles={["marketing", "admin"]}>
+                  <MarketingAIPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/crm/campaigns"
+              element={
+                <ProtectedRoute allowedRoles={["marketing", "admin"]}>
+                  <AiCampaignGenerator />
+                </ProtectedRoute>
+              }
+            />
+            {/* Perfil de clientes: ventas, soporte, marketing y admin */}
+            <Route
+              path="/crm/customers/:id"
+              element={
+                <ProtectedRoute allowedRoles={["sales", "support", "marketing", "admin"]}>
+                  <CustomerProfile360Page />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/crm/:id"
+              element={
+                <ProtectedRoute allowedRoles={["sales", "support", "marketing", "admin"]}>
+                  <ClientDetailPage />
+                </ProtectedRoute>
+              }
+            />
+            {/* Ajustes solo admin */}
+            <Route
+              path="/ajustes"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <SettingsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/settings/users"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <UsersManagement />
+                </ProtectedRoute>
+              }
+            />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

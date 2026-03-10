@@ -1,28 +1,60 @@
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
-  LayoutDashboard, Package, FileText, Users,
-  Settings, User, Leaf, ChevronLeft
+  LayoutDashboard,
+  Package,
+  FileText,
+  Users,
+  Settings,
+  User,
+  Leaf,
+  ChevronLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Cookies from "js-cookie";
 import { AUTH_TOKEN_COOKIE_KEY } from "@/config/auth";
 import { useState } from "react";
+import { useAuthUser } from "@/features/auth/useAuthUser";
+import { hasAccess } from "@/features/auth/permissions";
 
-const navItems = [
+const navItems: {
+  label: string;
+  path: string;
+  icon: React.ComponentType<{ className?: string }>;
+  allowedRoles?: string[];
+}[] = [
   { label: "Dashboard", path: "/", icon: LayoutDashboard },
-  { label: "Inventario", path: "/inventario", icon: Package },
-  { label: "Facturación", path: "/facturacion", icon: FileText },
-  { label: "CRM / Clientes", path: "/crm", icon: Users },
+  { label: "Inventario", path: "/inventario", icon: Package, allowedRoles: ["admin"] },
+  { label: "Facturación", path: "/facturacion", icon: FileText, allowedRoles: ["admin"] },
+  // CRM: solo visible para roles relacionados con clientes
+  {
+    label: "CRM / Clientes",
+    path: "/crm",
+    icon: Users,
+    allowedRoles: ["sales", "support", "marketing", "admin"],
+  },
 ];
 
-const bottomItems = [
-  { label: "Ajustes", path: "/ajustes", icon: Settings },
+const bottomItems: {
+  label: string;
+  path: string;
+  icon: React.ComponentType<{ className?: string }>;
+  allowedRoles?: string[];
+}[] = [
+  { label: "Ajustes", path: "/ajustes", icon: Settings, allowedRoles: ["admin"] },
+  {
+    label: "Gestión de Usuarios",
+    path: "/settings/users",
+    icon: Users,
+    allowedRoles: ["admin"],
+  },
 ];
 
 export default function AppSidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+  const user = useAuthUser();
+  const roles = user?.roles ?? (user?.role ? [user.role] : []);
 
   const handleLogout = () => {
     Cookies.remove(AUTH_TOKEN_COOKIE_KEY);
@@ -58,7 +90,9 @@ export default function AppSidebar() {
 
       {/* Main Nav */}
       <nav className="flex-1 py-3 px-2 space-y-1">
-        {navItems.map((item) => {
+        {navItems
+          .filter((item) => hasAccess(roles, item.allowedRoles))
+          .map((item) => {
           const active = item.path === "/" 
             ? location.pathname === "/" 
             : location.pathname.startsWith(item.path);
@@ -82,16 +116,18 @@ export default function AppSidebar() {
 
       {/* Bottom */}
       <div className="py-3 px-2 border-t border-sidebar-border space-y-1">
-        {bottomItems.map((item) => (
-          <NavLink
-            key={item.path}
-            to={item.path}
-            className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-sidebar-fg hover:text-sidebar-fg-active hover:bg-sidebar-border/50 transition-colors"
-          >
-            <item.icon className="h-4 w-4 shrink-0" />
-            {!collapsed && <span>{item.label}</span>}
-          </NavLink>
-        ))}
+        {bottomItems
+          .filter((item) => hasAccess(roles, item.allowedRoles))
+          .map((item) => (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-sidebar-fg hover:text-sidebar-fg-active hover:bg-sidebar-border/50 transition-colors"
+            >
+              <item.icon className="h-4 w-4 shrink-0" />
+              {!collapsed && <span>{item.label}</span>}
+            </NavLink>
+          ))}
         <button
           type="button"
           onClick={handleLogout}
