@@ -14,6 +14,7 @@ import {
   Activity,
   Ticket,
   Sparkles,
+  Pencil,
 } from "lucide-react";
 
 import {
@@ -23,6 +24,8 @@ import {
   listTickets,
   summarizeTimeline,
 } from "@/features/crm/services";
+import { useAuthUser } from "@/features/auth/useAuthUser";
+import EditCustomerDialog from "@/features/crm/components/EditCustomerDialog";
 import RegisterInteractionDialog from "@/features/crm/components/RegisterInteractionDialog";
 import { assignCategorySchema, type AssignCategoryRequest } from "@/lib/validations/crm";
 import type { InteractionResponse, TicketResponse } from "@/types/crm";
@@ -447,8 +450,11 @@ export default function CustomerProfile360Page() {
   const { id: customerId } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const user = useAuthUser();
+  const isAdmin = user?.role === "admin";
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [interactionDialogOpen, setInteractionDialogOpen] = useState(false);
+  const [editCustomerOpen, setEditCustomerOpen] = useState(false);
    const [recentInteractions, setRecentInteractions] = useState<
     InteractionResponse[]
   >([]);
@@ -573,14 +579,26 @@ export default function CustomerProfile360Page() {
         >
           <ArrowLeft className="h-4 w-4" /> Volver al CRM
         </button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setInteractionDialogOpen(true)}
-        >
-          <MessageSquare className="h-4 w-4 mr-2" />
-          Registrar interacción
-        </Button>
+        <div className="flex gap-2">
+          {isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setEditCustomerOpen(true)}
+            >
+              <Pencil className="h-4 w-4 mr-2" />
+              Editar Cliente
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setInteractionDialogOpen(true)}
+          >
+            <MessageSquare className="h-4 w-4 mr-2" />
+            Registrar interacción
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -759,6 +777,22 @@ export default function CustomerProfile360Page() {
         invalidateProfile360
         onCreated={(interaction) =>
           setRecentInteractions((prev) => [interaction, ...prev])
+        }
+      />
+
+      <EditCustomerDialog
+        open={editCustomerOpen}
+        onOpenChange={setEditCustomerOpen}
+        customer={
+          profile
+            ? {
+                id: customer.id,
+                name: customer.name,
+                email: customer.email ?? undefined,
+                phone: customer.phone ?? undefined,
+                tax_id: customer.tax_id ?? undefined,
+              }
+            : null
         }
       />
     </div>

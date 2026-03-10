@@ -68,3 +68,29 @@ export const summarizeTimelineSchema = z.object({
 });
 
 export type SummarizeTimelineRequest = z.infer<typeof summarizeTimelineSchema>;
+
+export const createCustomerSchema = z.object({
+  name: z.string().min(1, "El nombre es obligatorio"),
+  email: z.string().email("Email inválido").optional().or(z.literal("")),
+  phone: z.string().optional(),
+  tax_id: z.string().optional(),
+}).transform((v) => ({
+  name: v.name,
+  email: v.email === "" ? undefined : v.email,
+  phone: v.phone || undefined,
+  tax_id: v.tax_id || undefined,
+}));
+
+export type CreateCustomerRequest = z.infer<typeof createCustomerSchema>;
+
+export const updateCustomerSchema = z.object({
+  name: z.string().min(1, "El nombre es obligatorio").optional(),
+  email: z.union([z.string().email("Email inválido"), z.literal("")]).optional(),
+  phone: z.string().optional(),
+  tax_id: z.string().optional(),
+}).transform((v) => ({
+  ...v,
+  email: v.email === "" ? undefined : v.email,
+}));
+
+export type UpdateCustomerRequest = z.infer<typeof updateCustomerSchema>;

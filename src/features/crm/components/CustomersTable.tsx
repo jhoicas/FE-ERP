@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { UserCircle } from "lucide-react";
+import { UserCircle, Pencil } from "lucide-react";
 
 import { listCustomers } from "@/features/crm/services";
+import { useAuthUser } from "@/features/auth/useAuthUser";
+import EditCustomerDialog from "@/features/crm/components/EditCustomerDialog";
+import type { CustomerDTO } from "@/features/crm/schemas";
 import { getApiErrorMessage } from "@/lib/api/errors";
 import {
   Table,
@@ -35,8 +38,11 @@ const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
 
 export default function CustomersTable() {
   const navigate = useNavigate();
+  const user = useAuthUser();
   const [pageSize, setPageSize] = useState(10);
   const [offset, setOffset] = useState(0);
+  const [editCustomer, setEditCustomer] = useState<CustomerDTO | null>(null);
+  const isAdmin = user?.role === "admin";
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["customers", pageSize, offset],
@@ -111,14 +117,27 @@ export default function CustomersTable() {
                       {c.phone ?? "—"}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-xs"
-                        onClick={() => navigate(`/crm/customers/${c.id}`)}
-                      >
-                        Ver perfil 360
-                      </Button>
+                      <div className="flex justify-end gap-2">
+                        {isAdmin && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-xs"
+                            onClick={() => setEditCustomer(c)}
+                          >
+                            <Pencil className="h-3 w-3 mr-1" />
+                            Editar Cliente
+                          </Button>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs"
+                          onClick={() => navigate(`/crm/customers/${c.id}`)}
+                        >
+                          Ver perfil 360
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -184,6 +203,12 @@ export default function CustomersTable() {
           )}
         </div>
       )}
+
+      <EditCustomerDialog
+        open={!!editCustomer}
+        onOpenChange={(o) => !o && setEditCustomer(null)}
+        customer={editCustomer}
+      />
     </div>
   );
 }

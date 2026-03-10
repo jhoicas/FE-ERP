@@ -20,12 +20,16 @@ import {
   assignCategorySchema,
   campaignCopySchema,
   summarizeTimelineSchema,
+  createCustomerSchema,
+  updateCustomerSchema,
   type CreateTaskRequest,
   type UpdateTaskRequest,
   type CreateInteractionRequest,
   type CreateTicketRequest,
   type UpdateTicketRequest,
   type AssignCategoryRequest,
+  type CreateCustomerRequest,
+  type UpdateCustomerRequest,
 } from "@/lib/validations/crm";
 import { z } from "zod";
 import { CustomerSchema, CustomerListResponseSchema, type CustomerDTO, type CustomerListResponse } from "./schemas";
@@ -59,6 +63,32 @@ export async function listCustomers(params?: {
 export async function getCustomers(): Promise<CustomerDTO[]> {
   const response = await apiClient.get(CUSTOMERS_BASE);
   return z.array(CustomerSchema).parse(response.data);
+}
+
+export async function createCustomer(body: CreateCustomerRequest): Promise<CustomerDTO> {
+  const payload = createCustomerSchema.parse(body);
+  try {
+    const { data } = await apiClient.post<CustomerDTO>(CUSTOMERS_BASE, payload);
+    return CustomerSchema.parse(data);
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}
+
+export async function updateCustomer(
+  customerId: string,
+  body: UpdateCustomerRequest
+): Promise<CustomerDTO> {
+  const payload = updateCustomerSchema.parse(body);
+  try {
+    const { data } = await apiClient.put<CustomerDTO>(
+      `${CUSTOMERS_BASE}/${customerId}`,
+      payload
+    );
+    return CustomerSchema.parse(data);
+  } catch (error) {
+    return throwOnApiError(error);
+  }
 }
 
 export async function getProfile360(customerId: string): Promise<Profile360Response> {

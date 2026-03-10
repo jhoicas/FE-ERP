@@ -12,6 +12,7 @@ import {
   updateTicket,
   getCustomers,
 } from "@/features/crm/services";
+import CreateCustomerDialog from "@/features/crm/components/CreateCustomerDialog";
 import {
   createTicketSchema,
   updateTicketSchema,
@@ -120,6 +121,7 @@ export default function TicketsPage() {
   const [pageSize, setPageSize] = useState(20);
   const [offset, setOffset] = useState(0);
   const [createOpen, setCreateOpen] = useState(false);
+  const [createCustomerOpen, setCreateCustomerOpen] = useState(false);
   const [editTicket, setEditTicket] = useState<TicketResponse | null>(null);
 
   const ticketsQuery = useQuery({
@@ -361,6 +363,15 @@ export default function TicketsPage() {
         </div>
       )}
 
+      <CreateCustomerDialog
+        open={createCustomerOpen}
+        onOpenChange={setCreateCustomerOpen}
+        onCreated={(customerId) => {
+          createForm.setValue("customer_id", customerId);
+          queryClient.invalidateQueries({ queryKey: ["customers-list"] });
+        }}
+      />
+
       {/* Dialog Crear ticket */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent>
@@ -374,7 +385,19 @@ export default function TicketsPage() {
                 name="customer_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Cliente</FormLabel>
+                    <div className="flex items-center gap-2">
+                      <FormLabel>Cliente</FormLabel>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8 shrink-0"
+                        onClick={() => setCreateCustomerOpen(true)}
+                        title="Crear nuevo cliente"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
                     <Select
                       onValueChange={field.onChange}
                       value={field.value}
