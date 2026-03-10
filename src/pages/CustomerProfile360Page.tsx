@@ -22,13 +22,14 @@ import {
   assignCategory,
   listCategories,
   listTickets,
+  listTasks,
   summarizeTimeline,
 } from "@/features/crm/services";
 import { useAuthUser } from "@/features/auth/useAuthUser";
 import EditCustomerDialog from "@/features/crm/components/EditCustomerDialog";
 import RegisterInteractionDialog from "@/features/crm/components/RegisterInteractionDialog";
 import { assignCategorySchema, type AssignCategoryRequest } from "@/lib/validations/crm";
-import type { InteractionResponse, TicketResponse } from "@/types/crm";
+import type { InteractionResponse, TicketResponse, TaskResponse } from "@/types/crm";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -839,6 +840,7 @@ export default function CustomerProfile360Page() {
             <TabsList>
               <TabsTrigger value="timeline">Timeline</TabsTrigger>
               <TabsTrigger value="tickets">Tickets</TabsTrigger>
+              <TabsTrigger value="tasks">Tareas</TabsTrigger>
             </TabsList>
 
             <TabsContent value="timeline" className="space-y-4">
@@ -869,14 +871,15 @@ export default function CustomerProfile360Page() {
                 <ActiveTicketsList tickets={activeTickets} />
               )}
             </TabsContent>
+            <TabsContent value="tasks">
+              <ActiveTasksCard
+                tasks={activeTasks}
+                isLoading={tasksQuery.isLoading}
+                isError={!!tasksQuery.isError}
+                error={tasksQuery.error}
+              />
+            </TabsContent>
           </Tabs>
-
-          <ActiveTasksCard
-            tasks={activeTasks}
-            isLoading={tasksQuery.isLoading}
-            isError={!!tasksQuery.isError}
-            error={tasksQuery.error}
-          />
         </div>
       </div>
 
