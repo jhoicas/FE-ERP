@@ -460,7 +460,7 @@ function ProductEditDialog({
 
 export default function InventoryProductsPage() {
   const navigate = useNavigate();
-  const [pageSize, setPageSize] = useState<number>(20);
+  const [pageSize, setPageSize] = useState<number>(5);
   const [offset, setOffset] = useState<number>(0);
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);

@@ -41,7 +41,7 @@ const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
 export default function CustomersTable() {
   const navigate = useNavigate();
   const user = useAuthUser();
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(5);
   const [offset, setOffset] = useState(0);
   const [editCustomer, setEditCustomer] = useState<CustomerDTO | null>(null);
   const canEditCustomers = isAdmin(user);

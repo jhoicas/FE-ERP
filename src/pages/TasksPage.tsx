@@ -121,7 +121,7 @@ function formatDateTime(iso: string): string {
 export default function TasksPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(5);
   const [offset, setOffset] = useState(0);
   const [statusFilter, setStatusFilter] = useState<string>("_all");
   const [createOpen, setCreateOpen] = useState(false);

@@ -151,7 +151,7 @@ function WarehouseCreateDialog({
 
 export default function WarehousesListPage() {
   const navigate = useNavigate();
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(5);
   const [offset, setOffset] = useState(0);
   const [createOpen, setCreateOpen] = useState(false);
 

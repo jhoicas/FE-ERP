@@ -55,7 +55,7 @@ function formatLtv(value: string): string {
 
 export default function CategoriesPage() {
   const navigate = useNavigate();
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(5);
   const [offset, setOffset] = useState(0);
 
   const categoriesQuery = useQuery({

@@ -118,7 +118,7 @@ function formatDate(iso: string): string {
 export default function TicketsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(5);
   const [offset, setOffset] = useState(0);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
