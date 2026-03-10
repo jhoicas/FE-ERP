@@ -13,6 +13,7 @@ import {
 } from "@/features/crm/services";
 import type { CategoryResponse, BenefitResponse } from "@/types/crm";
 import { useAuthUser } from "@/features/auth/useAuthUser";
+import { isAdmin } from "@/features/auth/permissions";
 import {
   createBenefitSchema,
   updateBenefitSchema,
@@ -135,7 +136,7 @@ function BenefitForm({
 
 export default function LoyaltyPage() {
   const user = useAuthUser();
-  const isAdmin = user?.role === "admin";
+  const canManageLoyalty = isAdmin(user);
   const queryClient = useQueryClient();
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -251,7 +252,7 @@ export default function LoyaltyPage() {
               )}
             </p>
           </div>
-          {isAdmin && selectedCategory && (
+          {canManageLoyalty && selectedCategory && (
             <Button
               size="sm"
               variant="outline"
@@ -306,7 +307,7 @@ export default function LoyaltyPage() {
                           {b.description}
                         </p>
                       </div>
-                      {isAdmin && (
+                      {canManageLoyalty && (
                         <Button
                           variant="ghost"
                           size="sm"
@@ -327,7 +328,7 @@ export default function LoyaltyPage() {
       </div>
 
       {/* Dialog Crear beneficio (solo admin) */}
-      {isAdmin && selectedCategory && (
+      {canManageLoyalty && selectedCategory && (
         <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
           <DialogContent>
             <DialogHeader>
@@ -349,7 +350,7 @@ export default function LoyaltyPage() {
       )}
 
       {/* Dialog Editar beneficio (solo admin) */}
-      {isAdmin && editingBenefit && (
+      {canManageLoyalty && editingBenefit && (
         <Dialog open={!!editingBenefit} onOpenChange={(open) => !open && setEditingBenefit(null)}>
           <DialogContent>
             <DialogHeader>

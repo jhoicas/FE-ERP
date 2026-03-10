@@ -6,7 +6,7 @@ import TicketsList from "@/features/crm/components/TicketsList";
 import CrmTasksBoard from "@/features/crm/components/CrmTasksBoard";
 import ExplainableAcronym from "@/components/shared/ExplainableAcronym";
 import { useAuthUser } from "@/features/auth/useAuthUser";
-import { hasAccess } from "@/features/auth/permissions";
+import { getUserRoles, hasAccess } from "@/features/auth/permissions";
 
 const CRM_TABS: {
   value: string;
@@ -53,7 +53,7 @@ const CRM_TABS: {
 
 export default function CRMPage() {
   const user = useAuthUser();
-  const roles = user?.roles ?? (user?.role ? [user.role] : []);
+  const roles = getUserRoles(user);
 
   const visibleTabs = useMemo(
     () => CRM_TABS.filter((tab) => hasAccess(roles, tab.allowedRoles)),

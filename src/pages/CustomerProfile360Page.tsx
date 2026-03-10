@@ -26,6 +26,7 @@ import {
   summarizeTimeline,
 } from "@/features/crm/services";
 import { useAuthUser } from "@/features/auth/useAuthUser";
+import { isAdmin } from "@/features/auth/permissions";
 import EditCustomerDialog from "@/features/crm/components/EditCustomerDialog";
 import RegisterInteractionDialog from "@/features/crm/components/RegisterInteractionDialog";
 import { assignCategorySchema, type AssignCategoryRequest } from "@/lib/validations/crm";
@@ -544,7 +545,7 @@ export default function CustomerProfile360Page() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const user = useAuthUser();
-  const isAdmin = user?.role === "admin";
+  const canEditCustomer = isAdmin(user);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [interactionDialogOpen, setInteractionDialogOpen] = useState(false);
   const [editCustomerOpen, setEditCustomerOpen] = useState(false);
@@ -684,7 +685,7 @@ export default function CustomerProfile360Page() {
           <ArrowLeft className="h-4 w-4" /> Volver al CRM
         </button>
         <div className="flex gap-2">
-          {isAdmin && (
+          {canEditCustomer && (
             <Button
               variant="outline"
               size="sm"

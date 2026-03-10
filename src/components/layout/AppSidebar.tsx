@@ -14,7 +14,7 @@ import Cookies from "js-cookie";
 import { AUTH_TOKEN_COOKIE_KEY } from "@/config/auth";
 import { useState } from "react";
 import { useAuthUser } from "@/features/auth/useAuthUser";
-import { hasAccess } from "@/features/auth/permissions";
+import { getUserRoles, hasAccess } from "@/features/auth/permissions";
 
 const navItems: {
   label: string;
@@ -54,7 +54,7 @@ export default function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const user = useAuthUser();
-  const roles = user?.roles ?? (user?.role ? [user.role] : []);
+  const roles = getUserRoles(user);
 
   const handleLogout = () => {
     Cookies.remove(AUTH_TOKEN_COOKIE_KEY);

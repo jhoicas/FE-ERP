@@ -5,6 +5,7 @@ import { UserCircle, Pencil } from "lucide-react";
 
 import { listCustomers } from "@/features/crm/services";
 import { useAuthUser } from "@/features/auth/useAuthUser";
+import { isAdmin } from "@/features/auth/permissions";
 import EditCustomerDialog from "@/features/crm/components/EditCustomerDialog";
 import type { CustomerDTO } from "@/features/crm/schemas";
 import { getApiErrorMessage } from "@/lib/api/errors";
@@ -43,7 +44,7 @@ export default function CustomersTable() {
   const [pageSize, setPageSize] = useState(10);
   const [offset, setOffset] = useState(0);
   const [editCustomer, setEditCustomer] = useState<CustomerDTO | null>(null);
-  const isAdmin = user?.role === "admin";
+  const canEditCustomers = isAdmin(user);
    const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
@@ -142,7 +143,7 @@ export default function CustomersTable() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        {isAdmin && (
+                        {canEditCustomers && (
                           <Button
                             variant="ghost"
                             size="sm"
