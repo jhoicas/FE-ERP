@@ -2,6 +2,8 @@ import { Search, Bell } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { useDianEnvironment } from "@/hooks/use-dian-environment";
 
 const titles: Record<string, string> = {
   "/": "Dashboard",
@@ -13,6 +15,7 @@ const titles: Record<string, string> = {
 
 export default function AppHeader() {
   const location = useLocation();
+  const { environment } = useDianEnvironment();
   const title = Object.entries(titles).find(([path]) =>
     path === "/" ? location.pathname === "/" : location.pathname.startsWith(path)
   )?.[1] ?? "NaturERP";
@@ -20,6 +23,16 @@ export default function AppHeader() {
   return (
     <header className="h-14 border-b flex items-center gap-4 px-6">
       <h1 className="text-sm font-semibold">{title}</h1>
+      <Badge
+        variant="outline"
+        className={
+          environment === "production"
+            ? "border-success/40 bg-success/15 text-success"
+            : "border-warning/40 bg-warning/15 text-warning"
+        }
+      >
+        {environment === "production" ? "DIAN: PRODUCCIÓN" : "DIAN: PRUEBAS"}
+      </Badge>
       <div className="flex-1 max-w-md ml-auto relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input placeholder="Buscar productos, clientes, facturas…" className="pl-9 h-9 text-sm" />

@@ -15,6 +15,8 @@ import { AUTH_TOKEN_COOKIE_KEY } from "@/config/auth";
 import { useState } from "react";
 import { useAuthUser } from "@/features/auth/useAuthUser";
 import { getUserRoles, hasAccess } from "@/features/auth/permissions";
+import { Badge } from "@/components/ui/badge";
+import { useDianEnvironment } from "@/hooks/use-dian-environment";
 
 const navItems: {
   label: string;
@@ -55,6 +57,7 @@ export default function AppSidebar() {
   const navigate = useNavigate();
   const user = useAuthUser();
   const roles = getUserRoles(user);
+  const { environment } = useDianEnvironment();
 
   const handleLogout = () => {
     Cookies.remove(AUTH_TOKEN_COOKIE_KEY);
@@ -86,6 +89,21 @@ export default function AppSidebar() {
         >
           <ChevronLeft className={cn("h-4 w-4 transition-transform", collapsed && "rotate-180")} />
         </button>
+      </div>
+
+      {/* DIAN Environment Badge */}
+      <div className="px-2 py-2">
+        <Badge
+          variant="outline"
+          className={cn(
+            "w-full justify-center text-xs",
+            environment === "production"
+              ? "border-success/40 bg-success/15 text-success"
+              : "border-warning/40 bg-warning/15 text-warning"
+          )}
+        >
+          {collapsed ? (environment === "production" ? "PROD" : "TEST") : (environment === "production" ? "DIAN: PRODUCCIÓN" : "DIAN: PRUEBAS")}
+        </Badge>
       </div>
 
       {/* Main Nav */}
