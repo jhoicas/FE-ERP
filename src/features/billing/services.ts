@@ -103,3 +103,8 @@ export async function sendInvoiceEmail(invoiceId: string): Promise<SendInvoiceEm
   const response = await apiClient.post(`/api/invoices/${invoiceId}/send-email`);
   return response.data as SendInvoiceEmailResult;
 }
+
+export async function retryDian(invoiceId: string): Promise<unknown> {
+  const response = await apiClient.post(`/api/invoices/${invoiceId}/retry-dian`);
+  return response.data;
+}

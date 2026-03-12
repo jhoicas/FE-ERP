@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarIcon, FileText, Loader2, Mail } from "lucide-react";
+import { CalendarIcon, FileText, Loader2, Mail, RotateCcw } from "lucide-react";
 import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { useSearchParams } from "react-router-dom";
 
-import { getInvoices, sendInvoiceEmail } from "@/features/billing/services";
+import { getInvoices, sendInvoiceEmail, retryDian } from "@/features/billing/services";
 import { useToast } from "@/hooks/use-toast";
 import { getApiErrorMessage } from "@/lib/api/errors";
 import { Badge } from "@/components/ui/badge";
@@ -110,6 +110,14 @@ function StatusBadge({ status }: { status: string }) {
     );
   }
 
+  if (normalized === "CONTINGENCIA") {
+    return (
+      <Badge variant="outline" className="text-[10px] border-warning/40 bg-warning/15 text-warning">
+        Contingencia
+      </Badge>
+    );
+  }
+
   if (normalized === "DRAFT" || normalized === "PENDING") {
     return (
       <Badge variant="secondary" className="text-[10px]">
@@ -173,6 +181,54 @@ function SendEmailButton({
         <Mail className="h-3.5 w-3.5" />
       )}
       <span className="sr-only">Reenviar por email</span>
+    </Button>
+  );
+}
+
+function RetryDianButton({
+  invoiceId,
+  invoiceNumber,
+}: {
+  invoiceId: string;
+  invoiceNumber: string;
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: () => retryDian(invoiceId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["billing", "invoices"] });
+      toast({
+        title: `Factura ${invoiceNumber} reenviada a DIAN`,
+      });
+    },
+    onError: (error: unknown) => {
+      const message =
+        error instanceof Error ? error.message : "Error al reintentar envío a DIAN";
+      toast({
+        title: "Error al reintentar",
+        description: message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      className="text-xs"
+      disabled={mutation.isPending}
+      onClick={() => mutation.mutate()}
+    >
+      {mutation.isPending ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      ) : (
+        <RotateCcw className="h-3.5 w-3.5" />
+      )}
+      <span className="hidden sm:inline ml-1">Reintentar</span>
+      <span className="sr-only">Reintentar DIAN</span>
     </Button>
   );
 }
@@ -410,6 +466,9 @@ export default function InvoicesTable() {
                                 <TooltipContent>Correo enviado</TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
+                          )}
+                          {inv.dian_status === "CONTINGENCIA" && (
+                            <RetryDianButton invoiceId={inv.id} invoiceNumber={displayNumber} />
                           )}
                           {inv.dian_status === "Sent" && (
                             <>

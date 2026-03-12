@@ -6,7 +6,7 @@ export const InvoiceSchema = z.object({
   prefix: z.string(),
   date: z.string(),
   grand_total: z.number(),
-  dian_status: z.enum(["Sent", "Error", "DRAFT", "Pending"]),
+  dian_status: z.enum(["Sent", "Error", "DRAFT", "Pending", "CONTINGENCIA"]),
   customer_name: z.string().optional(),
   customer_email: z.string().optional(),
   email_sent: z.boolean().optional(),
