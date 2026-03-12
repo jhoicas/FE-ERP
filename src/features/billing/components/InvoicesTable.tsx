@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import ExplainableAcronym from "@/components/shared/ExplainableAcronym";
 import DebitNoteDialog from "@/features/billing/components/DebitNoteDialog";
+import VoidInvoiceDialog from "@/features/billing/components/VoidInvoiceDialog";
 
 function StatusBadge({ status }: { status: string }) {
   const normalized = status.toUpperCase();
@@ -111,7 +112,10 @@ export default function InvoicesTable() {
                       <td className="py-3 px-4 text-right">
                         <div className="flex justify-end gap-2">
                           {inv.dian_status === "Sent" && (
-                            <DebitNoteDialog invoiceId={inv.id} invoiceNumber={displayNumber} />
+                            <>
+                              <VoidInvoiceDialog invoiceId={inv.id} invoiceNumber={displayNumber} />
+                              <DebitNoteDialog invoiceId={inv.id} invoiceNumber={displayNumber} />
+                            </>
                           )}
                           <Button variant="ghost" size="sm" className="text-xs">
                             Ver XML

@@ -23,6 +23,11 @@ export interface CreateDebitNoteInput {
   items: DebitNoteItemInput[];
 }
 
+export interface VoidInvoiceInput {
+  concept: number;
+  reason: string;
+}
+
 export async function getInvoices(): Promise<InvoiceDTO[]> {
   const response = await apiClient.get("/api/invoices");
   return z.array(InvoiceSchema).parse(response.data);
@@ -79,5 +84,13 @@ export async function createDebitNote(
   payload: CreateDebitNoteInput,
 ): Promise<unknown> {
   const response = await apiClient.post(`/api/invoices/${invoiceId}/debit-note`, payload);
+  return response.data;
+}
+
+export async function voidInvoice(
+  invoiceId: string,
+  payload: VoidInvoiceInput,
+): Promise<unknown> {
+  const response = await apiClient.post(`/api/invoices/${invoiceId}/void`, payload);
   return response.data;
 }
