@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { UserCircle, Pencil } from "lucide-react";
 
 import { listCustomers } from "@/features/crm/services";
@@ -40,13 +40,17 @@ const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
 
 export default function CustomersTable() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const user = useAuthUser();
-  const [pageSize, setPageSize] = useState(5);
-  const [offset, setOffset] = useState(0);
+  const initialPageSize = Number(searchParams.get("pageSize")) || 5;
+  const initialOffset = Number(searchParams.get("offset")) || 0;
+  const initialSearch = searchParams.get("search") ?? "";
+  const [pageSize, setPageSize] = useState(initialPageSize);
+  const [offset, setOffset] = useState(initialOffset);
   const [editCustomer, setEditCustomer] = useState<CustomerDTO | null>(null);
   const canEditCustomers = isAdmin(user);
-   const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+   const [search, setSearch] = useState(initialSearch);
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch.trim());
 
   useEffect(() => {
     const handle = setTimeout(() => {
@@ -55,6 +59,24 @@ export default function CustomersTable() {
     }, 400);
     return () => clearTimeout(handle);
   }, [search]);
+
+  useEffect(() => {
+    const nextParams = new URLSearchParams();
+
+    if (search.trim()) {
+      nextParams.set("search", search.trim());
+    }
+
+    if (offset > 0) {
+      nextParams.set("offset", String(offset));
+    }
+
+    if (pageSize !== 5) {
+      nextParams.set("pageSize", String(pageSize));
+    }
+
+    setSearchParams(nextParams, { replace: true });
+  }, [search, offset, pageSize, setSearchParams]);
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["customers", pageSize, offset, debouncedSearch],

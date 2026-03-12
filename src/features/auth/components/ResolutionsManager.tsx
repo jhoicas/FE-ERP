@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { FileCheck, Plus, AlertCircle } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 
 import {
   getResolutions,
@@ -89,14 +90,18 @@ const resolutionSchema = z
 type ResolutionFormValues = z.infer<typeof resolutionSchema>;
 
 export default function ResolutionsManager() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingResolution, setEditingResolution] = useState<ResolutionDTO | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ResolutionDTO | null>(null);
-  const [pageSize, setPageSize] = useState(5);
-  const [offset, setOffset] = useState(0);
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const initialPageSize = Number(searchParams.get("pageSize")) || 5;
+  const initialOffset = Number(searchParams.get("offset")) || 0;
+  const initialSearch = searchParams.get("search") ?? "";
+  const [pageSize, setPageSize] = useState(initialPageSize);
+  const [offset, setOffset] = useState(initialOffset);
+  const [search, setSearch] = useState(initialSearch);
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch.trim().toLowerCase());
 
   const resolutionsQuery = useQuery({
     queryKey: ["resolutions"],
@@ -111,6 +116,24 @@ export default function ResolutionsManager() {
 
     return () => clearTimeout(handle);
   }, [search]);
+
+  useEffect(() => {
+    const nextParams = new URLSearchParams();
+
+    if (search.trim()) {
+      nextParams.set("search", search.trim());
+    }
+
+    if (offset > 0) {
+      nextParams.set("offset", String(offset));
+    }
+
+    if (pageSize !== 5) {
+      nextParams.set("pageSize", String(pageSize));
+    }
+
+    setSearchParams(nextParams, { replace: true });
+  }, [search, offset, pageSize, setSearchParams]);
 
   const form = useForm<ResolutionFormValues>({
     resolver: zodResolver(resolutionSchema),
