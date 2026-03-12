@@ -19,7 +19,22 @@ const UserSchema = z.object({
   roles: z.array(z.string()),
 });
 
+const ResolutionSchema = z
+  .object({
+    id: z.string(),
+    prefix: z.string(),
+    resolution_number: z.string(),
+    from_number: z.number(),
+    to_number: z.number(),
+    current_number: z.number().optional(),
+    valid_from: z.string(),
+    valid_to: z.string(),
+    alert_threshold: z.number(),
+  })
+  .passthrough();
+
 export type UserDTO = z.infer<typeof UserSchema>;
+export type ResolutionDTO = z.infer<typeof ResolutionSchema>;
 
 export async function getUsers(): Promise<UserDTO[]> {
   const response = await apiClient.get("/api/users");
@@ -50,5 +65,52 @@ export async function updateUser(
   }
   const response = await apiClient.put(`/api/users/${id}`, body);
   return UserSchema.parse(response.data);
+}
+
+export async function getResolutions(): Promise<ResolutionDTO[]> {
+  const response = await apiClient.get("/api/resolutions");
+  return z.array(ResolutionSchema).parse(response.data);
+}
+
+export async function createResolution(body: {
+  prefix: string;
+  resolution_number: string;
+  from_number: number;
+  to_number: number;
+  current_number?: number;
+  valid_from: string;
+  valid_to: string;
+  alert_threshold: number;
+}): Promise<ResolutionDTO> {
+  const response = await apiClient.post("/api/resolutions", body);
+  return ResolutionSchema.parse(response.data);
+}
+
+export async function updateResolution(
+  id: string,
+  body: {
+    prefix?: string;
+    resolution_number?: string;
+    from_number?: number;
+    to_number?: number;
+    current_number?: number;
+    valid_from?: string;
+    valid_to?: string;
+    alert_threshold?: number;
+  },
+): Promise<ResolutionDTO> {
+  if (id == null || id === "" || String(id) === "undefined") {
+    throw new Error("El ID de la resolución es obligatorio para actualizar.");
+  }
+  const response = await apiClient.put(`/api/resolutions/${id}`, body);
+  return ResolutionSchema.parse(response.data);
+}
+
+export async function deleteResolution(id: string): Promise<void> {
+  if (id == null || id === "" || String(id) === "undefined") {
+    throw new Error("El ID de la resolución es obligatorio para eliminar.");
+  }
+
+  await apiClient.delete(`/api/resolutions/${id}`);
 }
 
