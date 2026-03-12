@@ -8,6 +8,8 @@ export const InvoiceSchema = z.object({
   grand_total: z.number(),
   dian_status: z.enum(["Sent", "Error", "DRAFT", "Pending"]),
   customer_name: z.string().optional(),
+  customer_email: z.string().optional(),
+  email_sent: z.boolean().optional(),
 });
 
 export type InvoiceDTO = z.infer<typeof InvoiceSchema>;

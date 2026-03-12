@@ -94,3 +94,12 @@ export async function voidInvoice(
   const response = await apiClient.post(`/api/invoices/${invoiceId}/void`, payload);
   return response.data;
 }
+
+export interface SendInvoiceEmailResult {
+  email?: string;
+}
+
+export async function sendInvoiceEmail(invoiceId: string): Promise<SendInvoiceEmailResult> {
+  const response = await apiClient.post(`/api/invoices/${invoiceId}/send-email`);
+  return response.data as SendInvoiceEmailResult;
+}

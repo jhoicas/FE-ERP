@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { CalendarIcon, FileText } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { CalendarIcon, FileText, Loader2, Mail } from "lucide-react";
 import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { useSearchParams } from "react-router-dom";
 
-import { getInvoices } from "@/features/billing/services";
+import { getInvoices, sendInvoiceEmail } from "@/features/billing/services";
+import { useToast } from "@/hooks/use-toast";
 import { getApiErrorMessage } from "@/lib/api/errors";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,12 @@ import {
 } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import ExplainableAcronym from "@/components/shared/ExplainableAcronym";
 import DebitNoteDialog from "@/features/billing/components/DebitNoteDialog";
 import VoidInvoiceDialog from "@/features/billing/components/VoidInvoiceDialog";
@@ -115,6 +122,58 @@ function StatusBadge({ status }: { status: string }) {
     <Badge variant="secondary" className="text-[10px]">
       {status}
     </Badge>
+  );
+}
+
+function SendEmailButton({
+  invoiceId,
+  invoiceNumber,
+  customerEmail,
+}: {
+  invoiceId: string;
+  invoiceNumber: string;
+  customerEmail?: string;
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: () => sendInvoiceEmail(invoiceId),
+    onSuccess: (data) => {
+      const emailAddress = data?.email ?? customerEmail;
+      queryClient.invalidateQueries({ queryKey: ["billing", "invoices"] });
+      toast({
+        title: emailAddress
+          ? `Factura enviada a ${emailAddress}`
+          : `Factura ${invoiceNumber} enviada por correo`,
+      });
+    },
+    onError: (error: unknown) => {
+      const message =
+        error instanceof Error ? error.message : "Error al enviar la factura por correo";
+      toast({
+        title: "Error al enviar correo",
+        description: message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      className="text-xs"
+      disabled={mutation.isPending}
+      onClick={() => mutation.mutate()}
+    >
+      {mutation.isPending ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      ) : (
+        <Mail className="h-3.5 w-3.5" />
+      )}
+      <span className="sr-only">Reenviar por email</span>
+    </Button>
   );
 }
 
@@ -341,11 +400,26 @@ export default function InvoicesTable() {
                         <StatusBadge status={inv.dian_status} />
                       </td>
                       <td className="py-3 px-4 text-right">
-                        <div className="flex justify-end gap-2">
+                        <div className="flex justify-end items-center gap-2">
+                          {inv.email_sent && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+                                </TooltipTrigger>
+                                <TooltipContent>Correo enviado</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
                           {inv.dian_status === "Sent" && (
                             <>
                               <VoidInvoiceDialog invoiceId={inv.id} invoiceNumber={displayNumber} />
                               <DebitNoteDialog invoiceId={inv.id} invoiceNumber={displayNumber} />
+                              <SendEmailButton
+                                invoiceId={inv.id}
+                                invoiceNumber={displayNumber}
+                                customerEmail={inv.customer_email}
+                              />
                             </>
                           )}
                           <Button variant="ghost" size="sm" className="text-xs">
