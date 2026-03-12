@@ -22,3 +22,31 @@ export const CreditNoteSchema = z.object({
 
 export type CreditNoteDTO = z.infer<typeof CreditNoteSchema>;
 
+export const DebitNoteSchema = z
+  .object({
+    id: z.string(),
+    number: z.string().optional(),
+    related_invoice_id: z.string().optional(),
+    amount: z.number().optional(),
+    reason: z.string().optional(),
+  })
+  .passthrough();
+
+export type DebitNoteDTO = z.infer<typeof DebitNoteSchema>;
+
+export const CustomerLookupSchema = z
+  .object({
+    id_type: z.string().optional(),
+    id_number: z.string().optional(),
+    company_name: z.string().optional(),
+    trade_name: z.string().optional(),
+    first_name: z.string().optional(),
+    second_name: z.string().optional(),
+    surname: z.string().optional(),
+    second_surname: z.string().optional(),
+    status: z.string().optional(),
+  })
+  .passthrough();
+
+export type CustomerLookupDTO = z.infer<typeof CustomerLookupSchema>;
+

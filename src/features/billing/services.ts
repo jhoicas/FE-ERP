@@ -1,7 +1,27 @@
 import { z } from "zod";
 import axios from "axios";
 import apiClient from "@/lib/api/client";
-import { InvoiceSchema, CreditNoteSchema, type InvoiceDTO, type CreditNoteDTO } from "./schemas";
+import {
+  InvoiceSchema,
+  CreditNoteSchema,
+  DebitNoteSchema,
+  CustomerLookupSchema,
+  type InvoiceDTO,
+  type CreditNoteDTO,
+  type DebitNoteDTO,
+  type CustomerLookupDTO,
+} from "./schemas";
+
+export interface DebitNoteItemInput {
+  description: string;
+  quantity: number;
+  unit_price: number;
+}
+
+export interface CreateDebitNoteInput {
+  reason: string;
+  items: DebitNoteItemInput[];
+}
 
 export async function getInvoices(): Promise<InvoiceDTO[]> {
   const response = await apiClient.get("/api/invoices");
@@ -18,4 +38,46 @@ export async function getCreditNotes(): Promise<CreditNoteDTO[]> {
     }
     throw error;
   }
+}
+
+export async function getDebitNotes(): Promise<DebitNoteDTO[]> {
+  try {
+    const response = await apiClient.get("/api/invoices/debit-notes");
+    return z.array(DebitNoteSchema).parse(response.data);
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      return [];
+    }
+    throw error;
+  }
+}
+
+export async function lookupCustomer(
+  idType: string,
+  idNumber: string,
+): Promise<CustomerLookupDTO | null> {
+  try {
+    const response = await apiClient.get("/api/customers/lookup", {
+      params: {
+        id_type: idType,
+        id_number: idNumber,
+      },
+    });
+
+    return CustomerLookupSchema.parse(response.data);
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      return null;
+    }
+
+    throw error;
+  }
+}
+
+export async function createDebitNote(
+  invoiceId: string,
+  payload: CreateDebitNoteInput,
+): Promise<unknown> {
+  const response = await apiClient.post(`/api/invoices/${invoiceId}/debit-note`, payload);
+  return response.data;
 }
