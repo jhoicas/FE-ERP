@@ -27,13 +27,21 @@ const navItems: {
   { label: "Dashboard", path: "/", icon: LayoutDashboard },
   { label: "Inventario", path: "/inventario", icon: Package, allowedRoles: ["admin"] },
   { label: "Facturación", path: "/facturacion", icon: FileText, allowedRoles: ["admin"] },
-  // CRM: solo visible para roles relacionados con clientes
   {
     label: "CRM / Clientes",
     path: "/crm",
     icon: Users,
     allowedRoles: ["sales", "support", "marketing", "admin"],
   },
+];
+
+const inventorySubItems: {
+  label: string;
+  path: string;
+  allowedRoles?: string[];
+}[] = [
+  { label: "Movimientos", path: "/inventory/movements", allowedRoles: ["admin"] },
+  { label: "Conteo físico", path: "/inventario/conteo", allowedRoles: ["admin"] },
 ];
 
 const bottomItems: {
@@ -69,10 +77,9 @@ export default function AppSidebar() {
     <aside
       className={cn(
         "bg-sidebar-bg flex flex-col transition-all duration-300 border-r border-sidebar-border",
-        collapsed ? "w-16" : "w-60"
+        collapsed ? "w-16" : "w-60",
       )}
     >
-      {/* Logo */}
       <div className="h-14 flex items-center gap-3 px-4 border-b border-sidebar-border">
         <Leaf className="h-6 w-6 text-primary shrink-0" />
         {!collapsed && (
@@ -84,14 +91,13 @@ export default function AppSidebar() {
           onClick={() => setCollapsed(!collapsed)}
           className={cn(
             "ml-auto text-sidebar-fg hover:text-sidebar-fg-active transition-colors",
-            collapsed && "ml-0"
+            collapsed && "ml-0",
           )}
         >
           <ChevronLeft className={cn("h-4 w-4 transition-transform", collapsed && "rotate-180")} />
         </button>
       </div>
 
-      {/* DIAN Environment Badge */}
       <div className="px-2 py-2">
         <Badge
           variant="outline"
@@ -99,40 +105,70 @@ export default function AppSidebar() {
             "w-full justify-center text-xs",
             environment === "production"
               ? "border-success/40 bg-success/15 text-success"
-              : "border-warning/40 bg-warning/15 text-warning"
+              : "border-warning/40 bg-warning/15 text-warning",
           )}
         >
-          {collapsed ? (environment === "production" ? "PROD" : "TEST") : (environment === "production" ? "DIAN: PRODUCCIÓN" : "DIAN: PRUEBAS")}
+          {collapsed
+            ? environment === "production"
+              ? "PROD"
+              : "TEST"
+            : environment === "production"
+              ? "DIAN: PRODUCCIÓN"
+              : "DIAN: PRUEBAS"}
         </Badge>
       </div>
 
-      {/* Main Nav */}
       <nav className="flex-1 py-3 px-2 space-y-1">
         {navItems
           .filter((item) => hasAccess(roles, item.allowedRoles))
           .map((item) => {
-          const active = item.path === "/" 
-            ? location.pathname === "/" 
-            : location.pathname.startsWith(item.path);
-          return (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
-                active
-                  ? "bg-sidebar-accent text-sidebar-fg-active"
-                  : "text-sidebar-fg hover:text-sidebar-fg-active hover:bg-sidebar-border/50"
-              )}
-            >
-              <item.icon className="h-4 w-4 shrink-0" />
-              {!collapsed && <span>{item.label}</span>}
-            </NavLink>
-          );
-        })}
+            const active = item.path === "/"
+              ? location.pathname === "/"
+              : location.pathname.startsWith(item.path);
+
+            return (
+              <div key={item.path}>
+                <NavLink
+                  to={item.path}
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
+                    active
+                      ? "bg-sidebar-accent text-sidebar-fg-active"
+                      : "text-sidebar-fg hover:text-sidebar-fg-active hover:bg-sidebar-border/50",
+                  )}
+                >
+                  <item.icon className="h-4 w-4 shrink-0" />
+                  {!collapsed && <span>{item.label}</span>}
+                </NavLink>
+
+                {!collapsed && item.path === "/inventario" && (
+                  <div className="ml-9 mt-1 mb-1 space-y-1">
+                    {inventorySubItems
+                      .filter((subItem) => hasAccess(roles, subItem.allowedRoles))
+                      .map((subItem) => {
+                        const subActive = location.pathname.startsWith(subItem.path);
+                        return (
+                          <NavLink
+                            key={subItem.path}
+                            to={subItem.path}
+                            className={cn(
+                              "block rounded-md px-2 py-1.5 text-xs transition-colors",
+                              subActive
+                                ? "bg-sidebar-accent text-sidebar-fg-active"
+                                : "text-sidebar-fg hover:text-sidebar-fg-active hover:bg-sidebar-border/50",
+                            )}
+                          >
+                            {subItem.label}
+                          </NavLink>
+                        );
+                      })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
       </nav>
 
-      {/* Bottom */}
       <div className="py-3 px-2 border-t border-sidebar-border space-y-1">
         {bottomItems
           .filter((item) => hasAccess(roles, item.allowedRoles))
@@ -146,6 +182,7 @@ export default function AppSidebar() {
               {!collapsed && <span>{item.label}</span>}
             </NavLink>
           ))}
+
         <button
           type="button"
           onClick={handleLogout}
