@@ -18,6 +18,7 @@ import WarehouseStockPage from "@/pages/WarehouseStockPage";
 import InventoryMovementsPage from "@/pages/InventoryMovementsPage";
 import StocktakePage from "@/pages/StocktakePage";
 import SuppliersPage from "@/pages/SuppliersPage";
+import PurchaseOrdersPage from "@/pages/PurchaseOrdersPage";
 import TasksPage from "@/pages/TasksPage";
 import TaskDetailPage from "@/pages/TaskDetailPage";
 import TasksKanbanPage from "@/pages/TasksKanbanPage";
@@ -113,6 +114,14 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={["admin"]}>
                   <SuppliersPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/inventario/ordenes-compra"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <PurchaseOrdersPage />
                 </ProtectedRoute>
               }
             />

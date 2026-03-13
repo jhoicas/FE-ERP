@@ -21,6 +21,9 @@ export default function InventoryPage() {
             <Link to="/inventario/proveedores">Proveedores</Link>
           </Button>
           <Button asChild variant="outline" size="sm" className="text-xs">
+            <Link to="/inventario/ordenes-compra">Órdenes de compra</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm" className="text-xs">
             <Link to="/inventario/conteo">Conteo físico</Link>
           </Button>
         </div>

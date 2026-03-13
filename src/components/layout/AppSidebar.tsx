@@ -42,6 +42,7 @@ const inventorySubItems: {
 }[] = [
   { label: "Movimientos", path: "/inventory/movements", allowedRoles: ["admin"] },
   { label: "Proveedores", path: "/inventario/proveedores", allowedRoles: ["admin"] },
+  { label: "Órdenes de compra", path: "/inventario/ordenes-compra", allowedRoles: ["admin"] },
   { label: "Conteo físico", path: "/inventario/conteo", allowedRoles: ["admin"] },
 ];
 

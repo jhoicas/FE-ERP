@@ -1,0 +1,649 @@
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Plus, Truck } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+import { z } from "zod";
+
+import apiClient from "@/lib/api/client";
+import { getProducts } from "@/features/inventory/services";
+import { getApiErrorMessage } from "@/lib/api/errors";
+import { useToast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import {
+	Pagination,
+	PaginationContent,
+	PaginationItem,
+	PaginationNext,
+	PaginationPrevious,
+} from "@/components/ui/pagination";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@/components/ui/table";
+
+const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
+
+const SupplierSchema = z
+	.object({
+		id: z.string(),
+		name: z.string(),
+	})
+	.passthrough();
+
+const PurchaseOrderItemSchema = z
+	.object({
+		id: z.string().optional(),
+		product_id: z.string(),
+		product_name: z.string().optional(),
+		quantity: z.union([z.number(), z.string()]).optional(),
+		unit_cost: z.union([z.number(), z.string()]).optional(),
+		received_quantity: z.union([z.number(), z.string()]).optional(),
+	})
+	.passthrough();
+
+const PurchaseOrderSchema = z
+	.object({
+		id: z.string(),
+		supplier_id: z.string().optional(),
+		supplier_name: z.string().optional(),
+		date: z.string().optional(),
+		status: z.string(),
+		total: z.union([z.number(), z.string()]).optional(),
+		items: z.array(PurchaseOrderItemSchema).optional(),
+	})
+	.passthrough();
+
+type PurchaseOrderDTO = z.infer<typeof PurchaseOrderSchema>;
+type PurchaseOrderItemDTO = z.infer<typeof PurchaseOrderItemSchema>;
+
+const PurchaseOrdersListSchema = z
+	.object({
+		items: z.array(PurchaseOrderSchema),
+		total: z.number().optional(),
+		page: z
+			.object({
+				total: z.number().optional(),
+			})
+			.optional(),
+	})
+	.passthrough();
+
+type NewOrderItemRow = {
+	id: string;
+	product_id: string;
+	quantity: string;
+	unit_cost: string;
+};
+
+type ReceiveItemRow = {
+	product_id: string;
+	product_name: string;
+	ordered_quantity: number;
+	received_quantity: string;
+};
+
+function toNumber(value: unknown): number {
+	const parsed = Number(value);
+	return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function createOrderItemRow(): NewOrderItemRow {
+	return {
+		id: crypto.randomUUID(),
+		product_id: "",
+		quantity: "",
+		unit_cost: "",
+	};
+}
+
+function StatusBadge({ status }: { status: string }) {
+	const normalized = status.toUpperCase();
+
+	if (normalized === "BORRADOR") {
+		return <Badge variant="secondary" className="text-[10px]">Borrador</Badge>;
+	}
+	if (normalized === "CONFIRMADA") {
+		return (
+			<Badge variant="outline" className="text-[10px] border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-300">
+				Confirmada
+			</Badge>
+		);
+	}
+	if (normalized === "CERRADA") {
+		return (
+			<Badge variant="outline" className="text-[10px] border-success/40 bg-success/15 text-success">
+				Cerrada
+			</Badge>
+		);
+	}
+
+	return <Badge variant="secondary" className="text-[10px]">{status}</Badge>;
+}
+
+async function listSuppliers() {
+	const response = await apiClient.get("/api/suppliers", { params: { limit: 500, offset: 0 } });
+	if (Array.isArray(response.data)) {
+		return z.array(SupplierSchema).parse(response.data);
+	}
+	const parsed = z
+		.object({
+			items: z.array(SupplierSchema),
+		})
+		.passthrough()
+		.parse(response.data);
+	return parsed.items;
+}
+
+async function listPurchaseOrders(params: { limit: number; offset: number; search?: string }) {
+	const response = await apiClient.get("/api/purchase-orders", { params });
+
+	if (Array.isArray(response.data)) {
+		const items = z.array(PurchaseOrderSchema).parse(response.data);
+		return { items, total: items.length };
+	}
+
+	const parsed = PurchaseOrdersListSchema.parse(response.data);
+	return {
+		items: parsed.items,
+		total: parsed.total ?? parsed.page?.total ?? parsed.items.length,
+	};
+}
+
+export default function PurchaseOrdersPage() {
+	const queryClient = useQueryClient();
+	const { toast } = useToast();
+	const [searchParams, setSearchParams] = useSearchParams();
+
+	const initialPageSize = Number(searchParams.get("pageSize")) || 5;
+	const initialOffset = Number(searchParams.get("offset")) || 0;
+	const initialSearch = searchParams.get("search") ?? "";
+
+	const [pageSize, setPageSize] = useState(initialPageSize);
+	const [offset, setOffset] = useState(initialOffset);
+	const [search, setSearch] = useState(initialSearch);
+	const [debouncedSearch, setDebouncedSearch] = useState(initialSearch.trim());
+
+	const [newDialogOpen, setNewDialogOpen] = useState(false);
+	const [receiveDialogOpen, setReceiveDialogOpen] = useState(false);
+	const [supplierId, setSupplierId] = useState("");
+	const [newItems, setNewItems] = useState<NewOrderItemRow[]>([createOrderItemRow()]);
+	const [receiveOrder, setReceiveOrder] = useState<PurchaseOrderDTO | null>(null);
+	const [receiveItems, setReceiveItems] = useState<ReceiveItemRow[]>([]);
+
+	useEffect(() => {
+		const handle = setTimeout(() => {
+			setDebouncedSearch(search.trim());
+			setOffset(0);
+		}, 400);
+		return () => clearTimeout(handle);
+	}, [search]);
+
+	useEffect(() => {
+		const nextParams = new URLSearchParams();
+
+		if (search.trim()) {
+			nextParams.set("search", search.trim());
+		}
+		if (offset > 0) {
+			nextParams.set("offset", String(offset));
+		}
+		if (pageSize !== 5) {
+			nextParams.set("pageSize", String(pageSize));
+		}
+
+		setSearchParams(nextParams, { replace: true });
+	}, [search, offset, pageSize, setSearchParams]);
+
+	const suppliersQuery = useQuery({
+		queryKey: ["suppliers", "lookup"],
+		queryFn: listSuppliers,
+	});
+
+	const productsQuery = useQuery({
+		queryKey: ["inventory", "products", "po-form"],
+		queryFn: getProducts,
+	});
+
+	const ordersQuery = useQuery({
+		queryKey: ["purchase-orders", pageSize, offset, debouncedSearch],
+		queryFn: () =>
+			listPurchaseOrders({
+				limit: pageSize,
+				offset,
+				search: debouncedSearch || undefined,
+			}),
+	});
+
+	const orders = ordersQuery.data?.items ?? [];
+	const total = ordersQuery.data?.total ?? orders.length;
+	const hasMore = offset + orders.length < total || orders.length === pageSize;
+	const hasPrev = offset > 0;
+
+	const newOrderValid =
+		supplierId.length > 0 &&
+		newItems.length > 0 &&
+		newItems.every((item) => {
+			const qty = Number(item.quantity);
+			const cost = Number(item.unit_cost);
+			return item.product_id.length > 0 && Number.isFinite(qty) && qty > 0 && Number.isFinite(cost) && cost >= 0;
+		});
+
+	const createMutation = useMutation({
+		mutationFn: async () => {
+			await apiClient.post("/api/purchase-orders", {
+				supplier_id: supplierId,
+				items: newItems.map((item) => ({
+					product_id: item.product_id,
+					quantity: Number(item.quantity),
+					unit_cost: Number(item.unit_cost),
+				})),
+			});
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
+			toast({ title: "Orden de compra creada" });
+			setNewDialogOpen(false);
+			setSupplierId("");
+			setNewItems([createOrderItemRow()]);
+		},
+	});
+
+	const receiveMutation = useMutation({
+		mutationFn: async () => {
+			if (!receiveOrder) throw new Error("Orden no seleccionada");
+			await apiClient.post(`/api/purchase-orders/${receiveOrder.id}/receive`, {
+				items: receiveItems.map((item) => ({
+					product_id: item.product_id,
+					quantity_received: Number(item.received_quantity || 0),
+				})),
+			});
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
+			queryClient.invalidateQueries({ queryKey: ["inventory", "products"] });
+			queryClient.invalidateQueries({ queryKey: ["inventory-replenishment-list"] });
+			toast({ title: "Recepción registrada" });
+			setReceiveDialogOpen(false);
+			setReceiveOrder(null);
+			setReceiveItems([]);
+		},
+	});
+
+	const newOrderTotal = useMemo(
+		() => newItems.reduce((sum, item) => sum + toNumber(item.quantity) * toNumber(item.unit_cost), 0),
+		[newItems],
+	);
+
+	const openReceiveDialog = (order: PurchaseOrderDTO) => {
+		const rows = (order.items ?? []).map((item: PurchaseOrderItemDTO) => {
+			const orderedQty = toNumber(item.quantity);
+			const alreadyReceived = toNumber(item.received_quantity);
+			const remaining = Math.max(orderedQty - alreadyReceived, 0);
+			return {
+				product_id: item.product_id,
+				product_name: item.product_name ?? item.product_id,
+				ordered_quantity: orderedQty,
+				received_quantity: remaining > 0 ? String(remaining) : "0",
+			};
+		});
+		setReceiveOrder(order);
+		setReceiveItems(rows);
+		receiveMutation.reset();
+		setReceiveDialogOpen(true);
+	};
+
+	const addItemRow = () => setNewItems((current) => [...current, createOrderItemRow()]);
+	const removeItemRow = (id: string) =>
+		setNewItems((current) => (current.length === 1 ? current : current.filter((item) => item.id !== id)));
+
+	const updateItemRow = (id: string, field: keyof Omit<NewOrderItemRow, "id">, value: string) => {
+		setNewItems((current) => current.map((item) => (item.id === id ? { ...item, [field]: value } : item)));
+	};
+
+	const updateReceiveItem = (productId: string, value: string) => {
+		setReceiveItems((current) =>
+			current.map((item) => (item.product_id === productId ? { ...item, received_quantity: value } : item)),
+		);
+	};
+
+	return (
+		<div className="space-y-4 animate-fade-in">
+			<div className="flex items-center justify-between gap-2">
+				<div className="flex items-center gap-2">
+					<Truck className="h-4 w-4 text-primary" />
+					<div>
+						<h1 className="text-lg font-semibold tracking-tight">Órdenes de compra</h1>
+						<p className="text-sm text-muted-foreground">Gestiona compras y recepción de inventario por proveedor.</p>
+					</div>
+				</div>
+
+				<Button size="sm" className="text-xs" onClick={() => setNewDialogOpen(true)}>
+					<Plus className="h-3.5 w-3.5 mr-1" />
+					Nueva OC
+				</Button>
+			</div>
+
+			<div className="w-full sm:w-72">
+				<Input
+					placeholder="Buscar por proveedor o estado…"
+					value={search}
+					onChange={(e) => setSearch(e.target.value)}
+					className="h-8 text-xs"
+				/>
+			</div>
+
+			{ordersQuery.isLoading && (
+				<div className="erp-card p-4 space-y-2">
+					{Array.from({ length: 5 }).map((_, i) => (
+						<Skeleton key={i} className="h-10 w-full" />
+					))}
+				</div>
+			)}
+
+			{ordersQuery.isError && !ordersQuery.isLoading && (
+				<p className="text-sm text-destructive">{getApiErrorMessage(ordersQuery.error, "Inventario / Órdenes de compra")}</p>
+			)}
+
+			{!ordersQuery.isLoading && !ordersQuery.isError && (
+				<div className="erp-card overflow-hidden p-0">
+					<Table>
+						<TableHeader>
+							<TableRow className="bg-muted/50 hover:bg-muted/50">
+								<TableHead className="text-xs text-muted-foreground">Proveedor</TableHead>
+								<TableHead className="text-xs text-muted-foreground">Fecha</TableHead>
+								<TableHead className="text-xs text-muted-foreground">Estado</TableHead>
+								<TableHead className="text-right text-xs text-muted-foreground">Total</TableHead>
+								<TableHead className="text-right text-xs text-muted-foreground">Acciones</TableHead>
+							</TableRow>
+						</TableHeader>
+						<TableBody>
+							{orders.length === 0 ? (
+								<TableRow>
+									<TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
+										No hay órdenes de compra registradas.
+									</TableCell>
+								</TableRow>
+							) : (
+								orders.map((order) => (
+									<TableRow key={order.id} className="hover:bg-muted/40">
+										<TableCell className="font-medium">{order.supplier_name ?? order.supplier_id ?? "—"}</TableCell>
+										<TableCell className="text-muted-foreground text-xs">
+											{order.date ? new Date(order.date).toLocaleDateString("es-CO") : "—"}
+										</TableCell>
+										<TableCell>
+											<StatusBadge status={order.status} />
+										</TableCell>
+										<TableCell className="text-right font-mono">
+											{toNumber(order.total).toLocaleString("es-CO", {
+												style: "currency",
+												currency: "COP",
+												maximumFractionDigits: 2,
+											})}
+										</TableCell>
+										<TableCell className="text-right">
+											<Button
+												variant="outline"
+												size="sm"
+												className="text-xs"
+												disabled={order.status.toUpperCase() === "CERRADA"}
+												onClick={() => openReceiveDialog(order)}
+											>
+												Recibir
+											</Button>
+										</TableCell>
+									</TableRow>
+								))
+							)}
+						</TableBody>
+					</Table>
+
+					{orders.length > 0 && (
+						<div className="flex items-center justify-between border-t px-4 py-3 gap-4">
+							<p className="text-xs text-muted-foreground">
+								Mostrando {offset + 1}–{offset + orders.length}
+								{typeof total === "number" && total > 0 ? ` de ${total}` : ""}
+							</p>
+							<div className="flex items-center gap-4">
+								<div className="flex items-center gap-2 text-xs text-muted-foreground">
+									<span>Filas por página</span>
+									<Select
+										value={String(pageSize)}
+										onValueChange={(value) => {
+											setOffset(0);
+											setPageSize(Number(value));
+										}}
+									>
+										<SelectTrigger className="h-8 w-16 text-xs">
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											{PAGE_SIZE_OPTIONS.map((size) => (
+												<SelectItem key={size} value={String(size)}>
+													{size}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</div>
+								<Pagination>
+									<PaginationContent>
+										<PaginationItem>
+											<PaginationPrevious
+												href="#"
+												onClick={(e) => {
+													e.preventDefault();
+													if (hasPrev) setOffset((o) => Math.max(0, o - pageSize));
+												}}
+												className={!hasPrev ? "pointer-events-none opacity-50" : ""}
+											/>
+										</PaginationItem>
+										<PaginationItem>
+											<PaginationNext
+												href="#"
+												onClick={(e) => {
+													e.preventDefault();
+													if (hasMore) setOffset((o) => o + pageSize);
+												}}
+												className={!hasMore ? "pointer-events-none opacity-50" : ""}
+											/>
+										</PaginationItem>
+									</PaginationContent>
+								</Pagination>
+							</div>
+						</div>
+					)}
+				</div>
+			)}
+
+			<Dialog open={newDialogOpen} onOpenChange={setNewDialogOpen}>
+				<DialogContent className="max-w-3xl">
+					<DialogHeader>
+						<DialogTitle>Nueva OC</DialogTitle>
+						<DialogDescription>Selecciona proveedor y agrega los productos con cantidad y costo.</DialogDescription>
+					</DialogHeader>
+
+					<div className="space-y-4">
+						<div className="space-y-1.5">
+							<p className="text-sm font-medium">Proveedor</p>
+							<Select value={supplierId || undefined} onValueChange={setSupplierId}>
+								<SelectTrigger>
+									<SelectValue placeholder="Seleccionar proveedor" />
+								</SelectTrigger>
+								<SelectContent>
+									{suppliersQuery.data?.map((supplier) => (
+										<SelectItem key={supplier.id} value={supplier.id}>
+											{supplier.name}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+
+						<div className="space-y-2">
+							<div className="flex items-center justify-between">
+								<p className="text-sm font-medium">Productos</p>
+								<Button type="button" variant="ghost" size="sm" className="text-xs" onClick={addItemRow}>
+									+ Agregar fila
+								</Button>
+							</div>
+
+							<div className="rounded-md border overflow-hidden">
+								<Table>
+									<TableHeader>
+										<TableRow className="bg-muted/50 hover:bg-muted/50">
+											<TableHead className="text-xs text-muted-foreground">Producto</TableHead>
+											<TableHead className="text-right text-xs text-muted-foreground w-32">Qty</TableHead>
+											<TableHead className="text-right text-xs text-muted-foreground w-40">Costo</TableHead>
+											<TableHead className="text-right text-xs text-muted-foreground w-16" />
+										</TableRow>
+									</TableHeader>
+									<TableBody>
+										{newItems.map((row) => (
+											<TableRow key={row.id}>
+												<TableCell>
+													<Select
+														value={row.product_id || undefined}
+														onValueChange={(value) => updateItemRow(row.id, "product_id", value)}
+													>
+														<SelectTrigger>
+															<SelectValue placeholder="Producto" />
+														</SelectTrigger>
+														<SelectContent>
+															{productsQuery.data?.map((product) => (
+																<SelectItem key={product.id} value={product.id}>
+																	{product.name}
+																</SelectItem>
+															))}
+														</SelectContent>
+													</Select>
+												</TableCell>
+												<TableCell>
+													<Input
+														className="h-8 text-right"
+														inputMode="decimal"
+														value={row.quantity}
+														onChange={(e) => updateItemRow(row.id, "quantity", e.target.value)}
+													/>
+												</TableCell>
+												<TableCell>
+													<Input
+														className="h-8 text-right"
+														inputMode="decimal"
+														value={row.unit_cost}
+														onChange={(e) => updateItemRow(row.id, "unit_cost", e.target.value)}
+													/>
+												</TableCell>
+												<TableCell className="text-right">
+													<Button type="button" variant="ghost" size="sm" onClick={() => removeItemRow(row.id)}>
+														Quitar
+													</Button>
+												</TableCell>
+											</TableRow>
+										))}
+									</TableBody>
+								</Table>
+							</div>
+
+							<p className="text-xs text-muted-foreground text-right">
+								Total estimado: {newOrderTotal.toLocaleString("es-CO", { style: "currency", currency: "COP" })}
+							</p>
+						</div>
+
+						{createMutation.isError && (
+							<p className="text-sm text-destructive">
+								{getApiErrorMessage(createMutation.error, "Inventario / Nueva orden de compra")}
+							</p>
+						)}
+					</div>
+
+					<DialogFooter>
+						<Button variant="ghost" type="button" onClick={() => setNewDialogOpen(false)}>
+							Cancelar
+						</Button>
+						<Button type="button" disabled={!newOrderValid || createMutation.isPending} onClick={() => createMutation.mutate()}>
+							{createMutation.isPending ? "Guardando…" : "Crear OC"}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			<Dialog open={receiveDialogOpen} onOpenChange={setReceiveDialogOpen}>
+				<DialogContent className="max-w-3xl">
+					<DialogHeader>
+						<DialogTitle>Recibir</DialogTitle>
+						<DialogDescription>Registra la cantidad recibida por producto para esta orden.</DialogDescription>
+					</DialogHeader>
+
+					<div className="space-y-3">
+						{receiveItems.length === 0 ? (
+							<p className="text-sm text-muted-foreground">Esta orden no tiene productos para recibir.</p>
+						) : (
+							<div className="rounded-md border overflow-hidden">
+								<Table>
+									<TableHeader>
+										<TableRow className="bg-muted/50 hover:bg-muted/50">
+											<TableHead className="text-xs text-muted-foreground">Producto</TableHead>
+											<TableHead className="text-right text-xs text-muted-foreground">Qty ordenada</TableHead>
+											<TableHead className="text-right text-xs text-muted-foreground">Qty recibida</TableHead>
+										</TableRow>
+									</TableHeader>
+									<TableBody>
+										{receiveItems.map((item) => (
+											<TableRow key={item.product_id}>
+												<TableCell className="font-medium text-sm">{item.product_name}</TableCell>
+												<TableCell className="text-right font-mono">{item.ordered_quantity}</TableCell>
+												<TableCell className="text-right">
+													<Input
+														className="h-8 text-right"
+														inputMode="decimal"
+														value={item.received_quantity}
+														onChange={(e) => updateReceiveItem(item.product_id, e.target.value)}
+													/>
+												</TableCell>
+											</TableRow>
+										))}
+									</TableBody>
+								</Table>
+							</div>
+						)}
+
+						{receiveMutation.isError && (
+							<p className="text-sm text-destructive">{getApiErrorMessage(receiveMutation.error, "Inventario / Recepción")}</p>
+						)}
+					</div>
+
+					<DialogFooter>
+						<Button variant="ghost" type="button" onClick={() => setReceiveDialogOpen(false)}>
+							Cancelar
+						</Button>
+						<Button type="button" disabled={receiveMutation.isPending || receiveItems.length === 0} onClick={() => receiveMutation.mutate()}>
+							{receiveMutation.isPending ? "Guardando…" : "Registrar recepción"}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+		</div>
+	);
+}
