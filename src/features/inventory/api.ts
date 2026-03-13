@@ -205,7 +205,7 @@ export async function getReplenishmentList(
 
 export function useProducts(
   params: ListProductsParams,
-  options?: UseQueryOptions<ProductListResponse, Error>,
+  options?: Omit<UseQueryOptions<ProductListResponse, Error>, "queryKey" | "queryFn">,
   accessToken?: string,
 ) {
   return useQuery<ProductListResponse, Error>({
@@ -217,7 +217,7 @@ export function useProducts(
 
 export function useProduct(
   id: string | undefined,
-  options?: UseQueryOptions<ProductResponse, Error>,
+  options?: Omit<UseQueryOptions<ProductResponse, Error>, "queryKey" | "queryFn">,
   accessToken?: string,
 ) {
   return useQuery<ProductResponse, Error>({
@@ -252,7 +252,7 @@ export function useUpdateProduct(
 
 export function useWarehouses(
   params: ListWarehousesParams,
-  options?: UseQueryOptions<WarehouseListResponse, Error>,
+  options?: Omit<UseQueryOptions<WarehouseListResponse, Error>, "queryKey" | "queryFn">,
   accessToken?: string,
 ) {
   return useQuery<WarehouseListResponse, Error>({
@@ -264,7 +264,7 @@ export function useWarehouses(
 
 export function useWarehouse(
   id: string | undefined,
-  options?: UseQueryOptions<WarehouseResponse, Error>,
+  options?: Omit<UseQueryOptions<WarehouseResponse, Error>, "queryKey" | "queryFn">,
   accessToken?: string,
 ) {
   return useQuery<WarehouseResponse, Error>({
@@ -299,7 +299,7 @@ export function useRegisterInventoryMovement(
 
 export function useReplenishmentList(
   params: ReplenishmentParams,
-  options?: UseQueryOptions<ReplenishmentListResponse, Error>,
+  options?: Omit<UseQueryOptions<ReplenishmentListResponse, Error>, "queryKey" | "queryFn">,
   accessToken?: string,
 ) {
   return useQuery<ReplenishmentListResponse, Error>({

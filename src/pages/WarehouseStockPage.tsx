@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { AlertCircle, Warehouse as WarehouseIcon, Filter } from "lucide-react";
 
 import { useWarehouse } from "@/features/inventory/warehouses.api";
 import { useReplenishmentList } from "@/features/inventory/api";
+import StockConsultWidget from "@/features/inventory/components/StockConsultWidget";
 import type { ReplenishmentSuggestionDTO } from "@/types/inventory";
 import { getApiErrorMessage } from "@/lib/api/errors";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -71,20 +72,28 @@ function priorityBadge(priority: number) {
 export default function WarehouseStockPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const [priorityFilter, setPriorityFilter] = useState<string>("_all");
-  const [search, setSearch] = useState("");
-  const [rowsPerPage, setRowsPerPage] = useState(20);
-  const [page, setPage] = useState(0);
+  const initialPriority = searchParams.get("priority") ?? "_all";
+  const initialSearch = searchParams.get("search") ?? "";
+  const initialRows = Number(searchParams.get("rowsPerPage"));
+  const initialPage = Number(searchParams.get("page"));
 
-  const warehouseQuery = useWarehouse(id, {
-    enabled: !!id,
-  });
+  const isValidRows = ROWS_PER_PAGE_OPTIONS.includes(initialRows);
+  const safeRowsPerPage = isValidRows ? initialRows : 20;
+  const safePage = Number.isFinite(initialPage) && initialPage >= 0 ? initialPage : 0;
+  const safePriority = ["_all", "1", "2", "3"].includes(initialPriority)
+    ? initialPriority
+    : "_all";
 
-  const replenishmentQuery = useReplenishmentList(
-    { warehouse_id: id },
-    { enabled: !!id },
-  );
+  const [priorityFilter, setPriorityFilter] = useState<string>(safePriority);
+  const [search, setSearch] = useState(initialSearch);
+  const [rowsPerPage, setRowsPerPage] = useState(safeRowsPerPage);
+  const [page, setPage] = useState(safePage);
+
+  const warehouseQuery = useWarehouse(id);
+
+  const replenishmentQuery = useReplenishmentList({ warehouse_id: id });
 
   const filteredItems = useMemo(() => {
     const items: ReplenishmentSuggestionDTO[] =
@@ -122,6 +131,28 @@ export default function WarehouseStockPage() {
     if (next < 0 || next >= totalPages) return;
     setPage(next);
   };
+
+  useEffect(() => {
+    const nextParams = new URLSearchParams();
+
+    if (priorityFilter !== "_all") {
+      nextParams.set("priority", priorityFilter);
+    }
+
+    if (search.trim()) {
+      nextParams.set("search", search.trim());
+    }
+
+    if (rowsPerPage !== 20) {
+      nextParams.set("rowsPerPage", String(rowsPerPage));
+    }
+
+    if (page > 0) {
+      nextParams.set("page", String(page));
+    }
+
+    setSearchParams(nextParams, { replace: true });
+  }, [priorityFilter, search, rowsPerPage, page, setSearchParams]);
 
   return (
     <div className="animate-fade-in space-y-4 max-w-6xl">
@@ -184,6 +215,8 @@ export default function WarehouseStockPage() {
           </CardContent>
         </Card>
       ) : null}
+
+      <StockConsultWidget initialWarehouseId={id} />
 
       {/* Filtros y tabla de stock */}
       <Card className="erp-card p-0 overflow-hidden">
