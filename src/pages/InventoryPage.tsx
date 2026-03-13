@@ -16,9 +16,14 @@ export default function InventoryPage() {
           </p>
         </div>
 
-        <Button asChild variant="outline" size="sm" className="text-xs">
-          <Link to="/inventario/conteo">Conteo físico</Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button asChild variant="outline" size="sm" className="text-xs">
+            <Link to="/inventario/proveedores">Proveedores</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm" className="text-xs">
+            <Link to="/inventario/conteo">Conteo físico</Link>
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="products" className="space-y-4">
