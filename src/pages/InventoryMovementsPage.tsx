@@ -8,6 +8,7 @@ import { ArrowLeft, MoveRight, MoveUpRight, MoveDownRight, AlertCircle } from "l
 
 import type { RegisterMovementRequest } from "@/types/inventory";
 import { useRegisterInventoryMovement, useWarehouses } from "@/features/inventory/api";
+import InventoryAdjustmentDialog from "@/features/inventory/components/InventoryAdjustmentDialog";
 import { getApiErrorMessage } from "@/lib/api/errors";
 import {
   Table,
@@ -284,13 +285,17 @@ export default function InventoryMovementsPage() {
 
   return (
     <div className="animate-fade-in space-y-4 max-w-5xl">
-      <button
-        onClick={() => navigate("/inventario")}
-        className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Volver a Inventario
-      </button>
+      <div className="flex items-center justify-between gap-2">
+        <button
+          onClick={() => navigate("/inventario")}
+          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Volver a Inventario
+        </button>
+
+        <InventoryAdjustmentDialog />
+      </div>
 
       {/* Formulario de registro */}
       <Card>
