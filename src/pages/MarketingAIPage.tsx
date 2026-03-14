@@ -1,13 +1,15 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Sparkles, Megaphone, Clipboard, ClipboardCheck, Loader2, Brain } from "lucide-react";
 
 import { generateCampaignCopy, summarizeTimeline } from "@/features/crm/services";
+import apiClient from "@/lib/api/client";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Form,
@@ -27,6 +29,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
 // -----------------------------
 // Zod schema frontend-only: CampaignCopyRequest
@@ -49,6 +57,134 @@ const campaignCopyFormSchema = z.object({
 });
 
 type CampaignCopyFormValues = z.infer<typeof campaignCopyFormSchema>;
+
+const CampaignSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    segment: z.string().optional().nullable(),
+    channel: z.string().optional().nullable(),
+    status: z.string().optional().nullable(),
+    scheduled_at: z.string().optional().nullable(),
+    created_at: z.string().optional().nullable(),
+  })
+  .passthrough();
+
+type CampaignDTO = z.infer<typeof CampaignSchema>;
+
+const CampaignMetricsSchema = z
+  .object({
+    sent: z.union([z.number(), z.string()]).optional().transform((v) => Number(v ?? 0)),
+    delivered: z.union([z.number(), z.string()]).optional().transform((v) => Number(v ?? 0)),
+    opens: z.union([z.number(), z.string()]).optional().transform((v) => Number(v ?? 0)),
+    clicks: z.union([z.number(), z.string()]).optional().transform((v) => Number(v ?? 0)),
+    conversions: z.union([z.number(), z.string()]).optional().transform((v) => Number(v ?? 0)),
+    revenue: z.union([z.number(), z.string()]).optional().transform((v) => Number(v ?? 0)),
+  })
+  .passthrough();
+
+type CampaignMetricsDTO = z.infer<typeof CampaignMetricsSchema>;
+
+function formatDate(dateValue: string | null | undefined) {
+  if (!dateValue) return "—";
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return dateValue;
+  return date.toLocaleString("es-CO", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function statusVariant(status: string | null | undefined) {
+  const normalized = (status ?? "").toLowerCase();
+  if (normalized.includes("active") || normalized.includes("programada")) {
+    return "border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-300";
+  }
+  if (normalized.includes("completed") || normalized.includes("finalizada")) {
+    return "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
+  }
+  if (normalized.includes("failed") || normalized.includes("cancel")) {
+    return "border-destructive/40 bg-destructive/10 text-destructive";
+  }
+  return "border-muted-foreground/30 bg-muted text-muted-foreground";
+}
+
+async function listCampaigns(): Promise<CampaignDTO[]> {
+  const { data } = await apiClient.get("/api/crm/campaigns", {
+    params: { limit: 50, offset: 0 },
+  });
+  if (Array.isArray(data)) {
+    return z.array(CampaignSchema).parse(data);
+  }
+  if (data && Array.isArray(data.items)) {
+    return z.array(CampaignSchema).parse(data.items);
+  }
+  return [];
+}
+
+async function getCampaignMetrics(campaignId: string): Promise<CampaignMetricsDTO> {
+  const { data } = await apiClient.get(`/api/crm/campaigns/${campaignId}/metrics`);
+  return CampaignMetricsSchema.parse(data);
+}
+
+function CampaignMetricsPanel({
+  campaignId,
+  enabled,
+}: {
+  campaignId: string;
+  enabled: boolean;
+}) {
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ["crm", "campaign-metrics", campaignId],
+    queryFn: () => getCampaignMetrics(campaignId),
+    enabled,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 pt-1">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Skeleton key={i} className="h-14 w-full" />
+        ))}
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <p className="text-sm text-destructive">
+        {(error as Error).message}
+      </p>
+    );
+  }
+
+  if (!data) {
+    return <p className="text-sm text-muted-foreground">Sin métricas disponibles.</p>;
+  }
+
+  const metricItems = [
+    { label: "Enviados", value: data.sent },
+    { label: "Entregados", value: data.delivered },
+    { label: "Aperturas", value: data.opens },
+    { label: "Clicks", value: data.clicks },
+    { label: "Conversiones", value: data.conversions },
+    { label: "Ingresos", value: data.revenue.toLocaleString("es-CO") },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 pt-1">
+      {metricItems.map((item) => (
+        <div key={item.label} className="rounded-md border bg-muted/40 p-2">
+          <p className="text-[11px] text-muted-foreground">{item.label}</p>
+          <p className="text-sm font-semibold">{item.value}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function buildPrompt(values: CampaignCopyFormValues): string {
   const toneLabel: Record<CampaignCopyFormValues["tone"], string> = {
@@ -88,6 +224,7 @@ Llamado a la acción principal: ${values.cta}.`;
 export default function MarketingAIPage() {
   const [copied, setCopied] = useState(false);
   const [summaryCustomerId, setSummaryCustomerId] = useState("");
+  const [expandedCampaignId, setExpandedCampaignId] = useState<string>("");
 
   const form = useForm<CampaignCopyFormValues>({
     resolver: zodResolver(campaignCopyFormSchema),
@@ -111,6 +248,11 @@ export default function MarketingAIPage() {
 
   const summarizeMutation = useMutation({
     mutationFn: (customerId: string) => summarizeTimeline({ customer_id: customerId }),
+  });
+
+  const campaignsQuery = useQuery({
+    queryKey: ["crm", "campaigns"],
+    queryFn: listCampaigns,
   });
 
   const handleCopy = async () => {
@@ -390,6 +532,78 @@ export default function MarketingAIPage() {
           </CardFooter>
         </Card>
       </div>
+
+      <Card className="border-primary/10">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Megaphone className="h-4 w-4 text-primary" />
+            Mis campañas
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {campaignsQuery.isLoading && (
+            <div className="space-y-2">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-16 w-full" />
+              ))}
+            </div>
+          )}
+
+          {campaignsQuery.isError && !campaignsQuery.isLoading && (
+            <Alert variant="destructive">
+              <AlertTitle>Error cargando campañas</AlertTitle>
+              <AlertDescription>{(campaignsQuery.error as Error).message}</AlertDescription>
+            </Alert>
+          )}
+
+          {!campaignsQuery.isLoading && !campaignsQuery.isError && (
+            <>
+              {campaignsQuery.data && campaignsQuery.data.length > 0 ? (
+                <Accordion
+                  type="single"
+                  collapsible
+                  value={expandedCampaignId}
+                  onValueChange={setExpandedCampaignId}
+                  className="w-full"
+                >
+                  {campaignsQuery.data.map((campaign) => (
+                    <AccordionItem key={campaign.id} value={campaign.id}>
+                      <AccordionTrigger className="hover:no-underline">
+                        <div className="flex w-full items-center justify-between gap-4 text-left pr-2">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{campaign.name}</p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {campaign.segment || "Sin segmento"} · {campaign.channel || "Sin canal"}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Badge variant="outline" className={statusVariant(campaign.status)}>
+                              {campaign.status || "Sin estado"}
+                            </Badge>
+                            <span className="text-[11px] text-muted-foreground">
+                              {formatDate(campaign.scheduled_at ?? campaign.created_at)}
+                            </span>
+                          </div>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <CampaignMetricsPanel
+                          campaignId={campaign.id}
+                          enabled={expandedCampaignId === campaign.id}
+                        />
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
+                </Accordion>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Aún no tienes campañas registradas.
+                </p>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Extensión opcional: resumen de timeline */}
       <Card className="border-primary/10">

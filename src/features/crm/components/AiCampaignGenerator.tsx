@@ -1,9 +1,10 @@
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Sparkles, Copy, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import apiClient from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -33,13 +34,34 @@ const schema = z.object({
   target_audience: z.string().min(3, "Indica el público objetivo"),
 });
 
+const createCampaignSchema = z.object({
+  name: z.string().min(3, "Nombre mínimo de 3 caracteres"),
+  segment: z.string().min(2, "Segmento mínimo de 2 caracteres"),
+  channel: z.enum(["Email", "SMS", "WhatsApp"], {
+    required_error: "Selecciona un canal",
+  }),
+  scheduled_at: z.string().min(1, "Selecciona fecha programada"),
+});
+
 type FormValues = z.infer<typeof schema>;
+type CreateCampaignValues = z.infer<typeof createCampaignSchema>;
 
 export default function AiCampaignGenerator() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { prompt: "", tone: "", target_audience: "" },
+  });
+
+  const createCampaignForm = useForm<CreateCampaignValues>({
+    resolver: zodResolver(createCampaignSchema),
+    defaultValues: {
+      name: "",
+      segment: "",
+      channel: "Email",
+      scheduled_at: "",
+    },
   });
 
   const mutation = useMutation<string, Error, FormValues>({
@@ -65,6 +87,39 @@ export default function AiCampaignGenerator() {
   });
 
   const onSubmit = (values: FormValues) => mutation.mutate(values);
+
+  const createCampaignMutation = useMutation<unknown, Error, CreateCampaignValues>({
+    mutationFn: async (values) => {
+      const scheduledAtIso = new Date(values.scheduled_at).toISOString();
+      const { data } = await apiClient.post("/api/crm/campaigns", {
+        name: values.name,
+        segment: values.segment,
+        channel: values.channel,
+        scheduled_at: scheduledAtIso,
+      });
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["crm", "campaigns"] });
+      createCampaignForm.reset({
+        name: "",
+        segment: "",
+        channel: "Email",
+        scheduled_at: "",
+      });
+      toast({
+        title: "Campaña creada",
+        description: "La campaña fue programada correctamente.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "No se pudo crear la campaña",
+        description: error.message ?? "Intenta nuevamente.",
+        variant: "destructive",
+      });
+    },
+  });
 
   const handleCopy = async () => {
     if (!mutation.data) return;
@@ -195,6 +250,99 @@ export default function AiCampaignGenerator() {
           )}
         </section>
       </div>
+
+      <Card className="erp-card">
+        <div className="space-y-4">
+          <div>
+            <h3 className="text-sm font-semibold">Paso final: Crear campaña</h3>
+            <p className="text-xs text-muted-foreground">
+              Define los datos de publicación y registra la campaña.
+            </p>
+          </div>
+
+          <Form {...createCampaignForm}>
+            <form
+              onSubmit={createCampaignForm.handleSubmit((values) => createCampaignMutation.mutate(values))}
+              className="space-y-4"
+            >
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <FormField
+                  control={createCampaignForm.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Nombre</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Ej: Promo Bienestar Marzo" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={createCampaignForm.control}
+                  name="segment"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Segmento</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Ej: Clientes recurrentes" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={createCampaignForm.control}
+                  name="channel"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Canal</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecciona canal" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="Email">Email</SelectItem>
+                          <SelectItem value="SMS">SMS</SelectItem>
+                          <SelectItem value="WhatsApp">WhatsApp</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={createCampaignForm.control}
+                  name="scheduled_at"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Fecha programada</FormLabel>
+                      <FormControl>
+                        <Input type="datetime-local" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <Button
+                type="submit"
+                disabled={createCampaignMutation.isPending}
+                className="w-full"
+              >
+                {createCampaignMutation.isPending ? "Creando campaña…" : "Crear campaña"}
+              </Button>
+            </form>
+          </Form>
+        </div>
+      </Card>
     </div>
   );
 }
