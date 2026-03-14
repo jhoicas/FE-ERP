@@ -15,7 +15,10 @@ import {
   Ticket,
   Sparkles,
   Pencil,
+  Star,
 } from "lucide-react";
+import { z } from "zod";
+import apiClient from "@/lib/api/client";
 
 import {
   getProfile360,
@@ -69,9 +72,55 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Progress } from "@/components/ui/progress";
 import ExplainableAcronym from "@/components/shared/ExplainableAcronym";
 
 const TICKETS_PAGE_SIZE = 50;
+
+const LoyaltyHistoryItemSchema = z
+  .object({
+    id: z.string().optional().catch(""),
+    type: z.string().optional().catch("earned"),
+    points: z.union([z.number(), z.string()]).optional().transform((v) => Number(v ?? 0)),
+    reason: z.string().optional().nullable().catch(null),
+    created_at: z.string().optional().nullable().catch(null),
+  })
+  .passthrough();
+
+const LoyaltyResponseSchema = z
+  .object({
+    balance: z.union([z.number(), z.string()]).optional().transform((v) => Number(v ?? 0)),
+    current_tier_name: z.string().optional().nullable().catch(null),
+    next_tier_name: z.string().optional().nullable().catch(null),
+    next_tier_threshold: z.union([z.number(), z.string()]).optional().transform((v) => Number(v ?? 0)),
+    current_tier_min_points: z.union([z.number(), z.string()]).optional().transform((v) => Number(v ?? 0)),
+    history: z.array(LoyaltyHistoryItemSchema).optional().catch([]),
+    transactions: z.array(LoyaltyHistoryItemSchema).optional().catch([]),
+  })
+  .passthrough();
+
+type LoyaltyHistoryItem = z.infer<typeof LoyaltyHistoryItemSchema>;
+type LoyaltyResponse = z.infer<typeof LoyaltyResponseSchema> & {
+  history: LoyaltyHistoryItem[];
+};
+
+async function getCustomerLoyalty(customerId: string): Promise<LoyaltyResponse> {
+  const { data } = await apiClient.get(`/api/crm/customers/${customerId}/loyalty`);
+  const parsed = LoyaltyResponseSchema.parse(data);
+  return {
+    ...parsed,
+    history: parsed.history.length > 0 ? parsed.history : parsed.transactions,
+  };
+}
+
+async function redeemLoyaltyPoints(params: {
+  customer_id: string;
+  points: number;
+  reason: string;
+}) {
+  const { data } = await apiClient.post("/api/crm/loyalty/redeem", params);
+  return data;
+}
 
 function formatCurrency(value: string | number | null | undefined) {
   const n =
@@ -540,6 +589,124 @@ function TimelineAISummaryCard({
   );
 }
 
+function LoyaltyProgressCard({ loyalty }: { loyalty: LoyaltyResponse }) {
+  const balance = loyalty.balance ?? 0;
+  const nextThreshold = loyalty.next_tier_threshold ?? 0;
+  const currentMin = loyalty.current_tier_min_points ?? 0;
+  const base = Math.max(nextThreshold - currentMin, 0);
+  const progress =
+    nextThreshold > 0 && base > 0
+      ? Math.min(100, Math.max(0, ((balance - currentMin) / base) * 100))
+      : 100;
+  const missing = Math.max(nextThreshold - balance, 0);
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm flex items-center gap-2">
+          <Star className="h-4 w-4 text-primary" />
+          Balance de puntos
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <p className="text-xs text-muted-foreground">Balance actual</p>
+            <p className="text-2xl font-semibold font-mono">{balance.toLocaleString("es-CO")}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-muted-foreground">Tier actual</p>
+            <Badge variant="secondary" className="text-[11px]">
+              {loyalty.current_tier_name || "Sin tier"}
+            </Badge>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+            <span>
+              Siguiente tier: <span className="font-medium text-foreground">{loyalty.next_tier_name || "Máximo"}</span>
+            </span>
+            <span>
+              {nextThreshold > 0
+                ? missing > 0
+                  ? `Faltan ${missing.toLocaleString("es-CO")} pts`
+                  : "Tier alcanzado"
+                : "Sin siguiente tier"}
+            </span>
+          </div>
+          <Progress value={progress} className="h-3" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function LoyaltyHistoryCard({ history }: { history: LoyaltyHistoryItem[] }) {
+  const sorted = [...history].sort((a, b) => {
+    const at = new Date(a.created_at ?? 0).getTime();
+    const bt = new Date(b.created_at ?? 0).getTime();
+    return bt - at;
+  });
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm flex items-center gap-2">
+          <Gift className="h-4 w-4 text-primary" />
+          Historial de puntos
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        {sorted.length === 0 ? (
+          <p className="p-4 text-sm text-muted-foreground">
+            No hay movimientos de puntos registrados.
+          </p>
+        ) : (
+          <div className="overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50 hover:bg-muted/50">
+                  <TableHead className="text-xs text-muted-foreground">Tipo</TableHead>
+                  <TableHead className="text-xs text-muted-foreground">Motivo</TableHead>
+                  <TableHead className="text-xs text-muted-foreground">Fecha</TableHead>
+                  <TableHead className="text-right text-xs text-muted-foreground">Puntos</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sorted.map((item, index) => {
+                  const isRedeem = item.type.toLowerCase().includes("redeem") || item.type.toLowerCase().includes("canje");
+                  return (
+                    <TableRow key={item.id || `${item.type}-${index}`} className="hover:bg-muted/40">
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={isRedeem ? "border-red-500/40 bg-red-50 text-red-700" : "border-emerald-500/40 bg-emerald-50 text-emerald-700"}
+                        >
+                          {isRedeem ? "Canjeado" : "Ganado"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {item.reason || "Sin motivo"}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {item.created_at ? formatDateTime(item.created_at) : "—"}
+                      </TableCell>
+                      <TableCell className={`text-right font-mono text-sm ${isRedeem ? "text-red-600" : "text-emerald-600"}`}>
+                        {isRedeem ? "-" : "+"}{Math.abs(item.points).toLocaleString("es-CO")}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function CustomerProfile360Page() {
   const { id: customerId } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -549,6 +716,7 @@ export default function CustomerProfile360Page() {
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [interactionDialogOpen, setInteractionDialogOpen] = useState(false);
   const [editCustomerOpen, setEditCustomerOpen] = useState(false);
+  const [redeemDialogOpen, setRedeemDialogOpen] = useState(false);
    const [recentInteractions, setRecentInteractions] = useState<
     InteractionResponse[]
   >([]);
@@ -578,6 +746,12 @@ export default function CustomerProfile360Page() {
     enabled: !!customerId,
   });
 
+  const loyaltyQuery = useQuery({
+    queryKey: ["crm-loyalty", customerId],
+    queryFn: () => getCustomerLoyalty(customerId!),
+    enabled: !!customerId,
+  });
+
   const summarizeMutation = useMutation({
     mutationFn: () => summarizeTimeline({ customer_id: customerId! }),
     onSuccess: (data) => {
@@ -597,6 +771,24 @@ export default function CustomerProfile360Page() {
   const form = useForm<AssignCategoryRequest>({
     resolver: zodResolver(assignCategorySchema),
     defaultValues: { category_id: "", ltv: 0 },
+  });
+
+  const redeemForm = useForm<{ points: number; reason: string }>({
+    defaultValues: { points: 0, reason: "" },
+  });
+
+  const redeemMutation = useMutation({
+    mutationFn: (values: { points: number; reason: string }) =>
+      redeemLoyaltyPoints({
+        customer_id: customerId!,
+        points: values.points,
+        reason: values.reason,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["crm-loyalty", customerId] });
+      setRedeemDialogOpen(false);
+      redeemForm.reset({ points: 0, reason: "" });
+    },
   });
 
   const openAssignDialog = () => {
@@ -842,6 +1034,7 @@ export default function CustomerProfile360Page() {
               <TabsTrigger value="timeline">Timeline</TabsTrigger>
               <TabsTrigger value="tickets">Tickets</TabsTrigger>
               <TabsTrigger value="tasks">Tareas</TabsTrigger>
+              <TabsTrigger value="points">Puntos</TabsTrigger>
             </TabsList>
 
             <TabsContent value="timeline" className="space-y-4">
@@ -879,6 +1072,105 @@ export default function CustomerProfile360Page() {
                 isError={!!tasksQuery.isError}
                 error={tasksQuery.error}
               />
+            </TabsContent>
+
+            <TabsContent value="points" className="space-y-4">
+              {loyaltyQuery.isLoading ? (
+                <div className="space-y-3">
+                  <Skeleton className="h-32 w-full" />
+                  <Skeleton className="h-56 w-full" />
+                </div>
+              ) : loyaltyQuery.isError ? (
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-destructive">
+                      {(loyaltyQuery.error as Error).message}
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <>
+                  <div className="flex justify-end">
+                    <Dialog open={redeemDialogOpen} onOpenChange={setRedeemDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          Canjear puntos
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Canjear puntos</DialogTitle>
+                        </DialogHeader>
+                        <Form {...redeemForm}>
+                          <form
+                            onSubmit={redeemForm.handleSubmit((values) => redeemMutation.mutate(values))}
+                            className="space-y-4"
+                          >
+                            <FormField
+                              control={redeemForm.control}
+                              name="points"
+                              rules={{
+                                min: { value: 1, message: "Ingresa al menos 1 punto" },
+                              }}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Cantidad</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      type="number"
+                                      min={1}
+                                      step={1}
+                                      value={field.value || ""}
+                                      onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+
+                            <FormField
+                              control={redeemForm.control}
+                              name="reason"
+                              rules={{
+                                required: "El motivo es obligatorio",
+                                minLength: { value: 3, message: "Motivo mínimo de 3 caracteres" },
+                              }}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Motivo</FormLabel>
+                                  <FormControl>
+                                    <Input placeholder="Ej. Redención por bono de descuento" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+
+                            {redeemMutation.isError && (
+                              <p className="text-sm text-destructive">
+                                {(redeemMutation.error as Error).message}
+                              </p>
+                            )}
+
+                            <DialogFooter>
+                              <Button type="button" variant="ghost" onClick={() => setRedeemDialogOpen(false)}>
+                                Cancelar
+                              </Button>
+                              <Button type="submit" disabled={redeemMutation.isPending}>
+                                {redeemMutation.isPending ? "Canjeando…" : "Confirmar canje"}
+                              </Button>
+                            </DialogFooter>
+                          </form>
+                        </Form>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+
+                  <LoyaltyProgressCard loyalty={loyaltyQuery.data!} />
+                  <LoyaltyHistoryCard history={loyaltyQuery.data?.history ?? []} />
+                </>
+              )}
             </TabsContent>
           </Tabs>
         </div>
