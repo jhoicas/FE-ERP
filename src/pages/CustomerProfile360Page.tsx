@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { z } from "zod";
 import apiClient from "@/lib/api/client";
+import { getApiErrorMessage } from "@/lib/api/errors";
 
 import {
   getProfile360,
@@ -866,6 +867,9 @@ export default function CustomerProfile360Page() {
       const s = t.status.toLowerCase();
       return t.customer_id === customerId && s !== "done" && s !== "cancelled";
     }) ?? [];
+  const redeemPoints = redeemForm.watch("points") || 0;
+  const currentLoyaltyBalance = loyaltyQuery.data?.balance ?? 0;
+  const exceedsBalance = redeemPoints > currentLoyaltyBalance;
 
   return (
     <div className="animate-fade-in space-y-4 max-w-6xl">
@@ -1084,7 +1088,7 @@ export default function CustomerProfile360Page() {
                 <Card>
                   <CardContent className="pt-6">
                     <p className="text-sm text-destructive">
-                      {(loyaltyQuery.error as Error).message}
+                      {getApiErrorMessage(loyaltyQuery.error, "Puntos de fidelización")}
                     </p>
                   </CardContent>
                 </Card>
@@ -1103,7 +1107,16 @@ export default function CustomerProfile360Page() {
                         </DialogHeader>
                         <Form {...redeemForm}>
                           <form
-                            onSubmit={redeemForm.handleSubmit((values) => redeemMutation.mutate(values))}
+                            onSubmit={redeemForm.handleSubmit((values) => {
+                              if (values.points > currentLoyaltyBalance) {
+                                redeemForm.setError("points", {
+                                  type: "manual",
+                                  message: "La cantidad supera el balance disponible.",
+                                });
+                                return;
+                              }
+                              redeemMutation.mutate(values);
+                            })}
                             className="space-y-4"
                           >
                             <FormField
@@ -1149,7 +1162,13 @@ export default function CustomerProfile360Page() {
 
                             {redeemMutation.isError && (
                               <p className="text-sm text-destructive">
-                                {(redeemMutation.error as Error).message}
+                                {getApiErrorMessage(redeemMutation.error, "Canje de puntos")}
+                              </p>
+                            )}
+
+                            {exceedsBalance && (
+                              <p className="text-sm text-destructive">
+                                La cantidad supera el balance disponible ({currentLoyaltyBalance.toLocaleString("es-CO")}).
                               </p>
                             )}
 
@@ -1157,7 +1176,7 @@ export default function CustomerProfile360Page() {
                               <Button type="button" variant="ghost" onClick={() => setRedeemDialogOpen(false)}>
                                 Cancelar
                               </Button>
-                              <Button type="submit" disabled={redeemMutation.isPending}>
+                              <Button type="submit" disabled={redeemMutation.isPending || exceedsBalance}>
                                 {redeemMutation.isPending ? "Canjeando…" : "Confirmar canje"}
                               </Button>
                             </DialogFooter>
