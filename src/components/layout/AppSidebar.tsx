@@ -35,6 +35,28 @@ const navItems: {
   },
 ];
 
+const crmSubItems: {
+  label: string;
+  path: string;
+  allowedRoles?: string[];
+}[] = [
+  {
+    label: "Oportunidades",
+    path: "/crm/oportunidades",
+    allowedRoles: ["sales", "admin"],
+  },
+  {
+    label: "Tickets",
+    path: "/crm/tickets",
+    allowedRoles: ["support", "admin"],
+  },
+  {
+    label: "Tareas",
+    path: "/crm/tasks",
+    allowedRoles: ["sales", "admin"],
+  },
+];
+
 const inventorySubItems: {
   label: string;
   path: string;
@@ -142,6 +164,30 @@ export default function AppSidebar() {
                   <item.icon className="h-4 w-4 shrink-0" />
                   {!collapsed && <span>{item.label}</span>}
                 </NavLink>
+
+                {!collapsed && item.path === "/crm" && (
+                  <div className="ml-9 mt-1 mb-1 space-y-1">
+                    {crmSubItems
+                      .filter((subItem) => hasAccess(roles, subItem.allowedRoles))
+                      .map((subItem) => {
+                        const subActive = location.pathname.startsWith(subItem.path);
+                        return (
+                          <NavLink
+                            key={subItem.path}
+                            to={subItem.path}
+                            className={cn(
+                              "block rounded-md px-2 py-1.5 text-xs transition-colors",
+                              subActive
+                                ? "bg-sidebar-accent text-sidebar-fg-active"
+                                : "text-sidebar-fg hover:text-sidebar-fg-active hover:bg-sidebar-border/50",
+                            )}
+                          >
+                            {subItem.label}
+                          </NavLink>
+                        );
+                      })}
+                  </div>
+                )}
 
                 {!collapsed && item.path === "/inventario" && (
                   <div className="ml-9 mt-1 mb-1 space-y-1">

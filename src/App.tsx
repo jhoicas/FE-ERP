@@ -32,6 +32,7 @@ import ProtectedRoute from "@/features/auth/ProtectedRoute";
 import UsersManagement from "@/features/auth/components/UsersManagement";
 import NotFound from "./pages/NotFound";
 import LoyaltyPage from "@/pages/LoyaltyPage";
+import OpportunitiesPage from "@/pages/OpportunitiesPage";
 
 const queryClient = new QueryClient();
 
@@ -223,6 +224,15 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={["marketing", "admin"]}>
                   <AiCampaignGenerator />
+                </ProtectedRoute>
+              }
+            />
+            {/* Oportunidades */}
+            <Route
+              path="/crm/oportunidades"
+              element={
+                <ProtectedRoute allowedRoles={["sales", "admin"]}>
+                  <OpportunitiesPage />
                 </ProtectedRoute>
               }
             />
