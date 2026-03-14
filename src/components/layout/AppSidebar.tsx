@@ -55,6 +55,16 @@ const crmSubItems: {
     path: "/crm/tasks",
     allowedRoles: ["sales", "admin"],
   },
+  {
+    label: "Fidelización de Clientes",
+    path: "/crm/loyalty",
+    allowedRoles: ["admin"],
+  },
+  {
+    label: "Laboratorio de campañas",
+    path: "/crm/campaigns",
+    allowedRoles: ["marketing", "admin"],
+  },
 ];
 
 const inventorySubItems: {
