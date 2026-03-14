@@ -1,8 +1,10 @@
-import { useMemo } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Activity, CalendarDays, MessageSquarePlus } from "lucide-react";
+import { format } from "date-fns";
+import type { DateRange } from "react-day-picker";
+import { Activity, CalendarDays, CalendarIcon, MessageSquarePlus } from "lucide-react";
 
 import type { InteractionResponse } from "@/types/crm";
 import { createInteraction } from "@/features/crm/services";
@@ -10,6 +12,8 @@ import {
   createInteractionSchema,
   type CreateInteractionRequest,
 } from "@/lib/validations/crm";
+import apiClient from "@/lib/api/client";
+import { getApiErrorMessage } from "@/lib/api/errors";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,6 +35,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 const INTERACTION_TYPES = [
   { value: "call", label: "Llamada" },
@@ -40,6 +46,8 @@ const INTERACTION_TYPES = [
 ] as const;
 
 type InteractionType = (typeof INTERACTION_TYPES)[number]["value"];
+
+const PAGE_SIZE = 20;
 
 function formatDateTime(iso: string) {
   try {
@@ -70,29 +78,78 @@ function InteractionTypeBadge({ type }: { type: InteractionType }) {
   );
 }
 
-function useLocalInteractions(customerId: string) {
-  const queryClient = useQueryClient();
-  const key = ["crm-interactions", customerId] as const;
+function DateRangePicker({
+  value,
+  onChange,
+}: {
+  value: DateRange | undefined;
+  onChange: (value: DateRange | undefined) => void;
+}) {
+  const label = value?.from
+    ? value.to
+      ? `${format(value.from, "dd/MM/yyyy")} - ${format(value.to, "dd/MM/yyyy")}`
+      : format(value.from, "dd/MM/yyyy")
+    : "Rango de fechas";
 
-  const query = useQuery({
-    queryKey: key,
-    // No hay GET en backend: la fuente es caché local.
-    queryFn: async () => {
-      const cached = queryClient.getQueryData<InteractionResponse[]>(key);
-      return cached ?? [];
+  return (
+    <div className="space-y-1">
+      <p className="text-xs text-muted-foreground">Fecha</p>
+      <div className="flex gap-2">
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className="justify-start text-left font-normal h-10 w-full sm:w-[260px]">
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              <span className="truncate">{label}</span>
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="range"
+              selected={value}
+              onSelect={onChange}
+              numberOfMonths={2}
+              initialFocus
+            />
+          </PopoverContent>
+        </Popover>
+        {value?.from && (
+          <Button variant="ghost" type="button" className="text-xs" onClick={() => onChange(undefined)}>
+            Limpiar
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+async function listCustomerInteractions(params: {
+  customerId: string;
+  limit: number;
+  offset: number;
+  type?: InteractionType;
+  from?: string;
+  to?: string;
+}): Promise<{ items: InteractionResponse[]; nextOffset?: number }> {
+  const { data } = await apiClient.get(`/api/crm/customers/${params.customerId}/interactions`, {
+    params: {
+      limit: params.limit,
+      offset: params.offset,
+      type: params.type,
+      from: params.from,
+      to: params.to,
     },
-    staleTime: Infinity,
   });
 
-  const upsert = (interaction: InteractionResponse) => {
-    queryClient.setQueryData<InteractionResponse[]>(key, (prev) => {
-      const list = prev ?? [];
-      if (list.some((i) => i.id === interaction.id)) return list;
-      return [interaction, ...list];
-    });
-  };
+  const items = Array.isArray(data)
+    ? (data as InteractionResponse[])
+    : Array.isArray(data?.items)
+      ? (data.items as InteractionResponse[])
+      : [];
 
-  return { ...query, upsert };
+  return {
+    items,
+    nextOffset: items.length === params.limit ? params.offset + params.limit : undefined,
+  };
 }
 
 export default function CustomerInteractionsTimeline({
@@ -102,7 +159,30 @@ export default function CustomerInteractionsTimeline({
   customerId: string;
   maxItems?: number;
 }) {
-  const { data, isLoading, upsert } = useLocalInteractions(customerId);
+  const queryClient = useQueryClient();
+  const [typeFilter, setTypeFilter] = useState<InteractionType | "_all">("_all");
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+
+  const interactionsQuery = useInfiniteQuery({
+    queryKey: [
+      "crm-customer-interactions",
+      customerId,
+      typeFilter,
+      dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : null,
+      dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : null,
+    ],
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) =>
+      listCustomerInteractions({
+        customerId,
+        limit: PAGE_SIZE,
+        offset: pageParam,
+        type: typeFilter === "_all" ? undefined : typeFilter,
+        from: dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : undefined,
+        to: dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : undefined,
+      }),
+    getNextPageParam: (lastPage) => lastPage.nextOffset,
+  });
 
   const form = useForm<CreateInteractionRequest>({
     resolver: zodResolver(createInteractionSchema),
@@ -116,8 +196,10 @@ export default function CustomerInteractionsTimeline({
 
   const mutation = useMutation({
     mutationFn: createInteraction,
-    onSuccess: (interaction) => {
-      upsert(interaction);
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["crm-customer-interactions", customerId],
+      });
       form.reset({
         customer_id: customerId,
         type: "call",
@@ -128,13 +210,15 @@ export default function CustomerInteractionsTimeline({
   });
 
   const interactions = useMemo(() => {
-    const list = (data ?? []).slice();
+    const list = interactionsQuery.data?.pages.flatMap((page) => page.items) ?? [];
     list.sort(
       (a, b) =>
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
     );
     return list.slice(0, maxItems);
-  }, [data, maxItems]);
+  }, [interactionsQuery.data, maxItems]);
+
+  const isInitialLoading = interactionsQuery.isLoading && interactions.length === 0;
 
   return (
     <div className="space-y-4">
@@ -239,61 +323,107 @@ export default function CustomerInteractionsTimeline({
           </span>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Tipo de interacción</p>
+                <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value as InteractionType | "_all")}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos los tipos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_all">Todos</SelectItem>
+                    {INTERACTION_TYPES.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>
+                        {t.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <DateRangePicker value={dateRange} onChange={setDateRange} />
+            </div>
+          </div>
+
+          {isInitialLoading ? (
             <div className="space-y-3">
               <Skeleton className="h-16 w-full" />
               <Skeleton className="h-16 w-full" />
               <Skeleton className="h-16 w-full" />
             </div>
+          ) : interactionsQuery.isError ? (
+            <p className="text-sm text-destructive">
+              {getApiErrorMessage(interactionsQuery.error, "Interacciones CRM")}
+            </p>
           ) : interactions.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No hay interacciones registradas todavía.
+              No hay interacciones para los filtros seleccionados.
             </p>
           ) : (
-            <div className="relative pl-6 space-y-4">
-              {/* línea vertical */}
-              <div className="absolute left-2 top-0 bottom-0 w-px bg-border" />
+            <>
+              <div className="relative pl-6 space-y-4">
+                {/* línea vertical */}
+                <div className="absolute left-2 top-0 bottom-0 w-px bg-border" />
 
-              {interactions.map((i, idx) => {
-                const type = i.type as InteractionType;
-                const side = idx % 2 === 0 ? "left" : "right";
-                return (
-                  <div key={i.id} className="relative">
-                    {/* punto */}
-                    <div className="absolute -left-[3px] top-3 h-3 w-3 rounded-full bg-primary shadow" />
+                {interactions.map((i, idx) => {
+                  const type = i.type as InteractionType;
+                  const side = idx % 2 === 0 ? "left" : "right";
+                  return (
+                    <div key={i.id} className="relative">
+                      {/* punto */}
+                      <div className="absolute -left-[3px] top-3 h-3 w-3 rounded-full bg-primary shadow" />
 
-                    <div
-                      className={[
-                        "max-w-[680px]",
-                        side === "right" ? "ml-auto" : "mr-auto",
-                      ].join(" ")}
-                    >
-                      <Card className="border bg-background/80">
-                        <CardHeader className="pb-2">
-                          <div className="flex items-center justify-between gap-2">
-                            <InteractionTypeBadge type={type} />
-                            <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                              <CalendarDays className="h-3 w-3" />
-                              {formatDateTime(i.created_at)}
-                            </span>
-                          </div>
-                          <CardTitle className="text-sm">
-                            {i.subject || "Sin asunto"}
-                          </CardTitle>
-                        </CardHeader>
-                        {i.body ? (
-                          <CardContent>
-                            <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                              {i.body}
-                            </p>
-                          </CardContent>
-                        ) : null}
-                      </Card>
+                      <div
+                        className={[
+                          "max-w-[680px]",
+                          side === "right" ? "ml-auto" : "mr-auto",
+                        ].join(" ")}
+                      >
+                        <Card className="border bg-background/80">
+                          <CardHeader className="pb-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <InteractionTypeBadge type={type} />
+                              <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                                <CalendarDays className="h-3 w-3" />
+                                {formatDateTime(i.created_at)}
+                              </span>
+                            </div>
+                            <CardTitle className="text-sm">
+                              {i.subject || "Sin asunto"}
+                            </CardTitle>
+                          </CardHeader>
+                          {i.body ? (
+                            <CardContent>
+                              <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                                {i.body}
+                              </p>
+                            </CardContent>
+                          ) : null}
+                        </Card>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+
+              <div className="pt-4 flex justify-center">
+                {interactionsQuery.hasNextPage ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => interactionsQuery.fetchNextPage()}
+                    disabled={interactionsQuery.isFetchingNextPage}
+                  >
+                    {interactionsQuery.isFetchingNextPage ? "Cargando…" : "Cargar más"}
+                  </Button>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    No hay más interacciones para mostrar.
+                  </p>
+                )}
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
