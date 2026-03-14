@@ -1,11 +1,20 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MessageCircle } from "lucide-react";
 
 import { getTickets } from "@/features/crm/services";
+import apiClient from "@/lib/api/client";
 import { getApiErrorMessage } from "@/lib/api/errors";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Pagination,
   PaginationContent,
@@ -20,6 +29,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+
+type TicketListItem = {
+  id: string;
+  subject: string;
+  description: string;
+  status: "open" | "resolved";
+  sentiment: "positive" | "neutral" | "negative";
+  sla_overdue?: boolean;
+};
 
 function StatusBadge({ status }: { status: "open" | "resolved" }) {
   const label = status === "open" ? "Abierto" : "Resuelto";
@@ -45,18 +64,38 @@ function SentimentBadge({ sentiment }: { sentiment: "positive" | "neutral" | "ne
 const ROWS_PER_PAGE_OPTIONS = [5, 10, 20, 50];
 
 export default function TicketsList() {
+  const queryClient = useQueryClient();
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [page, setPage] = useState(0);
+  const [selectedTicket, setSelectedTicket] = useState<TicketListItem | null>(null);
+  const [escalationReason, setEscalationReason] = useState("");
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["crm", "tickets"],
     queryFn: getTickets,
   });
 
-  const total = data?.length ?? 0;
+  const escalateMutation = useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      const { data } = await apiClient.put(`/api/crm/tickets/${id}/escalate`, {
+        reason,
+      });
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["crm", "tickets"] });
+      queryClient.invalidateQueries({ queryKey: ["crm-tickets"] });
+      queryClient.invalidateQueries({ queryKey: ["crm-ticket"] });
+      setSelectedTicket(null);
+      setEscalationReason("");
+    },
+  });
+
+  const items = (data as TicketListItem[] | undefined) ?? [];
+  const total = items.length;
   const start = page * rowsPerPage;
   const end = Math.min(start + rowsPerPage, total);
-  const pageItems = data?.slice(start, end) ?? [];
+  const pageItems = items.slice(start, end);
   const hasPrev = page > 0;
   const hasNext = end < total;
 
@@ -94,6 +133,11 @@ export default function TicketsList() {
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-sm font-medium truncate">{t.subject}</p>
                       <div className="flex items-center gap-2 shrink-0">
+                        {t.sla_overdue === true && (
+                          <Badge variant="destructive" className="text-[10px]">
+                            Vencido SLA
+                          </Badge>
+                        )}
                         <StatusBadge status={t.status} />
                         <SentimentBadge sentiment={t.sentiment} />
                       </div>
@@ -101,6 +145,20 @@ export default function TicketsList() {
                     <p className="text-xs text-muted-foreground line-clamp-2">
                       {t.description}
                     </p>
+                    <div className="pt-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => {
+                          setSelectedTicket(t);
+                          setEscalationReason("");
+                        }}
+                      >
+                        Escalar
+                      </Button>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -166,6 +224,63 @@ export default function TicketsList() {
           )}
         </div>
       )}
+
+      <Dialog
+        open={!!selectedTicket}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedTicket(null);
+            setEscalationReason("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Escalar ticket</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Indica el motivo de la escalación para el ticket seleccionado.
+            </p>
+            <Textarea
+              rows={4}
+              value={escalationReason}
+              onChange={(e) => setEscalationReason(e.target.value)}
+              placeholder="Describe el motivo de la escalación"
+            />
+            {escalateMutation.isError && (
+              <p className="text-sm text-destructive">
+                {getApiErrorMessage(escalateMutation.error, "Escalación de ticket")}
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setSelectedTicket(null);
+                setEscalationReason("");
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              disabled={escalateMutation.isPending || escalationReason.trim().length < 3 || !selectedTicket}
+              onClick={() => {
+                if (!selectedTicket) return;
+                escalateMutation.mutate({
+                  id: selectedTicket.id,
+                  reason: escalationReason.trim(),
+                });
+              }}
+            >
+              {escalateMutation.isPending ? "Escalando…" : "Confirmar escalación"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

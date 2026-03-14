@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Link } from "react-router-dom";
 import { MessageCircle, Plus } from "lucide-react";
+import apiClient from "@/lib/api/client";
 
 import {
   listTickets,
@@ -63,6 +64,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ExplainableAcronym from "@/components/shared/ExplainableAcronym";
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
@@ -115,9 +117,56 @@ function formatDate(iso: string): string {
   }
 }
 
+type OverdueTicket = TicketResponse & {
+  sla_overdue?: boolean;
+  overdue_since?: string | null;
+  sla_due_at?: string | null;
+  overdue_minutes?: number | string | null;
+  overdue_hours?: number | string | null;
+};
+
+async function listOverdueTickets(): Promise<OverdueTicket[]> {
+  const { data } = await apiClient.get("/api/crm/tickets/overdue");
+  const items = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : [];
+  return [...items].sort((a, b) => {
+    const aTime = new Date(a.created_at ?? 0).getTime();
+    const bTime = new Date(b.created_at ?? 0).getTime();
+    return aTime - bTime;
+  });
+}
+
+function getOverdueMs(ticket: OverdueTicket): number {
+  if (ticket.overdue_minutes != null && !Number.isNaN(Number(ticket.overdue_minutes))) {
+    return Number(ticket.overdue_minutes) * 60 * 1000;
+  }
+  if (ticket.overdue_hours != null && !Number.isNaN(Number(ticket.overdue_hours))) {
+    return Number(ticket.overdue_hours) * 60 * 60 * 1000;
+  }
+  const ref = ticket.overdue_since ?? ticket.sla_due_at;
+  if (ref) {
+    const ms = Date.now() - new Date(ref).getTime();
+    return Number.isNaN(ms) ? 0 : Math.max(ms, 0);
+  }
+  return 0;
+}
+
+function formatOverdueAge(ticket: OverdueTicket): string {
+  const ms = getOverdueMs(ticket);
+  if (ms <= 0) return "Vencido";
+  const totalMinutes = Math.floor(ms / 60000);
+  const days = Math.floor(totalMinutes / (60 * 24));
+  const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+  const minutes = totalMinutes % 60;
+
+  if (days > 0) return `${days}d ${hours}h vencido`;
+  if (hours > 0) return `${hours}h ${minutes}m vencido`;
+  return `${minutes}m vencido`;
+}
+
 export default function TicketsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState<"all" | "overdue">("all");
   const [pageSize, setPageSize] = useState(5);
   const [offset, setOffset] = useState(0);
   const [search, setSearch] = useState("");
@@ -151,6 +200,12 @@ export default function TicketsPage() {
   const customersQuery = useQuery({
     queryKey: ["customers-list"],
     queryFn: () => getCustomers(),
+  });
+
+  const overdueTicketsQuery = useQuery({
+    queryKey: ["crm-tickets-overdue"],
+    queryFn: listOverdueTickets,
+    enabled: activeTab === "overdue",
   });
 
   const createForm = useForm<CreateTicketRequest>({
@@ -249,71 +304,78 @@ export default function TicketsPage() {
       </div>
 
       {/* Filtros y búsqueda */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <span>Filtrar por estado:</span>
-          <Select
-            value={statusFilter}
-            onValueChange={(value) => {
-              setStatusFilter(value as typeof statusFilter);
-              setOffset(0);
-            }}
-          >
-            <SelectTrigger className="h-8 w-40 text-xs">
-              <SelectValue placeholder="Todos los estados" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="_all">Todos</SelectItem>
-              {STATUS_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  {opt.label}
-                </SelectItem>
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as typeof activeTab)}>
+        <TabsList>
+          <TabsTrigger value="all">Todos</TabsTrigger>
+          <TabsTrigger value="overdue">Vencidos</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="all" className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <span>Filtrar por estado:</span>
+              <Select
+                value={statusFilter}
+                onValueChange={(value) => {
+                  setStatusFilter(value as typeof statusFilter);
+                  setOffset(0);
+                }}
+              >
+                <SelectTrigger className="h-8 w-40 text-xs">
+                  <SelectValue placeholder="Todos los estados" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_all">Todos</SelectItem>
+                  {STATUS_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <span>Ordenar por fecha:</span>
+              <Select
+                value={sort}
+                onValueChange={(value) => {
+                  setSort(value as typeof sort);
+                  setOffset(0);
+                }}
+              >
+                <SelectTrigger className="h-8 w-40 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="date_desc">Más recientes primero</SelectItem>
+                  <SelectItem value="date_asc">Más antiguos primero</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-full sm:w-64">
+              <Input
+                placeholder="Buscar por asunto o cliente…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-9 text-sm"
+              />
+            </div>
+          </div>
+
+          {ticketsQuery.isLoading && (
+            <div className="erp-card p-4 space-y-2">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className="h-10 w-full" />
               ))}
-            </SelectContent>
-          </Select>
-          <span>Ordenar por fecha:</span>
-          <Select
-            value={sort}
-            onValueChange={(value) => {
-              setSort(value as typeof sort);
-              setOffset(0);
-            }}
-          >
-            <SelectTrigger className="h-8 w-40 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="date_desc">Más recientes primero</SelectItem>
-              <SelectItem value="date_asc">Más antiguos primero</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="w-full sm:w-64">
-          <Input
-            placeholder="Buscar por asunto o cliente…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="h-9 text-sm"
-          />
-        </div>
-      </div>
+            </div>
+          )}
 
-      {ticketsQuery.isLoading && (
-        <div className="erp-card p-4 space-y-2">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-10 w-full" />
-          ))}
-        </div>
-      )}
+          {ticketsQuery.isError && !ticketsQuery.isLoading && (
+            <p className="text-sm text-destructive">
+              {getApiErrorMessage(ticketsQuery.error, "Tickets PQR")}
+            </p>
+          )}
 
-      {ticketsQuery.isError && !ticketsQuery.isLoading && (
-        <p className="text-sm text-destructive">
-          {getApiErrorMessage(ticketsQuery.error, "Tickets PQR")}
-        </p>
-      )}
-
-      {!ticketsQuery.isLoading && !ticketsQuery.isError && (
-        <div className="erp-card overflow-hidden p-0">
+          {!ticketsQuery.isLoading && !ticketsQuery.isError && (
+            <div className="erp-card overflow-hidden p-0">
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50 hover:bg-muted/50">
@@ -446,8 +508,90 @@ export default function TicketsPage() {
               </div>
             </div>
           )}
-        </div>
-      )}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="overdue" className="space-y-4">
+          {overdueTicketsQuery.isLoading && (
+            <div className="erp-card p-4 space-y-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+            </div>
+          )}
+
+          {overdueTicketsQuery.isError && !overdueTicketsQuery.isLoading && (
+            <p className="text-sm text-destructive">
+              {getApiErrorMessage(overdueTicketsQuery.error, "Tickets vencidos")}
+            </p>
+          )}
+
+          {!overdueTicketsQuery.isLoading && !overdueTicketsQuery.isError && (
+            <div className="erp-card overflow-hidden p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50 hover:bg-muted/50">
+                    <TableHead className="text-xs text-muted-foreground">ID</TableHead>
+                    <TableHead className="text-xs text-muted-foreground">Cliente</TableHead>
+                    <TableHead className="text-xs text-muted-foreground">Asunto</TableHead>
+                    <TableHead className="text-xs text-muted-foreground">Estado</TableHead>
+                    <TableHead className="text-xs text-muted-foreground">Tiempo vencido</TableHead>
+                    <TableHead className="text-xs text-muted-foreground">Creación</TableHead>
+                    <TableHead className="text-right text-xs text-muted-foreground">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(overdueTicketsQuery.data?.length ?? 0) === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="py-8 text-center text-sm text-muted-foreground">
+                        No hay tickets vencidos.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    overdueTicketsQuery.data?.map((t) => (
+                      <TableRow key={t.id} className="hover:bg-muted/40">
+                        <TableCell className="font-mono text-xs text-muted-foreground">
+                          {truncateId(t.id)}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {customerMap.get(t.customer_id) ?? t.customer_id}
+                        </TableCell>
+                        <TableCell className="font-medium max-w-[220px] truncate">
+                          {t.subject}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs">
+                            {t.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="destructive" className="text-xs">
+                            {formatOverdueAge(t)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {formatDate(t.created_at)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-xs"
+                            onClick={() => navigate(`/crm/tickets/${t.id}`)}
+                          >
+                            Ver
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
 
       <CreateCustomerDialog
         open={createCustomerOpen}
