@@ -1,13 +1,25 @@
+import { useQuery } from "@tanstack/react-query";
+
 import { Badge } from "@/components/ui/badge";
 import ExplainableAcronym from "@/components/shared/ExplainableAcronym";
+import { getInvoices } from "@/features/billing/services";
+import { getApiErrorMessage } from "@/lib/api/errors";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function DianTransmission() {
-  // Valores mockeados por ahora; más adelante se pueden conectar a un endpoint real
-  const summary = {
-    sentToday: 24,
-    pending: 5,
-    rejected: 1,
-  };
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ["billing", "dian", "summary"],
+    queryFn: getInvoices,
+  });
+
+  const today = new Date().toISOString().slice(0, 10);
+  const sentToday =
+    data?.filter((invoice) => invoice.dian_status === "Sent" && invoice.date?.slice(0, 10) === today)
+      .length ?? 0;
+  const pending =
+    data?.filter((invoice) => invoice.dian_status === "Pending" || invoice.dian_status === "DRAFT")
+      .length ?? 0;
+  const rejected = data?.filter((invoice) => invoice.dian_status === "Error").length ?? 0;
 
   return (
     <div className="erp-card space-y-4">
@@ -21,37 +33,53 @@ export default function DianTransmission() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="rounded-lg border bg-background p-3 space-y-1">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">Enviados hoy</span>
-            <Badge variant="default" className="text-[10px]">
-              OK
-            </Badge>
-          </div>
-          <p className="text-xl font-semibold">{summary.sentToday}</p>
+      {isLoading && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <Skeleton className="h-20 w-full" />
+          <Skeleton className="h-20 w-full" />
+          <Skeleton className="h-20 w-full" />
         </div>
+      )}
 
-        <div className="rounded-lg border bg-background p-3 space-y-1">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">Pendientes</span>
-            <Badge variant="secondary" className="text-[10px]">
-              En cola
-            </Badge>
-          </div>
-          <p className="text-xl font-semibold">{summary.pending}</p>
-        </div>
+      {isError && !isLoading && (
+        <p className="text-sm text-destructive">
+          {getApiErrorMessage(error, "Resumen DIAN")}
+        </p>
+      )}
 
-        <div className="rounded-lg border bg-background p-3 space-y-1">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">Rechazados</span>
-            <Badge variant="destructive" className="text-[10px]">
-              Revisar
-            </Badge>
+      {!isLoading && !isError && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="rounded-lg border bg-background p-3 space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Enviados hoy</span>
+              <Badge variant="default" className="text-[10px]">
+                OK
+              </Badge>
+            </div>
+            <p className="text-xl font-semibold">{sentToday}</p>
           </div>
-          <p className="text-xl font-semibold">{summary.rejected}</p>
+
+          <div className="rounded-lg border bg-background p-3 space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Pendientes</span>
+              <Badge variant="secondary" className="text-[10px]">
+                En cola
+              </Badge>
+            </div>
+            <p className="text-xl font-semibold">{pending}</p>
+          </div>
+
+          <div className="rounded-lg border bg-background p-3 space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Rechazados</span>
+              <Badge variant="destructive" className="text-[10px]">
+                Revisar
+              </Badge>
+            </div>
+            <p className="text-xl font-semibold">{rejected}</p>
+          </div>
         </div>
-      </div>
+      )}
 
       <p className="text-xs text-muted-foreground">
         Este resumen es informativo y no reemplaza el detalle de los acuses de recibo de la{" "}

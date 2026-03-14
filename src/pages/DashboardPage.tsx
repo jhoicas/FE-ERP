@@ -2,7 +2,6 @@ import { TrendingUp, TrendingDown, DollarSign, Percent, Ticket, ListTodo } from 
 import { useQuery } from "@tanstack/react-query";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
-import { salesByChannel } from "@/data/mockData";
 import { getMarginsReport } from "@/features/analytics/services";
 import TopProductsTable from "@/features/analytics/components/TopProductsTable";
 
@@ -14,24 +13,23 @@ export default function DashboardPage() {
     queryFn: getMarginsReport,
   });
 
+  const totalGrossRevenue =
+    data?.channel_profitability.reduce((acc, ch) => acc + Number(ch.gross_revenue), 0) ?? 0;
+  const totalMarginValue =
+    data?.channel_profitability.reduce((acc, ch) => acc + Number(ch.total_margin), 0) ?? 0;
+  const globalMarginPct = ((totalMarginValue / Math.max(totalGrossRevenue, 1)) * 100).toFixed(1);
+
   const kpis = data
     ? [
         {
           label: "Ingresos Brutos",
-          value: `$${data.channel_profitability
-            .reduce((acc, ch) => acc + ch.gross_revenue, 0)
-            .toLocaleString()}`,
+          value: `$${totalGrossRevenue.toLocaleString()}`,
           change: "",
           positive: true,
         },
         {
           label: "Margen Global",
-          value: `${(
-            data.channel_profitability.reduce((acc, ch) => acc + ch.total_margin, 0) /
-            Math.max(data.channel_profitability.reduce((acc, ch) => acc + ch.gross_revenue, 0), 1)
-          ) * 100
-            .toFixed(1)
-            .toString()}%`,
+          value: `${globalMarginPct}%`,
           change: "",
           positive: true,
         },
@@ -49,6 +47,13 @@ export default function DashboardPage() {
         },
       ]
     : [];
+
+  const salesByChannel =
+    data?.channel_profitability.map((channel) => ({
+      channel: channel.channel_name,
+      gross_revenue: channel.gross_revenue,
+      total_margin: channel.total_margin,
+    })) ?? [];
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -114,12 +119,12 @@ export default function DashboardPage() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(150, 10%, 90%)" />
-                <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                <XAxis dataKey="channel" tick={{ fontSize: 12 }} />
                 <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
                 <Tooltip formatter={(value: number) => [`$${value.toLocaleString()}`, ""]} />
                 <Legend />
-                <Area type="monotone" dataKey="ecommerce" name="E-commerce" stroke="hsl(160, 84%, 24%)" fillOpacity={1} fill="url(#colorEcom)" strokeWidth={2} />
-                <Area type="monotone" dataKey="tienda" name="Tienda Física" stroke="hsl(217, 91%, 60%)" fillOpacity={1} fill="url(#colorTienda)" strokeWidth={2} />
+                <Area type="monotone" dataKey="gross_revenue" name="Ingresos Brutos" stroke="hsl(160, 84%, 24%)" fillOpacity={1} fill="url(#colorEcom)" strokeWidth={2} />
+                <Area type="monotone" dataKey="total_margin" name="Margen Total" stroke="hsl(217, 91%, 60%)" fillOpacity={1} fill="url(#colorTienda)" strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
