@@ -55,7 +55,7 @@ export const MarginsReportSchema = z.object({
     (cp) => cp.channels
   ),
   sku_ranking: z.array(SKURankingSchema),
-  pareto_skus: z.array(SKURankingSchema),
+  pareto_skus: z.array(SKURankingSchema).nullable().transform((value) => value ?? []),
 });
 
 export type MarginsReportDTO = z.infer<typeof MarginsReportSchema>;

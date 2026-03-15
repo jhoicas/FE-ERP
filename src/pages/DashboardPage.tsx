@@ -55,6 +55,9 @@ export default function DashboardPage() {
       total_margin: channel.total_margin,
     })) ?? [];
 
+  const hasChannelData = salesByChannel.length > 0;
+  const hasTopProducts = (data?.sku_ranking.length ?? 0) > 0;
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* KPI Grid */}
@@ -106,27 +109,33 @@ export default function DashboardPage() {
         <div className="lg:col-span-3 erp-card">
           <h2 className="text-sm font-semibold mb-4">Ventas por Canal</h2>
           <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={salesByChannel}>
-                <defs>
-                  <linearGradient id="colorEcom" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(160, 84%, 24%)" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="hsl(160, 84%, 24%)" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="colorTienda" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(217, 91%, 60%)" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="hsl(217, 91%, 60%)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(150, 10%, 90%)" />
-                <XAxis dataKey="channel" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
-                <Tooltip formatter={(value: number) => [`$${value.toLocaleString()}`, ""]} />
-                <Legend />
-                <Area type="monotone" dataKey="gross_revenue" name="Ingresos Brutos" stroke="hsl(160, 84%, 24%)" fillOpacity={1} fill="url(#colorEcom)" strokeWidth={2} />
-                <Area type="monotone" dataKey="total_margin" name="Margen Total" stroke="hsl(217, 91%, 60%)" fillOpacity={1} fill="url(#colorTienda)" strokeWidth={2} />
-              </AreaChart>
-            </ResponsiveContainer>
+            {hasChannelData ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={salesByChannel}>
+                  <defs>
+                    <linearGradient id="colorEcom" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="hsl(160, 84%, 24%)" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="hsl(160, 84%, 24%)" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="colorTienda" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="hsl(217, 91%, 60%)" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="hsl(217, 91%, 60%)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(150, 10%, 90%)" />
+                  <XAxis dataKey="channel" tick={{ fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
+                  <Tooltip formatter={(value: number) => [`$${value.toLocaleString()}`, ""]} />
+                  <Legend />
+                  <Area type="monotone" dataKey="gross_revenue" name="Ingresos Brutos" stroke="hsl(160, 84%, 24%)" fillOpacity={1} fill="url(#colorEcom)" strokeWidth={2} />
+                  <Area type="monotone" dataKey="total_margin" name="Margen Total" stroke="hsl(217, 91%, 60%)" fillOpacity={1} fill="url(#colorTienda)" strokeWidth={2} />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+                No hay información disponible en este momento.
+              </div>
+            )}
           </div>
         </div>
 
@@ -137,8 +146,11 @@ export default function DashboardPage() {
           {isError && !isLoading && (
             <p className="text-sm text-destructive">No se pudieron cargar los productos más rentables.</p>
           )}
-          {!isLoading && !isError && data && (
+          {!isLoading && !isError && data && hasTopProducts && (
             <TopProductsTable items={data.sku_ranking} />
+          )}
+          {!isLoading && !isError && data && !hasTopProducts && (
+            <p className="text-sm text-muted-foreground">No hay información disponible en este momento.</p>
           )}
         </div>
       </div>
