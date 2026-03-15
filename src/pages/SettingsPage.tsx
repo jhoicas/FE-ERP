@@ -1,6 +1,6 @@
-import { type ChangeEvent, useState } from "react";
+import { type ChangeEvent, useMemo, useState } from "react";
 import axios from "axios";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Settings, Bell, Palette, ShieldCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,70 @@ import { getApiErrorMessage } from "@/lib/api/errors";
 
 const DIAN_SETTINGS_ENDPOINTS = ["/api/settings/dian", "/api/dian/settings", "/api/dian/configuration"] as const;
 
+interface DianConfigurationDTO {
+  environment?: string;
+  has_certificate?: boolean;
+  certificate_name?: string | null;
+  certificate_filename?: string | null;
+  updated_at?: string;
+}
+
+async function getDianConfiguration(environment: DianEnvironment): Promise<DianConfigurationDTO | null> {
+  try {
+    const response = await apiClient.get("/api/settings/dian", {
+      params: { environment },
+    });
+
+    if (!response.data || typeof response.data !== "object") {
+      return null;
+    }
+
+    return response.data as DianConfigurationDTO;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      return null;
+    }
+
+    throw error;
+  }
+}
+
+function resolveCertificateLabel(config: DianConfigurationDTO | null | undefined): string {
+  if (!config) {
+    return "";
+  }
+
+  if (config.certificate_name && config.certificate_name.trim()) {
+    return config.certificate_name;
+  }
+
+  if (config.certificate_filename && config.certificate_filename.trim()) {
+    return config.certificate_filename;
+  }
+
+  if (config.has_certificate) {
+    return "Certificado configurado";
+  }
+
+  return "";
+}
+
+function formatUpdatedAt(value?: string): string {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return new Intl.DateTimeFormat("es-CO", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+}
+
 async function saveDianConfiguration(payload: FormData): Promise<void> {
   let lastError: unknown;
 
@@ -59,6 +123,7 @@ async function saveDianConfiguration(payload: FormData): Promise<void> {
 
 export default function SettingsPage() {
   const { environment, setEnvironment } = useDianEnvironment();
+  const queryClient = useQueryClient();
   const { toast } = useToast();
   const [confirmProductionOpen, setConfirmProductionOpen] = useState(false);
   const [pendingEnvironment, setPendingEnvironment] = useState<DianEnvironment | null>(null);
@@ -69,6 +134,38 @@ export default function SettingsPage() {
   const [productionCertificateName, setProductionCertificateName] = useState("");
   const [testingCertificatePassword, setTestingCertificatePassword] = useState("");
   const [productionCertificatePassword, setProductionCertificatePassword] = useState("");
+
+  const testingConfigQuery = useQuery({
+    queryKey: ["settings", "dian", "testing"],
+    queryFn: () => getDianConfiguration("testing"),
+    retry: false,
+  });
+
+  const productionConfigQuery = useQuery({
+    queryKey: ["settings", "dian", "production"],
+    queryFn: () => getDianConfiguration("production"),
+    retry: false,
+  });
+
+  const testingConfiguredCertificateName = useMemo(
+    () => resolveCertificateLabel(testingConfigQuery.data),
+    [testingConfigQuery.data],
+  );
+
+  const productionConfiguredCertificateName = useMemo(
+    () => resolveCertificateLabel(productionConfigQuery.data),
+    [productionConfigQuery.data],
+  );
+
+  const testingUpdatedAt = useMemo(
+    () => formatUpdatedAt(testingConfigQuery.data?.updated_at),
+    [testingConfigQuery.data?.updated_at],
+  );
+
+  const productionUpdatedAt = useMemo(
+    () => formatUpdatedAt(productionConfigQuery.data?.updated_at),
+    [productionConfigQuery.data?.updated_at],
+  );
 
   const handleEnvironmentChange = (value: string) => {
     const nextEnvironment: DianEnvironment = value === "production" ? "production" : "testing";
@@ -97,6 +194,7 @@ export default function SettingsPage() {
   const saveDianMutation = useMutation({
     mutationFn: saveDianConfiguration,
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["settings", "dian"] });
       toast({
         title: "Configuración DIAN guardada",
         description: "Los cambios se guardaron correctamente.",
@@ -211,6 +309,12 @@ export default function SettingsPage() {
                     {testingCertificateName && (
                       <p className="text-xs text-muted-foreground">Archivo: {testingCertificateName}</p>
                     )}
+                    {!testingCertificateName && testingConfiguredCertificateName && (
+                      <p className="text-xs text-muted-foreground">Configurado: {testingConfiguredCertificateName}</p>
+                    )}
+                    {testingUpdatedAt && (
+                      <p className="text-xs text-muted-foreground">Última actualización: {testingUpdatedAt}</p>
+                    )}
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Contraseña del certificado</label>
@@ -230,6 +334,12 @@ export default function SettingsPage() {
                     <Input type="file" accept=".p12" onChange={handleProductionCertificateChange} />
                     {productionCertificateName && (
                       <p className="text-xs text-muted-foreground">Archivo: {productionCertificateName}</p>
+                    )}
+                    {!productionCertificateName && productionConfiguredCertificateName && (
+                      <p className="text-xs text-muted-foreground">Configurado: {productionConfiguredCertificateName}</p>
+                    )}
+                    {productionUpdatedAt && (
+                      <p className="text-xs text-muted-foreground">Última actualización: {productionUpdatedAt}</p>
                     )}
                   </div>
                   <div className="space-y-1">
