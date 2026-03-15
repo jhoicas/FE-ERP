@@ -13,7 +13,18 @@ import {
 
 export async function getProducts(): Promise<ProductDTO[]> {
   const response = await apiClient.get("/api/products");
-  return z.array(ProductSchema).parse(response.data);
+  if (Array.isArray(response.data)) {
+    return z.array(ProductSchema).parse(response.data);
+  }
+
+  const parsed = z
+    .object({
+      items: z.array(ProductSchema),
+    })
+    .passthrough()
+    .parse(response.data);
+
+  return parsed.items;
 }
 
 export async function getReplenishmentList(): Promise<ReplenishmentDTO[]> {

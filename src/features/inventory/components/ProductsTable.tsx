@@ -162,7 +162,7 @@ export default function ProductsTable() {
               {data && data.length === 0 && (
                 <tr>
                   <td colSpan={6} className="py-6 px-4 text-center text-sm text-muted-foreground">
-                    No hay productos registrados.
+                    No hay información disponible en este momento.
                   </td>
                 </tr>
               )}

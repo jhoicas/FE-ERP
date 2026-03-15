@@ -4,11 +4,11 @@ export const ProductSchema = z.object({
   id: z.string(),
   name: z.string(),
   sku: z.string(),
-  price: z.number(),
-  cost: z.number(),
-  current_stock: z.number(),
-  reorder_point: z.number(),
-  unit_measure: z.string(),
+  price: z.coerce.number(),
+  cost: z.coerce.number(),
+  current_stock: z.coerce.number(),
+  reorder_point: z.coerce.number(),
+  unit_measure: z.string().optional().default(""),
 });
 
 export type ProductDTO = z.infer<typeof ProductSchema>;
