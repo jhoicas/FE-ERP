@@ -30,7 +30,14 @@ export interface VoidInvoiceInput {
 
 export async function getInvoices(): Promise<InvoiceDTO[]> {
   const response = await apiClient.get("/api/invoices");
-  return z.array(InvoiceSchema).parse(response.data);
+  const parsed = z
+    .object({
+      items: z.array(InvoiceSchema),
+    })
+    .passthrough()
+    .parse(response.data);
+
+  return parsed.items;
 }
 
 export async function getCreditNotes(): Promise<CreditNoteDTO[]> {
