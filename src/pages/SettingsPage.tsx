@@ -1,4 +1,6 @@
 import { type ChangeEvent, useState } from "react";
+import axios from "axios";
+import { useMutation } from "@tanstack/react-query";
 import { Settings, Bell, Palette, ShieldCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -25,13 +27,45 @@ import {
 import ExplainableAcronym from "@/components/shared/ExplainableAcronym";
 import ResolutionsManager from "@/features/auth/components/ResolutionsManager";
 import { type DianEnvironment, useDianEnvironment } from "@/hooks/use-dian-environment";
+import { useToast } from "@/hooks/use-toast";
+import apiClient from "@/lib/api/client";
+import { getApiErrorMessage } from "@/lib/api/errors";
+
+const DIAN_SETTINGS_ENDPOINTS = ["/api/settings/dian", "/api/dian/settings", "/api/dian/configuration"] as const;
+
+async function saveDianConfiguration(payload: FormData): Promise<void> {
+  let lastError: unknown;
+
+  for (const endpoint of DIAN_SETTINGS_ENDPOINTS) {
+    try {
+      await apiClient.put(endpoint, payload, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+      return;
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 404) {
+        lastError = error;
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  throw lastError ?? new Error("No se encontró endpoint para guardar la configuración DIAN.");
+}
 
 export default function SettingsPage() {
   const { environment, setEnvironment } = useDianEnvironment();
+  const { toast } = useToast();
   const [confirmProductionOpen, setConfirmProductionOpen] = useState(false);
   const [pendingEnvironment, setPendingEnvironment] = useState<DianEnvironment | null>(null);
 
+  const [testingCertificateFile, setTestingCertificateFile] = useState<File | null>(null);
   const [testingCertificateName, setTestingCertificateName] = useState("");
+  const [productionCertificateFile, setProductionCertificateFile] = useState<File | null>(null);
   const [productionCertificateName, setProductionCertificateName] = useState("");
   const [testingCertificatePassword, setTestingCertificatePassword] = useState("");
   const [productionCertificatePassword, setProductionCertificatePassword] = useState("");
@@ -50,12 +84,61 @@ export default function SettingsPage() {
 
   const handleTestingCertificateChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
+    setTestingCertificateFile(file ?? null);
     setTestingCertificateName(file?.name ?? "");
   };
 
   const handleProductionCertificateChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
+    setProductionCertificateFile(file ?? null);
     setProductionCertificateName(file?.name ?? "");
+  };
+
+  const saveDianMutation = useMutation({
+    mutationFn: saveDianConfiguration,
+    onSuccess: () => {
+      toast({
+        title: "Configuración DIAN guardada",
+        description: "Los cambios se guardaron correctamente.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "No se pudo guardar la configuración DIAN",
+        description: getApiErrorMessage(error, "DIAN"),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSaveChanges = () => {
+    const selectedCertificateFile = environment === "production" ? productionCertificateFile : testingCertificateFile;
+    const selectedPassword = environment === "production" ? productionCertificatePassword : testingCertificatePassword;
+
+    if (!selectedCertificateFile) {
+      toast({
+        title: "Falta el certificado",
+        description: "Selecciona el archivo .p12 del ambiente activo antes de guardar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!selectedPassword.trim()) {
+      toast({
+        title: "Falta la contraseña",
+        description: "Ingresa la contraseña del certificado antes de guardar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const payload = new FormData();
+    payload.append("environment", environment);
+    payload.append("certificate", selectedCertificateFile);
+    payload.append("certificate_password", selectedPassword);
+
+    saveDianMutation.mutate(payload);
   };
 
   return (
@@ -195,7 +278,9 @@ export default function SettingsPage() {
               </div>
             </section>
 
-            <Button>Guardar Cambios</Button>
+            <Button onClick={handleSaveChanges} disabled={saveDianMutation.isPending}>
+              {saveDianMutation.isPending ? "Guardando..." : "Guardar Cambios"}
+            </Button>
           </TabsContent>
 
           <TabsContent value="dian_resolutions">
