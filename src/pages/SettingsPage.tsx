@@ -102,11 +102,10 @@ async function saveDianConfiguration(payload: FormData): Promise<void> {
 
   for (const endpoint of DIAN_SETTINGS_ENDPOINTS) {
     try {
-      await apiClient.put(endpoint, payload, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
+      // Do NOT set Content-Type manually — axios must auto-generate it
+      // with the correct multipart boundary, otherwise the server cannot
+      // parse the fields (equivalent to curl -F).
+      await apiClient.put(endpoint, payload);
       return;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response?.status === 404) {
@@ -233,7 +232,14 @@ export default function SettingsPage() {
 
     const payload = new FormData();
     payload.append("environment", environment);
-    payload.append("certificate", selectedCertificateFile);
+    // Equivalent to curl -F 'certificate=@file;type=application/x-pkcs12'
+    // Wrapping in a Blob forces the correct MIME type so the server parses
+    // the part as a .p12 file, not as application/octet-stream.
+    payload.append(
+      "certificate",
+      new Blob([selectedCertificateFile], { type: "application/x-pkcs12" }),
+      selectedCertificateFile.name,
+    );
     payload.append("certificate_password", selectedPassword);
 
     saveDianMutation.mutate(payload);
