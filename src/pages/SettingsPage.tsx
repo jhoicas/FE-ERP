@@ -102,10 +102,12 @@ async function saveDianConfiguration(payload: FormData): Promise<void> {
 
   for (const endpoint of DIAN_SETTINGS_ENDPOINTS) {
     try {
-      // Do NOT set Content-Type manually — axios must auto-generate it
-      // with the correct multipart boundary, otherwise the server cannot
-      // parse the fields (equivalent to curl -F).
-      await apiClient.put(endpoint, payload);
+      // Setting Content-Type: undefined overrides the global "application/json"
+      // default on apiClient so axios auto-detects FormData and sends
+      // "multipart/form-data; boundary=..." — equivalent to curl -F.
+      await apiClient.put(endpoint, payload, {
+        headers: { "Content-Type": undefined },
+      });
       return;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response?.status === 404) {
