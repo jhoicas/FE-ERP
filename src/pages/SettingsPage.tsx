@@ -235,12 +235,14 @@ export default function SettingsPage() {
     const payload = new FormData();
     payload.append("environment", environment);
     // Equivalent to curl -F 'certificate=@file;type=application/x-pkcs12'
-    // Wrapping in a Blob forces the correct MIME type so the server parses
-    // the part as a .p12 file, not as application/octet-stream.
+    // Build a real File with explicit MIME type to ensure the multipart part
+    // is uploaded as binary file content (not JSON/base64 text fields).
+    const pkcs12File = new File([selectedCertificateFile], selectedCertificateFile.name, {
+      type: "application/x-pkcs12",
+    });
     payload.append(
       "certificate",
-      new Blob([selectedCertificateFile], { type: "application/x-pkcs12" }),
-      selectedCertificateFile.name,
+      pkcs12File,
     );
     payload.append("certificate_password", selectedPassword);
 
