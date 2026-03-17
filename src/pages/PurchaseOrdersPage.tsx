@@ -649,6 +649,12 @@ export default function PurchaseOrdersPage() {
 							<p className="text-xs text-muted-foreground text-right">
 								Total estimado: {newOrderTotal.toLocaleString("es-CO", { style: "currency", currency: "COP" })}
 							</p>
+
+							{productsQuery.isError && (
+								<p className="text-xs text-destructive">
+									{getApiErrorMessage(productsQuery.error, "Inventario / Productos")}
+								</p>
+							)}
 						</div>
 
 						{createMutation.isError && (

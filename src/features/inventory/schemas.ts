@@ -3,11 +3,12 @@ import { z } from "zod";
 export const ProductSchema = z.object({
   id: z.string(),
   name: z.string(),
-  sku: z.string(),
-  price: z.coerce.number(),
-  cost: z.coerce.number(),
-  current_stock: z.coerce.number(),
-  reorder_point: z.coerce.number(),
+  sku: z.string().optional().default(""),
+  price: z.coerce.number().optional().default(0),
+  cost: z.coerce.number().optional().default(0),
+  current_stock: z.coerce.number().optional().default(0),
+  reorder_point: z.coerce.number().optional().default(0),
+  tax_rate: z.coerce.number().optional().default(0),
   unit_measure: z.string().optional().default(""),
 });
 
