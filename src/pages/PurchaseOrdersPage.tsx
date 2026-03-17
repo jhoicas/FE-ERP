@@ -104,6 +104,15 @@ type ReceiveItemRow = {
 	received_quantity: string;
 };
 
+type NewSupplierFormState = {
+	name: string;
+	nit: string;
+	email: string;
+	phone: string;
+	payment_term_days: string;
+	lead_time_days: string;
+};
+
 function toNumber(value: unknown): number {
 	const parsed = Number(value);
 	return Number.isFinite(parsed) ? parsed : 0;
@@ -115,6 +124,17 @@ function createOrderItemRow(): NewOrderItemRow {
 		product_id: "",
 		quantity: "",
 		unit_cost: "",
+	};
+}
+
+function createSupplierForm(): NewSupplierFormState {
+	return {
+		name: "",
+		nit: "",
+		email: "",
+		phone: "",
+		payment_term_days: "",
+		lead_time_days: "",
 	};
 }
 
@@ -186,9 +206,11 @@ export default function PurchaseOrdersPage() {
 	const [debouncedSearch, setDebouncedSearch] = useState(initialSearch.trim());
 
 	const [newDialogOpen, setNewDialogOpen] = useState(false);
+	const [newSupplierDialogOpen, setNewSupplierDialogOpen] = useState(false);
 	const [receiveDialogOpen, setReceiveDialogOpen] = useState(false);
 	const [supplierId, setSupplierId] = useState("");
 	const [newItems, setNewItems] = useState<NewOrderItemRow[]>([createOrderItemRow()]);
+	const [newSupplierForm, setNewSupplierForm] = useState<NewSupplierFormState>(createSupplierForm());
 	const [receiveOrder, setReceiveOrder] = useState<PurchaseOrderDTO | null>(null);
 	const [receiveItems, setReceiveItems] = useState<ReceiveItemRow[]>([]);
 
@@ -250,6 +272,19 @@ export default function PurchaseOrdersPage() {
 			return item.product_id.length > 0 && Number.isFinite(qty) && qty > 0 && Number.isFinite(cost) && cost >= 0;
 		});
 
+	const supplierPaymentTermDays = newSupplierForm.payment_term_days.trim().length
+		? Number(newSupplierForm.payment_term_days)
+		: undefined;
+	const supplierLeadTimeDays = newSupplierForm.lead_time_days.trim().length
+		? Number(newSupplierForm.lead_time_days)
+		: undefined;
+
+	const newSupplierValid =
+		newSupplierForm.name.trim().length > 0 &&
+		newSupplierForm.nit.trim().length > 0 &&
+		(supplierPaymentTermDays === undefined || (Number.isFinite(supplierPaymentTermDays) && supplierPaymentTermDays >= 0)) &&
+		(supplierLeadTimeDays === undefined || (Number.isFinite(supplierLeadTimeDays) && supplierLeadTimeDays >= 0));
+
 	const createMutation = useMutation({
 		mutationFn: async () => {
 			await apiClient.post("/api/purchase-orders", {
@@ -267,6 +302,32 @@ export default function PurchaseOrdersPage() {
 			setNewDialogOpen(false);
 			setSupplierId("");
 			setNewItems([createOrderItemRow()]);
+		},
+	});
+
+	const createSupplierMutation = useMutation({
+		mutationFn: async () => {
+			const payload = {
+				name: newSupplierForm.name.trim(),
+				nit: newSupplierForm.nit.trim(),
+				email: newSupplierForm.email.trim() || undefined,
+				phone: newSupplierForm.phone.trim() || undefined,
+				payment_term_days: supplierPaymentTermDays,
+				lead_time_days: supplierLeadTimeDays,
+			};
+
+			const response = await apiClient.post("/api/suppliers", payload);
+			return SupplierSchema.parse(response.data);
+		},
+		onSuccess: (createdSupplier) => {
+			queryClient.invalidateQueries({ queryKey: ["suppliers"] });
+			setSupplierId(createdSupplier.id);
+			setNewSupplierDialogOpen(false);
+			setNewSupplierForm(createSupplierForm());
+			toast({
+				title: "Proveedor creado",
+				description: "El proveedor se creó y quedó seleccionado en la orden.",
+			});
 		},
 	});
 
@@ -326,6 +387,12 @@ export default function PurchaseOrdersPage() {
 		setReceiveItems((current) =>
 			current.map((item) => (item.product_id === productId ? { ...item, received_quantity: value } : item)),
 		);
+	};
+
+	const openNewSupplierDialog = () => {
+		setNewSupplierForm(createSupplierForm());
+		createSupplierMutation.reset();
+		setNewSupplierDialogOpen(true);
 	};
 
 	return (
@@ -486,7 +553,12 @@ export default function PurchaseOrdersPage() {
 
 					<div className="space-y-4">
 						<div className="space-y-1.5">
-							<p className="text-sm font-medium">Proveedor</p>
+							<div className="flex items-center justify-between gap-2">
+								<p className="text-sm font-medium">Proveedor</p>
+								<Button type="button" variant="ghost" size="sm" className="text-xs" onClick={openNewSupplierDialog}>
+									+ Crear proveedor
+								</Button>
+							</div>
 							<Select value={supplierId || undefined} onValueChange={setSupplierId}>
 								<SelectTrigger>
 									<SelectValue placeholder="Seleccionar proveedor" />
@@ -584,6 +656,109 @@ export default function PurchaseOrdersPage() {
 						</Button>
 						<Button type="button" disabled={!newOrderValid || createMutation.isPending} onClick={() => createMutation.mutate()}>
 							{createMutation.isPending ? "Guardando…" : "Crear OC"}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			<Dialog
+				open={newSupplierDialogOpen}
+				onOpenChange={(open) => {
+					setNewSupplierDialogOpen(open);
+					if (!open) {
+						createSupplierMutation.reset();
+					}
+				}}
+			>
+				<DialogContent className="max-w-xl">
+					<DialogHeader>
+						<DialogTitle>Crear proveedor</DialogTitle>
+						<DialogDescription>
+							Crea un proveedor sin salir de la orden de compra.
+						</DialogDescription>
+					</DialogHeader>
+
+					<div className="space-y-4">
+						<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+							<div className="space-y-1.5 sm:col-span-2">
+								<p className="text-sm font-medium">Nombre</p>
+								<Input
+									value={newSupplierForm.name}
+									onChange={(e) => setNewSupplierForm((prev) => ({ ...prev, name: e.target.value }))}
+									placeholder="Nombre del proveedor"
+								/>
+							</div>
+
+							<div className="space-y-1.5">
+								<p className="text-sm font-medium">NIT</p>
+								<Input
+									value={newSupplierForm.nit}
+									onChange={(e) => setNewSupplierForm((prev) => ({ ...prev, nit: e.target.value }))}
+									placeholder="900123456-7"
+								/>
+							</div>
+
+							<div className="space-y-1.5">
+								<p className="text-sm font-medium">Email</p>
+								<Input
+									type="email"
+									value={newSupplierForm.email}
+									onChange={(e) => setNewSupplierForm((prev) => ({ ...prev, email: e.target.value }))}
+									placeholder="compras@proveedor.com"
+								/>
+							</div>
+
+							<div className="space-y-1.5">
+								<p className="text-sm font-medium">Teléfono</p>
+								<Input
+									value={newSupplierForm.phone}
+									onChange={(e) => setNewSupplierForm((prev) => ({ ...prev, phone: e.target.value }))}
+									placeholder="+57 300 000 0000"
+								/>
+							</div>
+
+							<div className="space-y-1.5">
+								<p className="text-sm font-medium">Días de pago</p>
+								<Input
+									type="number"
+									min="0"
+									step="1"
+									value={newSupplierForm.payment_term_days}
+									onChange={(e) => setNewSupplierForm((prev) => ({ ...prev, payment_term_days: e.target.value }))}
+									placeholder="30"
+								/>
+							</div>
+
+							<div className="space-y-1.5">
+								<p className="text-sm font-medium">Días de abastecimiento</p>
+								<Input
+									type="number"
+									min="0"
+									step="1"
+									value={newSupplierForm.lead_time_days}
+									onChange={(e) => setNewSupplierForm((prev) => ({ ...prev, lead_time_days: e.target.value }))}
+									placeholder="7"
+								/>
+							</div>
+						</div>
+
+						{createSupplierMutation.isError && (
+							<p className="text-sm text-destructive">
+								{getApiErrorMessage(createSupplierMutation.error, "Inventario / Proveedores")}
+							</p>
+						)}
+					</div>
+
+					<DialogFooter>
+						<Button type="button" variant="ghost" onClick={() => setNewSupplierDialogOpen(false)}>
+							Cancelar
+						</Button>
+						<Button
+							type="button"
+							disabled={!newSupplierValid || createSupplierMutation.isPending}
+							onClick={() => createSupplierMutation.mutate()}
+						>
+							{createSupplierMutation.isPending ? "Guardando…" : "Crear proveedor"}
 						</Button>
 					</DialogFooter>
 				</DialogContent>
