@@ -1,7 +1,8 @@
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Sparkles, Copy, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import apiClient from "@/lib/api/client";
@@ -12,6 +13,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 import { generateCampaignCopy } from "@/features/crm/services";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -27,6 +29,14 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 const schema = z.object({
   prompt: z.string().min(10, "Describe la campaña en al menos 10 caracteres"),
@@ -36,6 +46,8 @@ const schema = z.object({
 
 const createCampaignSchema = z.object({
   name: z.string().min(3, "Nombre mínimo de 3 caracteres"),
+  subject: z.string().min(3, "Asunto mínimo de 3 caracteres"),
+  body: z.string().min(10, "Contenido mínimo de 10 caracteres"),
   segment: z.string().min(2, "Segmento mínimo de 2 caracteres"),
   channel: z.enum(["Email", "SMS", "WhatsApp"], {
     required_error: "Selecciona un canal",
@@ -43,12 +55,78 @@ const createCampaignSchema = z.object({
   scheduled_at: z.string().min(1, "Selecciona fecha programada"),
 });
 
+const RecipientSchema = z.object({
+  customer_id: z.string(),
+  name: z.string(),
+  email: z.string().optional().nullable(),
+  segment: z.string().optional().nullable(),
+});
+
+const ResolveRecipientsResponseSchema = z.object({
+  recipients: z.array(RecipientSchema),
+});
+
+const ProductLookupSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+}).passthrough();
+
+const ProductListLookupSchema = z.object({
+  items: z.array(ProductLookupSchema),
+}).passthrough();
+
+type RecipientStrategy =
+  | { type: "category_gold" }
+  | { type: "reorder_product"; product_id: string; months_ago: number };
+
+type RecipientDTO = z.infer<typeof RecipientSchema>;
+type ProductLookupDTO = z.infer<typeof ProductLookupSchema>;
+
+const RECIPIENTS_PREVIEW_PAGE_SIZE = 10;
+
 type FormValues = z.infer<typeof schema>;
 type CreateCampaignValues = z.infer<typeof createCampaignSchema>;
+
+async function searchProducts(search: string): Promise<ProductLookupDTO[]> {
+  const { data } = await apiClient.get("/api/products", {
+    params: {
+      search,
+      limit: 20,
+      offset: 0,
+    },
+  });
+
+  if (Array.isArray(data)) {
+    return z.array(ProductLookupSchema).parse(data);
+  }
+
+  const parsed = ProductListLookupSchema.safeParse(data);
+  if (parsed.success) {
+    return parsed.data.items;
+  }
+
+  return [];
+}
+
+async function resolveCampaignRecipients(strategies: RecipientStrategy[]): Promise<RecipientDTO[]> {
+  const { data } = await apiClient.post("/api/crm/campaigns/recipients/resolve", {
+    strategies,
+  });
+  const parsed = ResolveRecipientsResponseSchema.parse(data);
+  return parsed.recipients;
+}
 
 export default function AiCampaignGenerator() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [sendToCategoryGold, setSendToCategoryGold] = useState(false);
+  const [sendToReorderProduct, setSendToReorderProduct] = useState(false);
+  const [productSearch, setProductSearch] = useState("");
+  const [selectedProductId, setSelectedProductId] = useState<string>("");
+  const [reorderMonthsAgo, setReorderMonthsAgo] = useState<number>(6);
+  const [resolvedRecipients, setResolvedRecipients] = useState<RecipientDTO[]>([]);
+  const [lastPreviewStrategies, setLastPreviewStrategies] = useState<RecipientStrategy[]>([]);
+  const [recipientsPage, setRecipientsPage] = useState(1);
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { prompt: "", tone: "", target_audience: "" },
@@ -58,11 +136,49 @@ export default function AiCampaignGenerator() {
     resolver: zodResolver(createCampaignSchema),
     defaultValues: {
       name: "",
+      subject: "",
+      body: "",
       segment: "",
       channel: "Email",
       scheduled_at: "",
     },
   });
+
+  const productsQuery = useQuery({
+    queryKey: ["products", "campaign-recipients-search", productSearch],
+    queryFn: () => searchProducts(productSearch),
+    enabled: sendToReorderProduct && productSearch.trim().length >= 2,
+  });
+
+  const buildRecipientStrategies = (): RecipientStrategy[] => {
+    const strategies: RecipientStrategy[] = [];
+
+    if (sendToCategoryGold) {
+      strategies.push({ type: "category_gold" });
+    }
+
+    if (sendToReorderProduct && selectedProductId) {
+      strategies.push({
+        type: "reorder_product",
+        product_id: selectedProductId,
+        months_ago: reorderMonthsAgo,
+      });
+    }
+
+    return strategies;
+  };
+
+  const recipientsTotal = resolvedRecipients.length;
+  const recipientsTotalPages = Math.max(
+    1,
+    Math.ceil(recipientsTotal / RECIPIENTS_PREVIEW_PAGE_SIZE),
+  );
+  const currentRecipientsPage = Math.min(recipientsPage, recipientsTotalPages);
+  const recipientsSliceStart = (currentRecipientsPage - 1) * RECIPIENTS_PREVIEW_PAGE_SIZE;
+  const pagedRecipients = resolvedRecipients.slice(
+    recipientsSliceStart,
+    recipientsSliceStart + RECIPIENTS_PREVIEW_PAGE_SIZE,
+  );
 
   const mutation = useMutation<string, Error, FormValues>({
     mutationFn: async (values) => {
@@ -91,11 +207,23 @@ export default function AiCampaignGenerator() {
   const createCampaignMutation = useMutation<unknown, Error, CreateCampaignValues>({
     mutationFn: async (values) => {
       const scheduledAtIso = new Date(values.scheduled_at).toISOString();
+      const currentStrategies = buildRecipientStrategies();
+      const currentStrategiesJson = JSON.stringify(currentStrategies);
+      const lastPreviewStrategiesJson = JSON.stringify(lastPreviewStrategies);
+
+      if (currentStrategiesJson !== lastPreviewStrategiesJson) {
+        throw new Error("Debes previsualizar nuevamente los destinatarios antes de enviar.");
+      }
+
       const { data } = await apiClient.post("/api/crm/campaigns", {
         name: values.name,
+        subject: values.subject,
+        body: values.body,
         segment: values.segment,
         channel: values.channel,
         scheduled_at: scheduledAtIso,
+        recipient_strategies: currentStrategies,
+        recipient_count: resolvedRecipients.length,
       });
       return data;
     },
@@ -103,10 +231,20 @@ export default function AiCampaignGenerator() {
       queryClient.invalidateQueries({ queryKey: ["crm", "campaigns"] });
       createCampaignForm.reset({
         name: "",
+        subject: "",
+        body: "",
         segment: "",
         channel: "Email",
         scheduled_at: "",
       });
+      setSendToCategoryGold(false);
+      setSendToReorderProduct(false);
+      setProductSearch("");
+      setSelectedProductId("");
+      setReorderMonthsAgo(6);
+      setResolvedRecipients([]);
+      setLastPreviewStrategies([]);
+      setRecipientsPage(1);
       toast({
         title: "Campaña creada",
         description: "La campaña fue programada correctamente.",
@@ -128,6 +266,50 @@ export default function AiCampaignGenerator() {
       title: "Texto copiado",
       description: "El copy se ha copiado al portapapeles.",
     });
+  };
+
+  const previewRecipientsMutation = useMutation<RecipientDTO[], Error, RecipientStrategy[]>({
+    mutationFn: resolveCampaignRecipients,
+    onSuccess: (recipients, strategies) => {
+      setResolvedRecipients(recipients);
+      setLastPreviewStrategies(strategies);
+      setRecipientsPage(1);
+      toast({
+        title: "Destinatarios actualizados",
+        description: `Se encontraron ${recipients.length} destinatarios.`,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "No se pudo previsualizar destinatarios",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handlePreviewRecipients = () => {
+    const strategies = buildRecipientStrategies();
+
+    if (strategies.length === 0) {
+      toast({
+        title: "Selecciona al menos una estrategia",
+        description: "Define quiénes recibirán la campaña antes de previsualizar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (sendToReorderProduct && !selectedProductId) {
+      toast({
+        title: "Falta producto para recompra",
+        description: "Selecciona un producto para la estrategia de recompra.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    previewRecipientsMutation.mutate(strategies);
   };
 
   return (
@@ -260,12 +442,178 @@ export default function AiCampaignGenerator() {
             </p>
           </div>
 
-          <Form {...createCampaignForm}>
-            <form
-              onSubmit={createCampaignForm.handleSubmit((values) => createCampaignMutation.mutate(values))}
-              className="space-y-4"
-            >
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <section className="space-y-4">
+              <div className="space-y-1">
+                <p className="text-sm font-medium">Destinatarios</p>
+                <p className="text-xs text-muted-foreground">
+                  Selecciona una o más estrategias y previsualiza la audiencia.
+                </p>
+              </div>
+
+              <div className="space-y-3 rounded-md border p-3">
+                <div className="flex items-start gap-2">
+                  <Checkbox
+                    id="recipient-category-gold"
+                    checked={sendToCategoryGold}
+                    onCheckedChange={(checked) => setSendToCategoryGold(Boolean(checked))}
+                  />
+                  <label htmlFor="recipient-category-gold" className="text-sm leading-5">
+                    Enviar a todos los clientes de Categoría Oro
+                  </label>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-start gap-2">
+                    <Checkbox
+                      id="recipient-reorder-product"
+                      checked={sendToReorderProduct}
+                      onCheckedChange={(checked) => {
+                        const enabled = Boolean(checked);
+                        setSendToReorderProduct(enabled);
+                        if (!enabled) {
+                          setProductSearch("");
+                          setSelectedProductId("");
+                          setReorderMonthsAgo(6);
+                        }
+                      }}
+                    />
+                    <label htmlFor="recipient-reorder-product" className="text-sm leading-5">
+                      Enviar a los clientes que compraron X producto hace 6 meses
+                    </label>
+                  </div>
+
+                  {sendToReorderProduct && (
+                    <div className="space-y-2 pl-6">
+                      <Input
+                        placeholder="Buscar producto..."
+                        value={productSearch}
+                        onChange={(event) => setProductSearch(event.target.value)}
+                      />
+
+                      <Select
+                        value={selectedProductId || undefined}
+                        onValueChange={setSelectedProductId}
+                        disabled={productsQuery.isLoading}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccionar producto" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(productsQuery.data ?? []).map((product) => (
+                            <SelectItem key={product.id} value={product.id}>
+                              {product.name}
+                            </SelectItem>
+                          ))}
+                          {(productsQuery.data ?? []).length === 0 && !productsQuery.isLoading && (
+                            <SelectItem value="_none" disabled>
+                              Sin productos para este criterio
+                            </SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+
+                      <Select
+                        value={String(reorderMonthsAgo)}
+                        onValueChange={(value) => setReorderMonthsAgo(Number(value))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Rango de tiempo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="3">3 meses</SelectItem>
+                          <SelectItem value="6">6 meses</SelectItem>
+                          <SelectItem value="12">12 meses</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                disabled={previewRecipientsMutation.isPending}
+                onClick={handlePreviewRecipients}
+              >
+                {previewRecipientsMutation.isPending ? "Previsualizando…" : "Previsualizar destinatarios"}
+              </Button>
+
+              <div className="rounded-md border overflow-hidden">
+                <div className="flex items-center justify-between px-3 py-2 bg-muted/40 border-b">
+                  <p className="text-sm font-medium">Resultado</p>
+                  <p className="text-xs text-muted-foreground">
+                    Total: {resolvedRecipients.length}
+                  </p>
+                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nombre</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Segmento</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {resolvedRecipients.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={3} className="text-sm text-muted-foreground">
+                          Previsualiza destinatarios para ver resultados.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      pagedRecipients.map((recipient) => (
+                        <TableRow key={recipient.customer_id}>
+                          <TableCell>{recipient.name}</TableCell>
+                          <TableCell>{recipient.email ?? "—"}</TableCell>
+                          <TableCell>{recipient.segment ?? "—"}</TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+                {resolvedRecipients.length > 0 && (
+                  <div className="flex items-center justify-between px-3 py-2 border-t bg-muted/20">
+                    <p className="text-xs text-muted-foreground">
+                      Mostrando {recipientsSliceStart + 1}–{Math.min(recipientsSliceStart + RECIPIENTS_PREVIEW_PAGE_SIZE, recipientsTotal)} de {recipientsTotal}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={currentRecipientsPage <= 1}
+                        onClick={() => setRecipientsPage((prev) => Math.max(1, prev - 1))}
+                      >
+                        Anterior
+                      </Button>
+                      <p className="text-xs text-muted-foreground">
+                        Página {currentRecipientsPage} / {recipientsTotalPages}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={currentRecipientsPage >= recipientsTotalPages}
+                        onClick={() => setRecipientsPage((prev) => Math.min(recipientsTotalPages, prev + 1))}
+                      >
+                        Siguiente
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section>
+              <Form {...createCampaignForm}>
+                <form
+                  onSubmit={createCampaignForm.handleSubmit((values) => createCampaignMutation.mutate(values))}
+                  className="space-y-4"
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <FormField
                   control={createCampaignForm.control}
                   name="name"
@@ -274,6 +622,38 @@ export default function AiCampaignGenerator() {
                       <FormLabel>Nombre</FormLabel>
                       <FormControl>
                         <Input placeholder="Ej: Promo Bienestar Marzo" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={createCampaignForm.control}
+                  name="subject"
+                  render={({ field }) => (
+                    <FormItem className="md:col-span-2">
+                      <FormLabel>Asunto</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Asunto del mensaje" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={createCampaignForm.control}
+                  name="body"
+                  render={({ field }) => (
+                    <FormItem className="md:col-span-2">
+                      <FormLabel>Contenido</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Contenido de la campaña"
+                          className="min-h-[140px]"
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -337,10 +717,12 @@ export default function AiCampaignGenerator() {
                 disabled={createCampaignMutation.isPending}
                 className="w-full"
               >
-                {createCampaignMutation.isPending ? "Creando campaña…" : "Crear campaña"}
+                {createCampaignMutation.isPending ? "Enviando campaña…" : "Enviar campaña"}
               </Button>
-            </form>
-          </Form>
+                </form>
+              </Form>
+            </section>
+          </div>
         </div>
       </Card>
     </div>
