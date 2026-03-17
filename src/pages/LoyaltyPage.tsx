@@ -361,87 +361,89 @@ export default function LoyaltyPage() {
 
       {/* Dialog Crear beneficio (solo admin) */}
       {canManageLoyalty && selectedCategory && (
-        <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Nuevo beneficio para {selectedCategory.name}</DialogTitle>
-            </DialogHeader>
-            <BenefitForm
-              mode="create"
-              defaultValues={{ name: "", description: "" }}
-              onSubmit={(values) => createMutation.mutate(values as CreateBenefitRequest)}
-              isSubmitting={createMutation.isPending}
-            />
-            {createMutation.isError && (
-              <p className="text-sm text-destructive mt-2">
-                {(createMutation.error as Error).message}
-              </p>
-            )}
-          </DialogContent>
-        </Dialog>
+        <>
+          <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Nuevo beneficio para {selectedCategory.name}</DialogTitle>
+              </DialogHeader>
+              <BenefitForm
+                mode="create"
+                defaultValues={{ name: "", description: "" }}
+                onSubmit={(values) => createMutation.mutate(values as CreateBenefitRequest)}
+                isSubmitting={createMutation.isPending}
+              />
+              {createMutation.isError && (
+                <p className="text-sm text-destructive mt-2">
+                  {(createMutation.error as Error).message}
+                </p>
+              )}
+            </DialogContent>
+          </Dialog>
 
-        <Dialog open={createCategoryDialogOpen} onOpenChange={setCreateCategoryDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Nueva categoría de fidelización</DialogTitle>
-            </DialogHeader>
-            <Form {...createCategoryForm}>
-              <form
-                onSubmit={createCategoryForm.handleSubmit((values) => createCategoryMutation.mutate(values))}
-                className="space-y-4"
-              >
-                <FormField
-                  control={createCategoryForm.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nombre</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Gold" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
+          <Dialog open={createCategoryDialogOpen} onOpenChange={setCreateCategoryDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Nueva categoría de fidelización</DialogTitle>
+              </DialogHeader>
+              <Form {...createCategoryForm}>
+                <form
+                  onSubmit={createCategoryForm.handleSubmit((values) => createCategoryMutation.mutate(values))}
+                  className="space-y-4"
+                >
+                  <FormField
+                    control={createCategoryForm.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Nombre</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Gold" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={createCategoryForm.control}
+                    name="min_ltv"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>LTV mínimo</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={field.value ?? 0}
+                            onChange={(e) => field.onChange(e.target.value)}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {createCategoryMutation.isError && (
+                    <p className="text-sm text-destructive">
+                      {getApiErrorMessage(createCategoryMutation.error, "Fidelización / Categorías")}
+                    </p>
                   )}
-                />
 
-                <FormField
-                  control={createCategoryForm.control}
-                  name="min_ltv"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>LTV mínimo</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={field.value ?? 0}
-                          onChange={(e) => field.onChange(e.target.value)}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {createCategoryMutation.isError && (
-                  <p className="text-sm text-destructive">
-                    {getApiErrorMessage(createCategoryMutation.error, "Fidelización / Categorías")}
-                  </p>
-                )}
-
-                <DialogFooter>
-                  <Button type="button" variant="ghost" onClick={() => setCreateCategoryDialogOpen(false)}>
-                    Cancelar
-                  </Button>
-                  <Button type="submit" disabled={createCategoryMutation.isPending}>
-                    {createCategoryMutation.isPending ? "Guardando…" : "Crear categoría"}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
+                  <DialogFooter>
+                    <Button type="button" variant="ghost" onClick={() => setCreateCategoryDialogOpen(false)}>
+                      Cancelar
+                    </Button>
+                    <Button type="submit" disabled={createCategoryMutation.isPending}>
+                      {createCategoryMutation.isPending ? "Guardando…" : "Crear categoría"}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
+        </>
       )}
 
       {/* Dialog Editar beneficio (solo admin) */}
