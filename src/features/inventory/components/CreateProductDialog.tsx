@@ -67,7 +67,11 @@ export default function CreateProductDialog({
         }
       }
 
-      return createProduct({ ...values, attributes });
+      return createProduct({
+        ...values,
+        tax_rate: Number(values.tax_rate),
+        attributes,
+      });
     },
     onSuccess: (createdProduct) => {
       queryClient.invalidateQueries({ queryKey: ["inventory-products"] });

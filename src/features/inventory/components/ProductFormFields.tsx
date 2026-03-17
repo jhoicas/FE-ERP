@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { UseFormReturn } from "react-hook-form";
 
 import {
@@ -22,10 +23,46 @@ type ProductFormFieldsProps = {
   includeSku?: boolean;
 };
 
+const TAX_PRESET_VALUES = ["0", "5", "19"] as const;
+type TaxPresetValue = (typeof TAX_PRESET_VALUES)[number];
+type TaxOptionValue = TaxPresetValue | "custom";
+
+function isTaxPresetValue(value: string): value is TaxPresetValue {
+  return TAX_PRESET_VALUES.includes(value as TaxPresetValue);
+}
+
 export default function ProductFormFields({
   form,
   includeSku = true,
 }: ProductFormFieldsProps) {
+  const watchedTaxRateRaw = form.watch("tax_rate");
+  const watchedTaxRate = watchedTaxRateRaw == null ? "" : String(watchedTaxRateRaw);
+
+  const [selectedTaxOption, setSelectedTaxOption] = useState<TaxOptionValue>(() => {
+    if (isTaxPresetValue(watchedTaxRate)) {
+      return watchedTaxRate;
+    }
+    return "custom";
+  });
+  const [lastCustomTaxRate, setLastCustomTaxRate] = useState<string>(() => {
+    if (isTaxPresetValue(watchedTaxRate)) {
+      return "";
+    }
+    return watchedTaxRate;
+  });
+
+  useEffect(() => {
+    if (isTaxPresetValue(watchedTaxRate)) {
+      setSelectedTaxOption(watchedTaxRate);
+      return;
+    }
+
+    setSelectedTaxOption("custom");
+    if (watchedTaxRate.length > 0) {
+      setLastCustomTaxRate(watchedTaxRate);
+    }
+  }, [watchedTaxRate]);
+
   return (
     <>
       {includeSku ? (
@@ -100,9 +137,34 @@ export default function ProductFormFields({
           name="tax_rate"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Impuesto</FormLabel>
+              <FormLabel>Impuesto (%)</FormLabel>
               <FormControl>
-                <Select onValueChange={field.onChange} value={field.value}>
+                <Select
+                  onValueChange={(nextValue) => {
+                    if (nextValue === "custom") {
+                      setSelectedTaxOption("custom");
+                      form.setValue("tax_rate", lastCustomTaxRate, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      });
+                      if (!lastCustomTaxRate) {
+                        form.setError("tax_rate", {
+                          type: "manual",
+                          message: "Impuesto requerido",
+                        });
+                      }
+                      return;
+                    }
+
+                    setSelectedTaxOption(nextValue as TaxPresetValue);
+                    form.clearErrors("tax_rate");
+                    form.setValue("tax_rate", nextValue, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    });
+                  }}
+                  value={selectedTaxOption}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Seleccionar IVA" />
                   </SelectTrigger>
@@ -110,9 +172,32 @@ export default function ProductFormFields({
                     <SelectItem value="0">0%</SelectItem>
                     <SelectItem value="5">5%</SelectItem>
                     <SelectItem value="19">19%</SelectItem>
+                    <SelectItem value="custom">Personalizado…</SelectItem>
                   </SelectContent>
                 </Select>
               </FormControl>
+
+              {selectedTaxOption === "custom" ? (
+                <FormControl>
+                  <div className="relative mt-2">
+                    <Input
+                      placeholder="Ej. 7.5"
+                      inputMode="decimal"
+                      className="pr-8"
+                      value={field.value ?? ""}
+                      onChange={(event) => {
+                        const nextValue = event.target.value.replace(",", ".");
+                        setLastCustomTaxRate(nextValue);
+                        field.onChange(nextValue);
+                      }}
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                      %
+                    </span>
+                  </div>
+                </FormControl>
+              ) : null}
+
               <FormMessage />
             </FormItem>
           )}

@@ -52,7 +52,7 @@ export interface CreateProductRequest {
   name: string;
   description?: string;
   price: string;
-  tax_rate: string;
+  tax_rate: number;
   unspsc_code?: string;
   unit_measure: string;
   attributes?: unknown;
@@ -62,7 +62,7 @@ export interface UpdateProductRequest {
   name?: string;
   description?: string;
   price?: string;
-  tax_rate?: string;
+  tax_rate?: number;
   unspsc_code?: string;
   unit_measure?: string;
   attributes?: unknown;

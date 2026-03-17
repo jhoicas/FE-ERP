@@ -33,13 +33,28 @@ export const registerMovementRequestSchema: z.ZodType<RegisterMovementRequest> =
     unit_cost: z.string().optional(),
   });
 
+const taxRateNumberSchema = z.preprocess(
+  (value) => {
+    if (value === "" || value === null || value === undefined) return undefined;
+    if (typeof value === "number") return value;
+    if (typeof value === "string") return Number(value.replace(",", "."));
+    return value;
+  },
+  z.number({
+    required_error: "Impuesto requerido",
+    invalid_type_error: "Impuesto requerido",
+  })
+    .min(0, "Debe estar entre 0 y 100")
+    .max(100, "Debe estar entre 0 y 100"),
+);
+
 export const createProductRequestSchema: z.ZodType<CreateProductRequest> =
   z.object({
     sku: z.string().min(1, "El SKU es obligatorio").max(100),
     name: z.string().min(1, "El nombre es obligatorio").max(200),
     description: z.string().optional(),
     price: z.string().min(1, "El precio es obligatorio"),
-    tax_rate: z.string().min(1, "La tarifa de impuesto es obligatoria"),
+    tax_rate: taxRateNumberSchema,
     unspsc_code: z.string().optional(),
     unit_measure: z.string().min(1, "La unidad de medida es obligatoria"),
     attributes: z.unknown().optional(),
@@ -50,7 +65,7 @@ export const updateProductRequestSchema: z.ZodType<UpdateProductRequest> =
     name: z.string().optional(),
     description: z.string().optional(),
     price: z.string().optional(),
-    tax_rate: z.string().optional(),
+    tax_rate: taxRateNumberSchema.optional(),
     unspsc_code: z.string().optional(),
     unit_measure: z.string().optional(),
     attributes: z.unknown().optional(),

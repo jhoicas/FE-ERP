@@ -146,7 +146,14 @@ function ProductEditDialog({
 
     mutation.mutate({
       id: productId,
-      body: { ...values, attributes },
+      body: {
+        ...values,
+        tax_rate:
+          values.tax_rate === "" || values.tax_rate == null
+            ? undefined
+            : Number(values.tax_rate),
+        attributes,
+      },
     });
   };
 
