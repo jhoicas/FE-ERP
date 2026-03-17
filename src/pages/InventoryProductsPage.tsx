@@ -3,18 +3,18 @@ import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
-import { PackagePlus, Package, Pencil, Plus, AlertCircle } from "lucide-react";
+import { Package, Pencil, Plus, AlertCircle } from "lucide-react";
 
 import {
   useProducts,
-  useCreateProduct,
   useProduct,
   useUpdateProduct,
   type ListProductsParams,
 } from "@/features/inventory/products.api";
+import CreateProductDialog from "@/features/inventory/components/CreateProductDialog";
+import ProductFormFields from "@/features/inventory/components/ProductFormFields";
 import type { ProductResponse } from "@/types/inventory";
 import {
-  createProductRequestSchema,
   updateProductRequestSchema,
 } from "@/lib/validations/inventory";
 import { getApiErrorMessage } from "@/lib/api/errors";
@@ -37,14 +37,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+import { Form, FormItem, FormLabel } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -79,245 +72,6 @@ function formatTaxRate(value: string) {
   const n = Number(value);
   if (Number.isNaN(n)) return value;
   return `${n.toLocaleString("es-CO", { maximumFractionDigits: 2 })}%`;
-}
-
-function ProductFormFields({
-  form,
-}: {
-  form: ReturnType<typeof useForm<any>>;
-}) {
-  return (
-    <>
-      <FormField
-        control={form.control}
-        name="sku"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>SKU</FormLabel>
-            <FormControl>
-              <Input placeholder="Código único del producto" {...field} />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      <FormField
-        control={form.control}
-        name="name"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Nombre</FormLabel>
-            <FormControl>
-              <Input placeholder="Nombre comercial" {...field} />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      <FormField
-        control={form.control}
-        name="description"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Descripción</FormLabel>
-            <FormControl>
-              <Textarea
-                rows={3}
-                placeholder="Descripción breve del producto"
-                {...field}
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <FormField
-          control={form.control}
-          name="price"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Precio</FormLabel>
-              <FormControl>
-                <Input
-                  placeholder="0.00"
-                  inputMode="decimal"
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="tax_rate"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Impuesto</FormLabel>
-              <FormControl>
-                <Select
-                  onValueChange={field.onChange}
-                  value={field.value}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar IVA" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="0">0%</SelectItem>
-                    <SelectItem value="5">5%</SelectItem>
-                    <SelectItem value="19">19%</SelectItem>
-                  </SelectContent>
-                </Select>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="unspsc_code"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Código UNSPSC</FormLabel>
-              <FormControl>
-                <Input placeholder="Opcional" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <FormField
-          control={form.control}
-          name="unit_measure"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Unidad de medida</FormLabel>
-              <FormControl>
-                <Select
-                  onValueChange={field.onChange}
-                  value={field.value || "94"}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar unidad" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="94">Unidad (94)</SelectItem>
-                    <SelectItem value="C62">Unidad de pieza (C62)</SelectItem>
-                    <SelectItem value="KGM">Kilogramo (KGM)</SelectItem>
-                    <SelectItem value="LTR">Litro (LTR)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="attributes"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Atributos (JSON opcional)</FormLabel>
-              <FormControl>
-                <Textarea
-                  rows={3}
-                  placeholder='Ej. {"color":"rojo","talla":"M"}'
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      </div>
-    </>
-  );
-}
-
-function ProductCreateDialog({
-  open,
-  onOpenChange,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const queryClient = useQueryClient();
-
-  const form = useForm<any>({
-    resolver: zodResolver(createProductRequestSchema),
-    defaultValues: {
-      sku: "",
-      name: "",
-      description: "",
-      price: "",
-      tax_rate: "19",
-      unspsc_code: "",
-      unit_measure: "94",
-      attributes: "",
-    },
-  });
-
-  const mutation = useCreateProduct({
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["inventory-products"] });
-      onOpenChange(false);
-      form.reset();
-    },
-  });
-
-  const onSubmit = (values: any) => {
-    let attributes: unknown = undefined;
-    if (values.attributes && values.attributes.trim().length > 0) {
-      try {
-        attributes = JSON.parse(values.attributes);
-      } catch {
-        form.setError("attributes", {
-          type: "manual",
-          message: "JSON inválido",
-        });
-        return;
-      }
-    }
-    mutation.mutate({ ...values, attributes });
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <PackagePlus className="h-4 w-4 text-primary" />
-            Crear producto
-          </DialogTitle>
-        </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <ProductFormFields form={form} />
-            {mutation.isError && (
-              <p className="text-sm text-destructive">
-                {(mutation.error as Error).message}
-              </p>
-            )}
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => onOpenChange(false)}
-              >
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={mutation.isPending}>
-                {mutation.isPending ? "Creando…" : "Crear producto"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
-  );
 }
 
 function ProductEditDialog({
@@ -432,7 +186,7 @@ function ProductEditDialog({
                 <FormLabel>SKU</FormLabel>
                 <Input value={productQuery.data.sku} disabled />
               </FormItem>
-              <ProductFormFields form={form} />
+              <ProductFormFields form={form} includeSku={false} />
               {mutation.isError && (
                 <p className="text-sm text-destructive">
                   {(mutation.error as Error).message}

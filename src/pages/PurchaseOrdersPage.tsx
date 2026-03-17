@@ -5,6 +5,7 @@ import { useSearchParams } from "react-router-dom";
 import { z } from "zod";
 
 import apiClient from "@/lib/api/client";
+import CreateProductDialog from "@/features/inventory/components/CreateProductDialog";
 import { getProducts } from "@/features/inventory/services";
 import { getApiErrorMessage } from "@/lib/api/errors";
 import { useToast } from "@/hooks/use-toast";
@@ -207,6 +208,7 @@ export default function PurchaseOrdersPage() {
 
 	const [newDialogOpen, setNewDialogOpen] = useState(false);
 	const [newSupplierDialogOpen, setNewSupplierDialogOpen] = useState(false);
+	const [createProductDialogOpen, setCreateProductDialogOpen] = useState(false);
 	const [receiveDialogOpen, setReceiveDialogOpen] = useState(false);
 	const [supplierId, setSupplierId] = useState("");
 	const [newItems, setNewItems] = useState<NewOrderItemRow[]>([createOrderItemRow()]);
@@ -330,6 +332,7 @@ export default function PurchaseOrdersPage() {
 			});
 		},
 	});
+
 
 	const receiveMutation = useMutation({
 		mutationFn: async () => {
@@ -576,9 +579,14 @@ export default function PurchaseOrdersPage() {
 						<div className="space-y-2">
 							<div className="flex items-center justify-between">
 								<p className="text-sm font-medium">Productos</p>
-								<Button type="button" variant="ghost" size="sm" className="text-xs" onClick={addItemRow}>
-									+ Agregar fila
-								</Button>
+								<div className="flex items-center gap-2">
+									<Button type="button" variant="ghost" size="sm" className="text-xs" onClick={() => setCreateProductDialogOpen(true)}>
+										+ Crear producto
+									</Button>
+									<Button type="button" variant="ghost" size="sm" className="text-xs" onClick={addItemRow}>
+										+ Agregar fila
+									</Button>
+								</div>
 							</div>
 
 							<div className="rounded-md border overflow-hidden">
@@ -763,6 +771,34 @@ export default function PurchaseOrdersPage() {
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
+
+			<CreateProductDialog
+				open={createProductDialogOpen}
+				onOpenChange={setCreateProductDialogOpen}
+				title="Crear producto"
+				description="Crea un producto sin salir de la orden de compra."
+				onCreated={(createdProduct) => {
+					setNewItems((current) => {
+						const firstEmptyIndex = current.findIndex((item) => !item.product_id);
+						if (firstEmptyIndex >= 0) {
+							return current.map((item, index) =>
+								index === firstEmptyIndex ? { ...item, product_id: createdProduct.id } : item,
+							);
+						}
+						return [
+							...current,
+							{
+								...createOrderItemRow(),
+								product_id: createdProduct.id,
+							},
+						];
+					});
+					toast({
+						title: "Producto creado",
+						description: "El producto se creó y quedó disponible en la orden.",
+					});
+				}}
+			/>
 
 			<Dialog open={receiveDialogOpen} onOpenChange={setReceiveDialogOpen}>
 				<DialogContent className="max-w-3xl">
