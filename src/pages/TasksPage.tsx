@@ -11,6 +11,7 @@ import {
   createTask,
   getCustomers,
 } from "@/features/crm/services";
+import CreateCustomerDialog from "@/features/crm/components/CreateCustomerDialog";
 import {
   createTaskSchema,
   type CreateTaskRequest,
@@ -125,6 +126,7 @@ export default function TasksPage() {
   const [offset, setOffset] = useState(0);
   const [statusFilter, setStatusFilter] = useState<string>("_all");
   const [createOpen, setCreateOpen] = useState(false);
+  const [createCustomerOpen, setCreateCustomerOpen] = useState(false);
 
   const tasksQuery = useQuery({
     queryKey: ["crm-tasks", pageSize, offset, statusFilter],
@@ -275,6 +277,15 @@ export default function TasksPage() {
                   <TableCell
                     colSpan={6}
                     className="py-8 text-center text-sm text-muted-foreground"
+
+                        <CreateCustomerDialog
+                          open={createCustomerOpen}
+                          onOpenChange={setCreateCustomerOpen}
+                          onCreated={(customerId) => {
+                            createForm.setValue("customer_id", customerId);
+                            queryClient.invalidateQueries({ queryKey: ["customers-list"] });
+                          }}
+                        />
                   >
                     No hay tareas.
                   </TableCell>
@@ -426,7 +437,19 @@ export default function TasksPage() {
                     </Select>
                     <FormMessage />
                   </FormItem>
-                )}
+                    <div className="flex items-center gap-2">
+                      <FormLabel>Cliente</FormLabel>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8 shrink-0"
+                        onClick={() => setCreateCustomerOpen(true)}
+                        title="Crear nuevo cliente"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
               />
               <FormField
                 control={createForm.control}

@@ -1,17 +1,25 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { CalendarClock, CheckCircle2, CircleDashed, XCircle } from "lucide-react";
+import { CalendarClock, CheckCircle2, CircleDashed, Plus, XCircle } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import { getApiErrorMessage } from "@/lib/api/errors";
 import {
+  createTask,
+  getCustomers,
   getTask,
   listTasks,
   updateTask,
 } from "@/features/crm/services";
-import { updateTaskSchema, type UpdateTaskRequest } from "@/lib/validations/crm";
+import CreateCustomerDialog from "@/features/crm/components/CreateCustomerDialog";
+import {
+  createTaskSchema,
+  updateTaskSchema,
+  type CreateTaskRequest,
+  type UpdateTaskRequest,
+} from "@/lib/validations/crm";
 import type { TaskResponse } from "@/types/crm";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -354,8 +362,35 @@ function TaskDetailDialog({
 }
 
 export default function TasksKanbanPage() {
+  const queryClient = useQueryClient();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createCustomerOpen, setCreateCustomerOpen] = useState(false);
+
+  const customersQuery = useQuery({
+    queryKey: ["customers-list"],
+    queryFn: () => getCustomers(),
+  });
+
+  const createForm = useForm<CreateTaskRequest>({
+    resolver: zodResolver(createTaskSchema),
+    defaultValues: {
+      customer_id: "",
+      title: "",
+      description: "",
+      due_at: undefined,
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: createTask,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["crm-tasks"] });
+      setCreateOpen(false);
+      createForm.reset();
+    },
+  });
 
   const pendingQuery = useQuery({
     queryKey: ["crm-tasks", PAGE_SIZE, 0, "pending"],
@@ -381,6 +416,30 @@ export default function TasksKanbanPage() {
     setDialogOpen(true);
   };
 
+  const openCreate = () => {
+    setCreateOpen(true);
+    createForm.reset({
+      customer_id: "",
+      title: "",
+      description: "",
+      due_at: undefined,
+    });
+  };
+
+  const onSubmitCreate = (values: CreateTaskRequest) => {
+    createMutation.mutate({
+      ...values,
+      customer_id:
+        values.customer_id && values.customer_id !== "_none"
+          ? values.customer_id
+          : undefined,
+      due_at:
+        values.due_at && String(values.due_at) !== ""
+          ? values.due_at
+          : undefined,
+    });
+  };
+
   const columns = useMemo(
     () => [
       { status: "pending" as const, items: pending, query: pendingQuery },
@@ -399,14 +458,20 @@ export default function TasksKanbanPage() {
         ← Volver al CRM
       </Link>
 
-      <div className="flex items-center gap-2">
-        <CalendarClock className="h-4 w-4 text-primary" />
-        <div>
-          <h1 className="text-lg font-semibold tracking-tight">Kanban de tareas</h1>
-          <p className="text-sm text-muted-foreground">
-            Organiza pendientes, hechas y canceladas en un tablero visual.
-          </p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <CalendarClock className="h-4 w-4 text-primary" />
+          <div>
+            <h1 className="text-lg font-semibold tracking-tight">Kanban de tareas</h1>
+            <p className="text-sm text-muted-foreground">
+              Organiza pendientes, hechas y canceladas en un tablero visual.
+            </p>
+          </div>
         </div>
+        <Button onClick={openCreate}>
+          <Plus className="h-4 w-4 mr-2" />
+          Nueva tarea
+        </Button>
       </div>
 
       {(pendingQuery.isError || doneQuery.isError || cancelledQuery.isError) && (
@@ -452,6 +517,142 @@ export default function TasksKanbanPage() {
           </div>
         ))}
       </div>
+
+      <CreateCustomerDialog
+        open={createCustomerOpen}
+        onOpenChange={setCreateCustomerOpen}
+        onCreated={(customerId) => {
+          createForm.setValue("customer_id", customerId);
+          queryClient.invalidateQueries({ queryKey: ["customers-list"] });
+        }}
+      />
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nueva tarea</DialogTitle>
+          </DialogHeader>
+          <Form {...createForm}>
+            <form onSubmit={createForm.handleSubmit(onSubmitCreate)} className="space-y-4">
+              <FormField
+                control={createForm.control}
+                name="customer_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <div className="flex items-center gap-2">
+                      <FormLabel>Cliente</FormLabel>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8 shrink-0"
+                        onClick={() => setCreateCustomerOpen(true)}
+                        title="Crear nuevo cliente"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value}
+                      disabled={customersQuery.isLoading}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccionar cliente" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {customersQuery.data?.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.name}
+                          </SelectItem>
+                        ))}
+                        {customersQuery.data?.length === 0 && !customersQuery.isLoading && (
+                          <SelectItem value="_none" disabled>
+                            No hay clientes
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={createForm.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Título</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Llamar para seguimiento" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={createForm.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Descripción</FormLabel>
+                    <FormControl>
+                      <Textarea rows={4} placeholder="Detalle de la tarea" {...field} value={field.value ?? ""} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={createForm.control}
+                name="due_at"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Fecha de vencimiento (opcional)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="datetime-local"
+                        value={
+                          field.value instanceof Date
+                            ? new Date(field.value.getTime() - field.value.getTimezoneOffset() * 60000)
+                                .toISOString()
+                                .slice(0, 16)
+                            : ""
+                        }
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          field.onChange(v ? new Date(v) : undefined);
+                        }}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {createMutation.isError && (
+                <p className="text-sm text-destructive">
+                  {getApiErrorMessage(createMutation.error, "Tareas CRM")}
+                </p>
+              )}
+
+              <DialogFooter>
+                <Button type="button" variant="ghost" onClick={() => setCreateOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={createMutation.isPending}>
+                  {createMutation.isPending ? "Creando…" : "Crear"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
 
       <TaskDetailDialog
         open={dialogOpen}
