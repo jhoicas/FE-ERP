@@ -48,9 +48,12 @@ const SupplierSchema = z
 	.object({
 		id: z.string(),
 		name: z.string(),
+		nit: z.string().nullish(),
 		tax_id: z.string().nullish(),
 		email: z.string().nullish(),
 		phone: z.string().nullish(),
+		payment_term_days: z.union([z.number(), z.string()]).nullish(),
+		lead_time_days: z.union([z.number(), z.string()]).nullish(),
 		payment_days: z.union([z.number(), z.string()]).nullish(),
 		supply_days: z.union([z.number(), z.string()]).nullish(),
 	})
@@ -94,6 +97,18 @@ function toNumericOrUndefined(value: string): number | undefined {
 	if (!value.trim()) return undefined;
 	const parsed = Number(value);
 	return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function getSupplierNit(supplier: SupplierDTO): string | null | undefined {
+	return supplier.nit ?? supplier.tax_id;
+}
+
+function getSupplierPaymentDays(supplier: SupplierDTO): string | number | null | undefined {
+	return supplier.payment_term_days ?? supplier.payment_days;
+}
+
+function getSupplierSupplyDays(supplier: SupplierDTO): string | number | null | undefined {
+	return supplier.lead_time_days ?? supplier.supply_days;
 }
 
 async function listSuppliers(params: { limit: number; offset: number; search?: string }) {
@@ -179,11 +194,11 @@ export default function SuppliersPage() {
 		mutationFn: async () => {
 			const payload = {
 				name: form.name.trim(),
-				tax_id: form.tax_id.trim() || undefined,
+				nit: form.tax_id.trim() || undefined,
 				email: form.email.trim() || undefined,
 				phone: form.phone.trim() || undefined,
-				payment_days: paymentDaysNumber,
-				supply_days: supplyDaysNumber,
+				payment_term_days: paymentDaysNumber,
+				lead_time_days: supplyDaysNumber,
 			};
 
 			if (editSupplier) {
@@ -215,16 +230,16 @@ export default function SuppliersPage() {
 		setEditSupplier(supplier);
 		setForm({
 			name: supplier.name ?? "",
-			tax_id: supplier.tax_id ?? "",
+			tax_id: getSupplierNit(supplier) ?? "",
 			email: supplier.email ?? "",
 			phone: supplier.phone ?? "",
 			payment_days:
-				supplier.payment_days !== undefined && supplier.payment_days !== null
-					? String(supplier.payment_days)
+				getSupplierPaymentDays(supplier) !== undefined && getSupplierPaymentDays(supplier) !== null
+					? String(getSupplierPaymentDays(supplier))
 					: "",
 			supply_days:
-				supplier.supply_days !== undefined && supplier.supply_days !== null
-					? String(supplier.supply_days)
+				getSupplierSupplyDays(supplier) !== undefined && getSupplierSupplyDays(supplier) !== null
+					? String(getSupplierSupplyDays(supplier))
 					: "",
 		});
 		mutation.reset();
@@ -300,15 +315,15 @@ export default function SuppliersPage() {
 									<TableRow key={supplier.id} className="hover:bg-muted/40">
 										<TableCell className="font-medium">{supplier.name}</TableCell>
 										<TableCell className="font-mono text-xs text-muted-foreground">
-											{supplier.tax_id ?? "—"}
+											{getSupplierNit(supplier) ?? "—"}
 										</TableCell>
 										<TableCell className="text-muted-foreground">{supplier.email ?? "—"}</TableCell>
 										<TableCell className="text-muted-foreground">{supplier.phone ?? "—"}</TableCell>
 										<TableCell className="text-muted-foreground">
-											{supplier.payment_days ?? "—"}
+											{getSupplierPaymentDays(supplier) ?? "—"}
 										</TableCell>
 										<TableCell className="text-muted-foreground">
-											{supplier.supply_days ?? "—"}
+											{getSupplierSupplyDays(supplier) ?? "—"}
 										</TableCell>
 										<TableCell className="text-right">
 											<Button
