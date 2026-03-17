@@ -23,6 +23,7 @@ import {
   createCustomerSchema,
   updateCustomerSchema,
   createBenefitSchema,
+  createCategorySchema,
   updateBenefitSchema,
   type CreateTaskRequest,
   type UpdateTaskRequest,
@@ -33,6 +34,7 @@ import {
   type CreateCustomerRequest,
   type UpdateCustomerRequest,
   type CreateBenefitRequest,
+  type CreateCategoryRequest,
   type UpdateBenefitRequest,
 } from "@/lib/validations/crm";
 import { z } from "zod";
@@ -135,6 +137,21 @@ export async function createBenefit(
   try {
     const { data } = await apiClient.post<BenefitResponse>(
       `${CRM_BASE}/categories/${categoryId}/benefits`,
+      payload,
+    );
+    return data;
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}
+
+export async function createCategory(
+  body: CreateCategoryRequest,
+): Promise<CategoryResponse> {
+  const payload = createCategorySchema.parse(body);
+  try {
+    const { data } = await apiClient.post<CategoryResponse>(
+      `${CRM_BASE}/categories`,
       payload,
     );
     return data;

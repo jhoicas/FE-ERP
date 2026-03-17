@@ -102,6 +102,13 @@ export const createBenefitSchema = z.object({
 
 export type CreateBenefitRequest = z.infer<typeof createBenefitSchema>;
 
+export const createCategorySchema = z.object({
+  name: z.string().min(1, "El nombre es obligatorio"),
+  min_ltv: z.coerce.number().min(0, "El LTV mínimo debe ser mayor o igual a 0"),
+});
+
+export type CreateCategoryRequest = z.infer<typeof createCategorySchema>;
+
 export const updateBenefitSchema = z.object({
   name: z.string().min(1, "El nombre es obligatorio").optional(),
   description: z.string().min(1, "La descripción es obligatoria").optional(),

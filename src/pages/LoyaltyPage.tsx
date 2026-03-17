@@ -8,6 +8,7 @@ import { Star, Gift, Pencil } from "lucide-react";
 import {
   listCategories,
   listBenefitsByCategory,
+  createCategory,
   createBenefit,
   updateBenefit,
 } from "@/features/crm/services";
@@ -16,7 +17,9 @@ import { useAuthUser } from "@/features/auth/useAuthUser";
 import { isAdmin } from "@/features/auth/permissions";
 import {
   createBenefitSchema,
+  createCategorySchema,
   updateBenefitSchema,
+  type CreateCategoryRequest,
   type CreateBenefitRequest,
   type UpdateBenefitRequest,
 } from "@/lib/validations/crm";
@@ -139,8 +142,17 @@ export default function LoyaltyPage() {
   const canManageLoyalty = isAdmin(user);
   const queryClient = useQueryClient();
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [createCategoryDialogOpen, setCreateCategoryDialogOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editingBenefit, setEditingBenefit] = useState<BenefitResponse | null>(null);
+
+  const createCategoryForm = useForm<CreateCategoryRequest>({
+    resolver: zodResolver(createCategorySchema),
+    defaultValues: {
+      name: "",
+      min_ltv: 0,
+    },
+  });
 
   const categoriesQuery = useQuery({
     queryKey: ["crm-categories", "loyalty"],
@@ -162,6 +174,21 @@ export default function LoyaltyPage() {
         queryKey: ["crm-benefits", selectedCategoryId],
       });
       setCreateDialogOpen(false);
+    },
+  });
+
+  const createCategoryMutation = useMutation({
+    mutationFn: createCategory,
+    onSuccess: (newCategory) => {
+      queryClient.invalidateQueries({
+        queryKey: ["crm-categories", "loyalty"],
+      });
+      setSelectedCategoryId(newCategory.id);
+      setCreateCategoryDialogOpen(false);
+      createCategoryForm.reset({
+        name: "",
+        min_ltv: 0,
+      });
     },
   });
 
@@ -207,6 +234,11 @@ export default function LoyaltyPage() {
             </p>
           </div>
         </div>
+        {canManageLoyalty && (
+          <Button variant="outline" size="sm" onClick={() => setCreateCategoryDialogOpen(true)}>
+            Crear categoría
+          </Button>
+        )}
       </div>
 
       {/* Grid de categorías */}
@@ -345,6 +377,69 @@ export default function LoyaltyPage() {
                 {(createMutation.error as Error).message}
               </p>
             )}
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={createCategoryDialogOpen} onOpenChange={setCreateCategoryDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Nueva categoría de fidelización</DialogTitle>
+            </DialogHeader>
+            <Form {...createCategoryForm}>
+              <form
+                onSubmit={createCategoryForm.handleSubmit((values) => createCategoryMutation.mutate(values))}
+                className="space-y-4"
+              >
+                <FormField
+                  control={createCategoryForm.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Nombre</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Gold" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={createCategoryForm.control}
+                  name="min_ltv"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>LTV mínimo</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={field.value ?? 0}
+                          onChange={(e) => field.onChange(e.target.value)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {createCategoryMutation.isError && (
+                  <p className="text-sm text-destructive">
+                    {getApiErrorMessage(createCategoryMutation.error, "Fidelización / Categorías")}
+                  </p>
+                )}
+
+                <DialogFooter>
+                  <Button type="button" variant="ghost" onClick={() => setCreateCategoryDialogOpen(false)}>
+                    Cancelar
+                  </Button>
+                  <Button type="submit" disabled={createCategoryMutation.isPending}>
+                    {createCategoryMutation.isPending ? "Guardando…" : "Crear categoría"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </Form>
           </DialogContent>
         </Dialog>
       )}
