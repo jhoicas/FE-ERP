@@ -1,16 +1,35 @@
 import { useParams, useNavigate } from "react-router-dom";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Mail, Phone, Building2, Sparkles } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { ArrowLeft, Mail, Phone, Building2, Sparkles, Trash2 } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { getApiErrorMessage } from "@/lib/api/errors";
-import { getCustomers, getTickets } from "@/features/crm/services";
+import { getCustomers, getTickets, deactivateCustomer } from "@/features/crm/services";
+import { useAuthUser } from "@/features/auth/useAuthUser";
+import { useToast } from "@/hooks/use-toast";
 import ExplainableAcronym from "@/components/shared/ExplainableAcronym";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function ClientDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const user = useAuthUser();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const isAdmin = user?.roles?.includes("admin") ?? false;
 
   const customersQuery = useQuery({
     queryKey: ["crm", "customers"],
@@ -20,6 +39,40 @@ export default function ClientDetailPage() {
   const ticketsQuery = useQuery({
     queryKey: ["crm", "tickets"],
     queryFn: getTickets,
+  });
+
+  const deactivateMutation = useMutation({
+    mutationFn: async () => {
+      if (id) {
+        await deactivateCustomer(id);
+      }
+    },
+    onSuccess: () => {
+      toast({
+        title: "Desactivado correctamente",
+        description: "El cliente ha sido desactivado.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["crm", "customers"] });
+      setConfirmOpen(false);
+      setTimeout(() => navigate("/crm"), 500);
+    },
+    onError: (error: any) => {
+      const statusCode = error.response?.status;
+      if (statusCode === 401 || statusCode === 403) {
+        toast({
+          title: "Error de permisos",
+          description: "No tienes permisos para desactivar este cliente.",
+          variant: "destructive",
+        });
+      } else {
+        const errorMsg = getApiErrorMessage(error, "Clientes");
+        toast({
+          title: "Error al desactivar",
+          description: errorMsg,
+          variant: "destructive",
+        });
+      }
+    },
   });
 
   const client = customersQuery.data?.find((c) => c.id === id);
@@ -73,10 +126,23 @@ export default function ClientDetailPage() {
             </div>
             <p className="text-sm text-muted-foreground">{client.email}</p>
           </div>
-          <Button className="gap-2 shadow-md">
-            <Sparkles className="h-4 w-4" />
-            Generar Correo con IA
-          </Button>
+          <div className="flex gap-2">
+            <Button className="gap-2 shadow-md">
+              <Sparkles className="h-4 w-4" />
+              Generar Correo con IA
+            </Button>
+            {isAdmin && (
+              <Button
+                variant="outline"
+                className="gap-2 text-destructive hover:text-destructive"
+                onClick={() => setConfirmOpen(true)}
+                disabled={deactivateMutation.isPending}
+              >
+                <Trash2 className="h-4 w-4" />
+                Desactivar
+              </Button>
+            )}
+          </div>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-5 pt-4 border-t">
           <InfoItem icon={Mail} label="Email" value={client.email} />
@@ -104,6 +170,27 @@ export default function ClientDetailPage() {
           </div>
         </div>
       )}
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Desactivar cliente</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Seguro que deseas desactivar este registro? Esta acción oculta el registro pero no lo elimina.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deactivateMutation.mutate()}
+              disabled={deactivateMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deactivateMutation.isPending ? "Desactivando..." : "Desactivar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

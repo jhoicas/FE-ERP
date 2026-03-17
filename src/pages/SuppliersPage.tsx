@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Plus, Truck } from "lucide-react";
+import { Pencil, Plus, Truck, Trash2 } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { z } from "zod";
 
 import apiClient from "@/lib/api/client";
 import { getApiErrorMessage } from "@/lib/api/errors";
 import { useToast } from "@/hooks/use-toast";
+import { useAuthUser } from "@/features/auth/useAuthUser";
+import { deactivateSupplier } from "@/features/crm/services";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +21,16 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
 	Pagination,
 	PaginationContent,
@@ -129,7 +141,10 @@ async function listSuppliers(params: { limit: number; offset: number; search?: s
 export default function SuppliersPage() {
 	const queryClient = useQueryClient();
 	const { toast } = useToast();
+	const user = useAuthUser();
 	const [searchParams, setSearchParams] = useSearchParams();
+
+	const isAdmin = user?.roles?.includes("admin") ?? false;
 
 	const initialPageSize = Number(searchParams.get("pageSize")) || 5;
 	const initialOffset = Number(searchParams.get("offset")) || 0;
@@ -143,6 +158,8 @@ export default function SuppliersPage() {
 	const [openDialog, setOpenDialog] = useState(false);
 	const [editSupplier, setEditSupplier] = useState<SupplierDTO | null>(null);
 	const [form, setForm] = useState<SupplierFormState>(createEmptyForm());
+	const [deactivatingId, setDeactivatingId] = useState<string | null>(null);
+	const [confirmOpen, setConfirmOpen] = useState(false);
 
 	useEffect(() => {
 		const handle = setTimeout(() => {
@@ -218,6 +235,50 @@ export default function SuppliersPage() {
 			setForm(createEmptyForm());
 		},
 	});
+
+	const deactivateMutation = useMutation({
+		mutationFn: async (supplierId: string) => {
+			await deactivateSupplier(supplierId);
+		},
+		onSuccess: () => {
+			toast({
+				title: "Desactivado correctamente",
+				description: "El proveedor ha sido desactivado.",
+			});
+			queryClient.invalidateQueries({ queryKey: ["suppliers"] });
+			setConfirmOpen(false);
+			setDeactivatingId(null);
+		},
+		onError: (error: any) => {
+			const statusCode = error.response?.status;
+			if (statusCode === 401 || statusCode === 403) {
+				toast({
+					title: "Error de permisos",
+					description: "No tienes permisos para desactivar este proveedor.",
+					variant: "destructive",
+				});
+			} else {
+				const errorMsg = getApiErrorMessage(error, "Proveedores");
+				toast({
+					title: "Error al desactivar",
+					description: errorMsg,
+					variant: "destructive",
+				});
+			}
+			setDeactivatingId(null);
+		},
+	});
+
+	const handleDeactivateClick = (supplierId: string) => {
+		setDeactivatingId(supplierId);
+		setConfirmOpen(true);
+	};
+
+	const handleConfirmDeactivate = () => {
+		if (deactivatingId) {
+			deactivateMutation.mutate(deactivatingId);
+		}
+	};
 
 	const openCreateDialog = () => {
 		setEditSupplier(null);
@@ -325,7 +386,7 @@ export default function SuppliersPage() {
 										<TableCell className="text-muted-foreground">
 											{getSupplierSupplyDays(supplier) ?? "—"}
 										</TableCell>
-										<TableCell className="text-right">
+										<TableCell className="text-right space-x-2 flex items-center justify-end">
 											<Button
 												variant="ghost"
 												size="sm"
@@ -335,6 +396,18 @@ export default function SuppliersPage() {
 												<Pencil className="h-3 w-3 mr-1" />
 												Editar
 											</Button>
+											{isAdmin && (
+												<Button
+													variant="outline"
+													size="sm"
+													className="text-xs text-destructive hover:text-destructive"
+													onClick={() => handleDeactivateClick(supplier.id)}
+													disabled={deactivateMutation.isPending}
+												>
+													<Trash2 className="h-3.5 w-3.5 mr-1" />
+													Desactivar
+												</Button>
+											)}
 										</TableCell>
 									</TableRow>
 								))
@@ -504,6 +577,27 @@ export default function SuppliersPage() {
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
+
+			<AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Desactivar proveedor</AlertDialogTitle>
+						<AlertDialogDescription>
+							¿Seguro que deseas desactivar este registro? Esta acción oculta el registro pero no lo elimina.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancelar</AlertDialogCancel>
+						<AlertDialogAction
+							onClick={handleConfirmDeactivate}
+							disabled={deactivateMutation.isPending}
+							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+						>
+							{deactivateMutation.isPending ? "Desactivando..." : "Desactivar"}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</div>
 	);
 }

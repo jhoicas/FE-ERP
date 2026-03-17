@@ -432,3 +432,31 @@ export async function getTickets(): Promise<TicketResponse[]> {
   const result = await listTickets({});
   return result.items;
 }
+
+// ===========================
+// Desactivation functions
+// ===========================
+
+export async function deactivateCrmCategory(categoryId: string): Promise<void> {
+  try {
+    await apiClient.put(`${CRM_BASE}/categories/${categoryId}/deactivate`, {});
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}
+
+export async function deactivateCustomer(customerId: string): Promise<void> {
+  try {
+    await apiClient.put(`${CUSTOMERS_BASE}/${customerId}/deactivate`, {});
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}
+
+export async function deactivateSupplier(supplierId: string): Promise<void> {
+  try {
+    await apiClient.put(`/api/suppliers/${supplierId}/deactivate`, {});
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}

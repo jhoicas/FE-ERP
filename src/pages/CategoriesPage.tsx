@@ -1,11 +1,13 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
-import { Gift, ChevronRight } from "lucide-react";
+import { Gift, ChevronRight, Trash2 } from "lucide-react";
 
-import { listCategories } from "@/features/crm/services";
+import { listCategories, deactivateCrmCategory } from "@/features/crm/services";
 import { getApiErrorMessage } from "@/lib/api/errors";
 import type { CategoryResponse } from "@/types/crm";
+import { useAuthUser } from "@/features/auth/useAuthUser";
+import { useToast } from "@/hooks/use-toast";
 import ExplainableAcronym from "@/components/shared/ExplainableAcronym";
 import {
   Table,
@@ -32,6 +34,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
 
@@ -55,13 +67,64 @@ function formatLtv(value: string): string {
 
 export default function CategoriesPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const user = useAuthUser();
   const [pageSize, setPageSize] = useState(5);
   const [offset, setOffset] = useState(0);
+  const [deactivatingId, setDeactivatingId] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const isAdmin = user?.roles?.includes("admin") ?? false;
 
   const categoriesQuery = useQuery({
     queryKey: ["crm-categories", pageSize, offset],
     queryFn: () => listCategories({ limit: pageSize, offset }),
   });
+
+  const deactivateMutation = useMutation({
+    mutationFn: async (categoryId: string) => {
+      await deactivateCrmCategory(categoryId);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Desactivada correctamente",
+        description: "La categoría ha sido desactivada.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["crm-categories"] });
+      setConfirmOpen(false);
+      setDeactivatingId(null);
+    },
+    onError: (error: any) => {
+      const statusCode = error.response?.status;
+      if (statusCode === 401 || statusCode === 403) {
+        toast({
+          title: "Error de permisos",
+          description: "No tienes permisos para desactivar esta categoría.",
+          variant: "destructive",
+        });
+      } else {
+        const errorMsg = getApiErrorMessage(error, "Categorías");
+        toast({
+          title: "Error al desactivar",
+          description: errorMsg,
+          variant: "destructive",
+        });
+      }
+      setDeactivatingId(null);
+    },
+  });
+
+  const handleDeactivateClick = (categoryId: string) => {
+    setDeactivatingId(categoryId);
+    setConfirmOpen(true);
+  };
+
+  const handleConfirmDeactivate = () => {
+    if (deactivatingId) {
+      deactivateMutation.mutate(deactivatingId);
+    }
+  };
 
   const items = categoriesQuery.data ?? [];
   const hasMore = items.length === pageSize;
@@ -149,7 +212,7 @@ export default function CategoriesPage() {
                     <TableCell className="text-sm text-muted-foreground">
                       {formatDate(cat.updated_at)}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right space-x-2 flex items-center justify-end">
                       <Button
                         variant="outline"
                         size="sm"
@@ -161,6 +224,18 @@ export default function CategoriesPage() {
                         Ver beneficios
                         <ChevronRight className="h-4 w-4 ml-1" />
                       </Button>
+                      {isAdmin && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs text-destructive hover:text-destructive"
+                          onClick={() => handleDeactivateClick(cat.id)}
+                          disabled={deactivateMutation.isPending}
+                        >
+                          <Trash2 className="h-3.5 w-3.5 mr-1" />
+                          Desactivar
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))
@@ -230,6 +305,27 @@ export default function CategoriesPage() {
           )}
         </div>
       )}
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Desactivar categoría</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Seguro que deseas desactivar este registro? Esta acción oculta el registro pero no lo elimina.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDeactivate}
+              disabled={deactivateMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deactivateMutation.isPending ? "Desactivando..." : "Desactivar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
