@@ -104,9 +104,11 @@ function StatusHeader({
 
 function TaskCard({
   task,
+  customerName,
   onClick,
 }: {
   task: TaskResponse;
+  customerName?: string;
   onClick: () => void;
 }) {
   const overdue = isOverdue(task.due_at);
@@ -135,7 +137,7 @@ function TaskCard({
 
           <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
             <span className="font-mono">
-              Cliente: {task.customer_id || "—"}
+              Cliente: {customerName ?? task.customer_id || "—"}
             </span>
             {task.due_at ? (
               <span className={overdue ? "text-red-600 dark:text-red-400" : ""}>
@@ -408,6 +410,9 @@ export default function TasksKanbanPage() {
   const pending = pendingQuery.data?.items ?? [];
   const done = doneQuery.data?.items ?? [];
   const cancelled = cancelledQuery.data?.items ?? [];
+  const customerMap = new Map(
+    customersQuery.data?.map((c) => [c.id, c.name]) ?? []
+  );
 
   const anyLoading = pendingQuery.isLoading || doneQuery.isLoading || cancelledQuery.isLoading;
 
@@ -509,7 +514,16 @@ export default function TasksKanbanPage() {
                   </Card>
                 ) : (
                   col.items.map((t) => (
-                    <TaskCard key={t.id} task={t} onClick={() => openTask(t.id)} />
+                    <TaskCard
+                      key={t.id}
+                      task={t}
+                      customerName={
+                        t.customer_id
+                          ? customerMap.get(t.customer_id)
+                          : undefined
+                      }
+                      onClick={() => openTask(t.id)}
+                    />
                   ))
                 )}
               </div>
