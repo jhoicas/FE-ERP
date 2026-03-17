@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import axios from "axios";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -9,10 +10,12 @@ import { useSearchParams } from "react-router-dom";
 import {
   getResolutions,
   createResolution,
+  type CreateResolutionPayload,
   updateResolution,
   deleteResolution,
   type ResolutionDTO,
 } from "@/features/auth/services";
+import { useDianEnvironment } from "@/hooks/use-dian-environment";
 import { getApiErrorMessage } from "@/lib/api/errors";
 import {
   Table,
@@ -80,7 +83,13 @@ const resolutionSchema = z
     ),
     valid_from: z.string().min(1, "La fecha inicial es obligatoria"),
     valid_to: z.string().min(1, "La fecha final es obligatoria"),
-    alert_threshold: z.coerce.number().int().positive("Debe ser mayor a 0"),
+    environment: z.enum(["test", "prod"], {
+      required_error: "El ambiente DIAN es obligatorio",
+    }),
+    alert_threshold: z.preprocess(
+      (value) => (value === "" || value == null ? undefined : Number(value)),
+      z.number().int().positive("Debe ser mayor a 0").optional(),
+    ),
   })
   .refine((values) => values.to_number >= values.from_number, {
     message: "El número final debe ser mayor o igual al inicial",
@@ -89,7 +98,12 @@ const resolutionSchema = z
 
 type ResolutionFormValues = z.infer<typeof resolutionSchema>;
 
+function mapDianEnvironmentToResolutionEnvironment(environment: "testing" | "production"): "test" | "prod" {
+  return environment === "production" ? "prod" : "test";
+}
+
 export default function ResolutionsManager() {
+  const { environment: dianEnvironment } = useDianEnvironment();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -102,6 +116,8 @@ export default function ResolutionsManager() {
   const [offset, setOffset] = useState(initialOffset);
   const [search, setSearch] = useState(initialSearch);
   const [debouncedSearch, setDebouncedSearch] = useState(initialSearch.trim().toLowerCase());
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const activeResolutionEnvironment = mapDianEnvironmentToResolutionEnvironment(dianEnvironment);
 
   const resolutionsQuery = useQuery({
     queryKey: ["resolutions"],
@@ -145,26 +161,84 @@ export default function ResolutionsManager() {
       current_number: undefined,
       valid_from: "",
       valid_to: "",
-      alert_threshold: 100,
+      environment: activeResolutionEnvironment,
+      alert_threshold: undefined,
     },
   });
 
+  useEffect(() => {
+    if (!editingResolution) {
+      form.setValue("environment", activeResolutionEnvironment, { shouldDirty: false });
+    }
+  }, [activeResolutionEnvironment, editingResolution, form]);
+
+  const markRequiredResolutionFields = () => {
+    const values = form.getValues();
+
+    if (!values.prefix?.trim()) {
+      form.setError("prefix", { type: "manual", message: "Campo obligatorio" });
+    }
+    if (!values.resolution_number?.trim()) {
+      form.setError("resolution_number", { type: "manual", message: "Campo obligatorio" });
+    }
+    if (values.from_number == null || Number.isNaN(Number(values.from_number))) {
+      form.setError("from_number", { type: "manual", message: "Campo obligatorio" });
+    }
+    if (values.to_number == null || Number.isNaN(Number(values.to_number))) {
+      form.setError("to_number", { type: "manual", message: "Campo obligatorio" });
+    }
+    if (!values.valid_from?.trim()) {
+      form.setError("valid_from", { type: "manual", message: "Campo obligatorio" });
+    }
+    if (!values.valid_to?.trim()) {
+      form.setError("valid_to", { type: "manual", message: "Campo obligatorio" });
+    }
+    if (!values.environment) {
+      form.setError("environment", { type: "manual", message: "Campo obligatorio" });
+    }
+  };
+
+  const handleValidationError = (error: unknown) => {
+    if (axios.isAxiosError(error) && error.response?.status === 400) {
+      const payload = error.response.data as { code?: string; message?: string } | undefined;
+      const isValidation = payload?.code === "VALIDATION" || Boolean(payload?.message);
+
+      if (isValidation) {
+        setSubmitError(payload?.message ?? "Datos inválidos");
+        markRequiredResolutionFields();
+        return;
+      }
+    }
+
+    setSubmitError(getApiErrorMessage(error, "Resoluciones DIAN"));
+  };
+
   const createMutation = useMutation({
-    mutationFn: (values: ResolutionFormValues) =>
-      createResolution({
+    mutationFn: (values: ResolutionFormValues) => {
+      const payload: CreateResolutionPayload = {
         prefix: values.prefix,
         resolution_number: values.resolution_number,
         from_number: values.from_number,
         to_number: values.to_number,
-        current_number: values.current_number,
         valid_from: values.valid_from,
         valid_to: values.valid_to,
-        alert_threshold: values.alert_threshold,
-      }),
+        environment: values.environment,
+      };
+
+      if (typeof values.current_number === "number") {
+        payload.current_number = values.current_number;
+      }
+      if (typeof values.alert_threshold === "number") {
+        payload.alert_threshold = values.alert_threshold;
+      }
+
+      return createResolution(payload);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["resolutions"] });
       setDialogOpen(false);
       setEditingResolution(null);
+      setSubmitError(null);
       form.reset({
         prefix: "",
         resolution_number: "",
@@ -173,9 +247,11 @@ export default function ResolutionsManager() {
         current_number: undefined,
         valid_from: "",
         valid_to: "",
-        alert_threshold: 100,
+        environment: activeResolutionEnvironment,
+        alert_threshold: undefined,
       });
     },
+    onError: handleValidationError,
   });
 
   const updateMutation = useMutation({
@@ -195,11 +271,13 @@ export default function ResolutionsManager() {
         valid_from: values.valid_from,
         valid_to: values.valid_to,
         alert_threshold: values.alert_threshold,
+        environment: values.environment,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["resolutions"] });
       setDialogOpen(false);
       setEditingResolution(null);
+      setSubmitError(null);
       form.reset({
         prefix: "",
         resolution_number: "",
@@ -208,8 +286,12 @@ export default function ResolutionsManager() {
         current_number: undefined,
         valid_from: "",
         valid_to: "",
-        alert_threshold: 100,
+        environment: activeResolutionEnvironment,
+        alert_threshold: undefined,
       });
+    },
+    onError: (error) => {
+      setSubmitError(getApiErrorMessage(error, "Resoluciones DIAN"));
     },
   });
 
@@ -223,6 +305,7 @@ export default function ResolutionsManager() {
 
   const openCreate = () => {
     setEditingResolution(null);
+    setSubmitError(null);
     form.reset({
       prefix: "",
       resolution_number: "",
@@ -231,13 +314,15 @@ export default function ResolutionsManager() {
       current_number: undefined,
       valid_from: "",
       valid_to: "",
-      alert_threshold: 100,
+      environment: activeResolutionEnvironment,
+      alert_threshold: undefined,
     });
     setDialogOpen(true);
   };
 
   const openEdit = (resolution: ResolutionDTO) => {
     setEditingResolution(resolution);
+    setSubmitError(null);
     form.reset({
       prefix: resolution.prefix,
       resolution_number: resolution.resolution_number,
@@ -246,12 +331,14 @@ export default function ResolutionsManager() {
       current_number: resolution.current_number,
       valid_from: resolution.valid_from.slice(0, 10),
       valid_to: resolution.valid_to.slice(0, 10),
+      environment: resolution.environment ?? "test",
       alert_threshold: resolution.alert_threshold,
     });
     setDialogOpen(true);
   };
 
   const onSubmit = (values: ResolutionFormValues) => {
+    setSubmitError(null);
     if (editingResolution) {
       updateMutation.mutate({ id: editingResolution.id, values });
     } else {
@@ -556,6 +643,28 @@ export default function ResolutionsManager() {
 
                 <FormField
                   control={form.control}
+                  name="environment"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Ambiente DIAN</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecciona ambiente" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="test">Habilitación (Test)</SelectItem>
+                          <SelectItem value="prod">Producción</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
                   name="current_number"
                   render={({ field }) => (
                     <FormItem>
@@ -637,10 +746,11 @@ export default function ResolutionsManager() {
 
           {(createMutation.isError || updateMutation.isError) && (
             <p className="text-sm text-destructive mt-2">
-              {getApiErrorMessage(
-                (createMutation.error || updateMutation.error) as Error,
-                "Resoluciones DIAN",
-              )}
+              {submitError ??
+                getApiErrorMessage(
+                  (createMutation.error || updateMutation.error) as Error,
+                  "Resoluciones DIAN",
+                )}
             </p>
           )}
         </DialogContent>

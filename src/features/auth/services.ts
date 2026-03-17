@@ -29,9 +29,22 @@ const ResolutionSchema = z
     current_number: z.number().optional(),
     valid_from: z.string(),
     valid_to: z.string(),
-    alert_threshold: z.number(),
+    alert_threshold: z.number().optional(),
+    environment: z.enum(["test", "prod"]).optional(),
   })
   .passthrough();
+
+export type CreateResolutionPayload = {
+  prefix: string;
+  resolution_number: string;
+  from_number: number;
+  to_number: number;
+  valid_from: string;
+  valid_to: string;
+  environment: "test" | "prod";
+  current_number?: number;
+  alert_threshold?: number;
+};
 
 export type UserDTO = z.infer<typeof UserSchema>;
 export type ResolutionDTO = z.infer<typeof ResolutionSchema>;
@@ -72,16 +85,7 @@ export async function getResolutions(): Promise<ResolutionDTO[]> {
   return z.array(ResolutionSchema).parse(response.data);
 }
 
-export async function createResolution(body: {
-  prefix: string;
-  resolution_number: string;
-  from_number: number;
-  to_number: number;
-  current_number?: number;
-  valid_from: string;
-  valid_to: string;
-  alert_threshold: number;
-}): Promise<ResolutionDTO> {
+export async function createResolution(body: CreateResolutionPayload): Promise<ResolutionDTO> {
   const response = await apiClient.post("/api/resolutions", body);
   return ResolutionSchema.parse(response.data);
 }
@@ -97,6 +101,7 @@ export async function updateResolution(
     valid_from?: string;
     valid_to?: string;
     alert_threshold?: number;
+    environment?: "test" | "prod";
   },
 ): Promise<ResolutionDTO> {
   if (id == null || id === "" || String(id) === "undefined") {
