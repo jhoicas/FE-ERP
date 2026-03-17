@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Sparkles, Copy, ArrowLeft } from "lucide-react";
+import { Sparkles, Copy, ArrowLeft, Send, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import apiClient from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
@@ -42,7 +42,14 @@ const schema = z.object({
   prompt: z.string().min(10, "Describe la campaña en al menos 10 caracteres"),
   tone: z.string().min(1, "Selecciona un tono"),
   target_audience: z.string().min(3, "Indica el público objetivo"),
+  destinatarios: z.string().min(1, "Selecciona destinatarios"),
+  subject: z.string().min(1, "El asunto del correo es obligatorio para enviar"),
 });
+
+const CategorySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+}).passthrough();
 
 const createCampaignSchema = z.object({
   name: z.string().min(3, "Nombre mínimo de 3 caracteres"),
@@ -87,6 +94,24 @@ const RECIPIENTS_PREVIEW_PAGE_SIZE = 10;
 type FormValues = z.infer<typeof schema>;
 type CreateCampaignValues = z.infer<typeof createCampaignSchema>;
 
+type CategoryDTO = z.infer<typeof CategorySchema>;
+
+async function listCampaignCategories(): Promise<CategoryDTO[]> {
+  const { data } = await apiClient.get("/api/crm/categories", {
+    params: { limit: 100, offset: 0 },
+  });
+
+  if (Array.isArray(data)) {
+    return z.array(CategorySchema).parse(data);
+  }
+
+  if (data && Array.isArray(data.items)) {
+    return z.array(CategorySchema).parse(data.items);
+  }
+
+  return [];
+}
+
 async function searchProducts(search: string): Promise<ProductLookupDTO[]> {
   const { data } = await apiClient.get("/api/products", {
     params: {
@@ -116,6 +141,28 @@ async function resolveCampaignRecipients(strategies: RecipientStrategy[]): Promi
   return parsed.recipients;
 }
 
+function suggestSubjectFromGeneratedText(generatedText: string, fallbackPrompt: string): string {
+  const lines = generatedText
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const subjectLine = lines.find((line) => /^asunto\s*:/i.test(line));
+  if (subjectLine) {
+    const cleaned = subjectLine.replace(/^asunto\s*:/i, "").trim();
+    if (cleaned.length > 0) {
+      return cleaned.slice(0, 120);
+    }
+  }
+
+  const firstMeaningfulLine = lines[0];
+  if (firstMeaningfulLine && firstMeaningfulLine.length > 0) {
+    return firstMeaningfulLine.slice(0, 120);
+  }
+
+  return `Campaña: ${fallbackPrompt}`.slice(0, 120);
+}
+
 export default function AiCampaignGenerator() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -129,7 +176,18 @@ export default function AiCampaignGenerator() {
   const [recipientsPage, setRecipientsPage] = useState(1);
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { prompt: "", tone: "", target_audience: "" },
+    defaultValues: {
+      prompt: "",
+      tone: "",
+      target_audience: "",
+      destinatarios: "all",
+      subject: "",
+    },
+  });
+
+  const categoriesQuery = useQuery({
+    queryKey: ["crm-categories", "campaign-send"],
+    queryFn: listCampaignCategories,
   });
 
   const createCampaignForm = useForm<CreateCampaignValues>({
@@ -193,6 +251,16 @@ export default function AiCampaignGenerator() {
       const { text } = await generateCampaignCopy({ prompt: fullPrompt });
       return text;
     },
+    onSuccess: (generatedText, values) => {
+      const currentSubject = form.getValues("subject");
+      if (!currentSubject || currentSubject.trim().length === 0) {
+        const suggestedSubject = suggestSubjectFromGeneratedText(generatedText, values.prompt);
+        form.setValue("subject", suggestedSubject, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+      }
+    },
     onError: (error) => {
       toast({
         title: "No se pudo generar el copy",
@@ -203,6 +271,31 @@ export default function AiCampaignGenerator() {
   });
 
   const onSubmit = (values: FormValues) => mutation.mutate(values);
+
+  const sendCampaignMutation = useMutation<
+    unknown,
+    Error,
+    { subject: string; body: string; category_id: string | null }
+  >({
+    mutationFn: async (payload) => {
+      const { data } = await apiClient.post("/api/crm/campaigns/send", payload);
+      return data;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Campaña enviada",
+        description: "Campaña enviada exitosamente a los clientes",
+      });
+      mutation.reset();
+    },
+    onError: (error) => {
+      toast({
+        title: "No se pudo enviar la campaña",
+        description: error.message ?? "Intenta nuevamente.",
+        variant: "destructive",
+      });
+    },
+  });
 
   const createCampaignMutation = useMutation<unknown, Error, CreateCampaignValues>({
     mutationFn: async (values) => {
@@ -265,6 +358,20 @@ export default function AiCampaignGenerator() {
     toast({
       title: "Texto copiado",
       description: "El copy se ha copiado al portapapeles.",
+    });
+  };
+
+  const selectedAudience = form.watch("destinatarios");
+  const campaignSubject = form.watch("subject");
+  const canSendCampaign = Boolean(mutation.data && campaignSubject?.trim());
+
+  const handleSendCampaign = () => {
+    if (!mutation.data || !campaignSubject?.trim()) return;
+
+    sendCampaignMutation.mutate({
+      subject: campaignSubject.trim(),
+      body: mutation.data,
+      category_id: selectedAudience === "all" ? null : selectedAudience,
     });
   };
 
@@ -390,6 +497,47 @@ export default function AiCampaignGenerator() {
                   </FormItem>
                 )}
               />
+
+              <FormField
+                control={form.control}
+                name="destinatarios"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Destinatarios</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecciona audiencia" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="all">Todos los clientes</SelectItem>
+                        {(categoriesQuery.data ?? []).map((category) => (
+                          <SelectItem key={category.id} value={category.id}>
+                            Solo {category.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="subject"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Asunto del Correo</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Asunto del correo" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               <Button type="submit" disabled={mutation.isPending} className="w-full gap-2">
                 <Sparkles className="h-4 w-4" />
                 {mutation.isPending ? "Generando…" : "Generar Copy Comercial"}
@@ -423,6 +571,24 @@ export default function AiCampaignGenerator() {
               <div className="text-sm whitespace-pre-wrap leading-relaxed text-foreground/90">
                 {mutation.data}
               </div>
+              <Button
+                type="button"
+                className="mt-4 w-full"
+                onClick={handleSendCampaign}
+                disabled={!canSendCampaign || sendCampaignMutation.isPending}
+              >
+                {sendCampaignMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Enviando...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4 mr-2" />
+                    Enviar a Clientes
+                  </>
+                )}
+              </Button>
             </>
           )}
           {!mutation.isPending && !mutation.data && (
