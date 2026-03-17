@@ -35,7 +35,9 @@ import {
   type UpdateCustomerRequest,
   type CreateBenefitRequest,
   type CreateCategoryRequest,
+  type SendCampaignRequest,
   type UpdateBenefitRequest,
+  sendCampaignSchema,
 } from "@/lib/validations/crm";
 import { z } from "zod";
 import { CustomerSchema, CustomerListResponseSchema, type CustomerDTO, type CustomerListResponse } from "./schemas";
@@ -356,6 +358,16 @@ export async function summarizeTimeline(body: {
       payload
     );
     return data;
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}
+
+export async function sendCampaign(body: SendCampaignRequest): Promise<{ status: string }> {
+  const payload = sendCampaignSchema.parse(body);
+  try {
+    const { data } = await apiClient.post<{ status: string }>(`${CRM_BASE}/campaigns/send`, payload);
+    return z.object({ status: z.string() }).parse(data);
   } catch (error) {
     return throwOnApiError(error);
   }

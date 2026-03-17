@@ -1,4 +1,5 @@
 import { useState } from "react";
+import axios from "axios";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -12,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
-import { generateCampaignCopy } from "@/features/crm/services";
+import { generateCampaignCopy, listCategories, sendCampaign } from "@/features/crm/services";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
@@ -37,19 +38,24 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const schema = z.object({
   prompt: z.string().min(10, "Describe la campaña en al menos 10 caracteres"),
   tone: z.string().min(1, "Selecciona un tono"),
   target_audience: z.string().min(3, "Indica el público objetivo"),
-  destinatarios: z.string().min(1, "Selecciona destinatarios"),
+  category_id: z.string().min(1, "Selecciona segmento"),
   subject: z.string().min(1, "El asunto del correo es obligatorio para enviar"),
 });
-
-const CategorySchema = z.object({
-  id: z.string(),
-  name: z.string(),
-}).passthrough();
 
 const createCampaignSchema = z.object({
   name: z.string().min(3, "Nombre mínimo de 3 caracteres"),
@@ -93,24 +99,6 @@ const RECIPIENTS_PREVIEW_PAGE_SIZE = 10;
 
 type FormValues = z.infer<typeof schema>;
 type CreateCampaignValues = z.infer<typeof createCampaignSchema>;
-
-type CategoryDTO = z.infer<typeof CategorySchema>;
-
-async function listCampaignCategories(): Promise<CategoryDTO[]> {
-  const { data } = await apiClient.get("/api/crm/categories", {
-    params: { limit: 100, offset: 0 },
-  });
-
-  if (Array.isArray(data)) {
-    return z.array(CategorySchema).parse(data);
-  }
-
-  if (data && Array.isArray(data.items)) {
-    return z.array(CategorySchema).parse(data.items);
-  }
-
-  return [];
-}
 
 async function searchProducts(search: string): Promise<ProductLookupDTO[]> {
   const { data } = await apiClient.get("/api/products", {
@@ -174,20 +162,21 @@ export default function AiCampaignGenerator() {
   const [resolvedRecipients, setResolvedRecipients] = useState<RecipientDTO[]>([]);
   const [lastPreviewStrategies, setLastPreviewStrategies] = useState<RecipientStrategy[]>([]);
   const [recipientsPage, setRecipientsPage] = useState(1);
+  const [confirmSendOpen, setConfirmSendOpen] = useState(false);
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
       prompt: "",
       tone: "",
       target_audience: "",
-      destinatarios: "all",
+      category_id: "all",
       subject: "",
     },
   });
 
   const categoriesQuery = useQuery({
     queryKey: ["crm-categories", "campaign-send"],
-    queryFn: listCampaignCategories,
+    queryFn: () => listCategories({ limit: 100, offset: 0 }),
   });
 
   const createCampaignForm = useForm<CreateCampaignValues>({
@@ -273,25 +262,40 @@ export default function AiCampaignGenerator() {
   const onSubmit = (values: FormValues) => mutation.mutate(values);
 
   const sendCampaignMutation = useMutation<
-    unknown,
+    { status: string },
     Error,
     { subject: string; body: string; category_id: string | null }
   >({
-    mutationFn: async (payload) => {
-      const { data } = await apiClient.post("/api/crm/campaigns/send", payload);
-      return data;
-    },
-    onSuccess: () => {
+    mutationFn: sendCampaign,
+    onSuccess: (data: { status: string }) => {
+      if (data.status !== "sent") {
+        throw new Error("El servidor no confirmó el envío de la campaña.");
+      }
       toast({
         title: "Campaña enviada",
         description: "Campaña enviada exitosamente a los clientes",
       });
       mutation.reset();
+      setConfirmSendOpen(false);
     },
     onError: (error) => {
+      let description = error.message ?? "Intenta nuevamente.";
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status;
+        const backendMessage = (error.response?.data as { message?: string } | undefined)?.message;
+
+        if (status === 400) {
+          description = backendMessage ?? "Valida el asunto y el contenido antes de enviar.";
+        } else if (status === 409 || status === 503) {
+          description = backendMessage ?? "El servicio SMTP no está disponible o presentó conflicto.";
+        } else if (status && status >= 500) {
+          description = backendMessage ?? "Ocurrió un error interno al enviar la campaña.";
+        }
+      }
+
       toast({
         title: "No se pudo enviar la campaña",
-        description: error.message ?? "Intenta nuevamente.",
+        description,
         variant: "destructive",
       });
     },
@@ -361,9 +365,18 @@ export default function AiCampaignGenerator() {
     });
   };
 
-  const selectedAudience = form.watch("destinatarios");
+  const selectedAudience = form.watch("category_id");
   const campaignSubject = form.watch("subject");
   const canSendCampaign = Boolean(mutation.data && campaignSubject?.trim());
+  const selectedCategory = (categoriesQuery.data ?? []).find((c) => c.id === selectedAudience);
+  const selectedSegmentLabel = selectedAudience === "all"
+    ? "Todos los clientes"
+    : selectedCategory?.name ?? "Segmento no encontrado";
+  const campaignBodyPreview = (mutation.data ?? "")
+    .split(/\r?\n/)
+    .filter((line) => line.trim().length > 0)
+    .slice(0, 3)
+    .join("\n");
 
   const handleSendCampaign = () => {
     if (!mutation.data || !campaignSubject?.trim()) return;
@@ -500,14 +513,14 @@ export default function AiCampaignGenerator() {
 
               <FormField
                 control={form.control}
-                name="destinatarios"
+                name="category_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Destinatarios</FormLabel>
+                    <FormLabel>Segmento</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Selecciona audiencia" />
+                          <SelectValue placeholder="Selecciona segmento" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -574,7 +587,7 @@ export default function AiCampaignGenerator() {
               <Button
                 type="button"
                 className="mt-4 w-full"
-                onClick={handleSendCampaign}
+                onClick={() => setConfirmSendOpen(true)}
                 disabled={!canSendCampaign || sendCampaignMutation.isPending}
               >
                 {sendCampaignMutation.isPending ? (
@@ -891,6 +904,47 @@ export default function AiCampaignGenerator() {
           </div>
         </div>
       </Card>
+
+      <AlertDialog open={confirmSendOpen} onOpenChange={setConfirmSendOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar envío de campaña</AlertDialogTitle>
+            <AlertDialogDescription>
+              Revisa los datos antes de enviar la campaña a los clientes.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="space-y-3 text-sm">
+            <div>
+              <p className="text-xs text-muted-foreground">Asunto</p>
+              <p className="font-medium">{campaignSubject || "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Segmento</p>
+              <p className="font-medium">{selectedSegmentLabel}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Resumen del contenido</p>
+              <p className="whitespace-pre-wrap text-muted-foreground">
+                {campaignBodyPreview || "Sin contenido generado."}
+              </p>
+            </div>
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault();
+                handleSendCampaign();
+              }}
+              disabled={!canSendCampaign || sendCampaignMutation.isPending}
+            >
+              {sendCampaignMutation.isPending ? "Enviando..." : "Confirmar envío"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
