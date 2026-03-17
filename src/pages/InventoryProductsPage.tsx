@@ -2,8 +2,8 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useQueryClient } from "@tanstack/react-query";
-import { Package, Pencil, Plus, AlertCircle } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Package, Pencil, Plus, AlertCircle, Trash2 } from "lucide-react";
 
 import {
   useProducts,
@@ -17,7 +17,11 @@ import type { ProductResponse } from "@/types/inventory";
 import {
   updateProductRequestSchema,
 } from "@/lib/validations/inventory";
+import apiClient from "@/lib/api/client";
 import { getApiErrorMessage } from "@/lib/api/errors";
+import { useToast } from "@/hooks/use-toast";
+import { useAuthUser } from "@/features/auth/useAuthUser";
+import { isAdmin } from "@/features/auth/permissions";
 import {
   Table,
   TableBody,
@@ -37,6 +41,16 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Form, FormItem, FormLabel } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -221,11 +235,18 @@ function ProductEditDialog({
 
 export default function InventoryProductsPage() {
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const user = useAuthUser();
+  const canManageProducts = isAdmin(user);
+
+  const queryClient = useQueryClient();
   const [pageSize, setPageSize] = useState<number>(5);
   const [offset, setOffset] = useState<number>(0);
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [deactivateDialogOpen, setDeactivateDialogOpen] = useState(false);
+  const [productToDeactivateId, setProductToDeactivateId] = useState<string | null>(null);
 
   const params: ListProductsParams = { limit: pageSize, offset };
   const { data, isLoading, isError, error } = useProducts(params);
@@ -235,9 +256,35 @@ export default function InventoryProductsPage() {
   const hasMore = offset + items.length < total;
   const hasPrev = offset > 0;
 
+  const deactivateMutation = useMutation({
+    mutationFn: async (productId: string) => {
+      await apiClient.put(`/api/products/${productId}/deactivate`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["inventory-products"] });
+      toast({ title: "Desactivado correctamente" });
+      setDeactivateDialogOpen(false);
+      setProductToDeactivateId(null);
+    },
+    onError: (error: unknown) => {
+      toast({
+        title: "Error al desactivar",
+        description: getApiErrorMessage(error, "Inventario / Productos"),
+        variant: "destructive",
+      });
+    },
+  });
+
   const openEdit = (id: string) => {
+    if (!canManageProducts) return;
     setSelectedProductId(id);
     setEditOpen(true);
+  };
+
+  const openDeactivate = (id: string) => {
+    if (!canManageProducts) return;
+    setProductToDeactivateId(id);
+    setDeactivateDialogOpen(true);
   };
 
   return (
@@ -259,10 +306,12 @@ export default function InventoryProductsPage() {
             </p>
           </div>
         </div>
-        <Button variant="default" size="sm" onClick={() => setCreateOpen(true)}>
-          <Plus className="h-4 w-4 mr-1" />
-          Crear producto
-        </Button>
+        {canManageProducts && (
+          <Button variant="default" size="sm" onClick={() => setCreateOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" />
+            Crear producto
+          </Button>
+        )}
       </div>
 
       {isLoading && (
@@ -327,14 +376,28 @@ export default function InventoryProductsPage() {
                       {p.unit_measure}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-xs"
-                        onClick={() => openEdit(p.id)}
-                      >
-                        Ver / Editar
-                      </Button>
+                      {canManageProducts && (
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-xs"
+                            onClick={() => openEdit(p.id)}
+                          >
+                            Ver / Editar
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-xs text-destructive hover:text-destructive"
+                            onClick={() => openDeactivate(p.id)}
+                            disabled={deactivateMutation.isPending}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 mr-1" />
+                            Desactivar
+                          </Button>
+                        </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))
@@ -402,12 +465,39 @@ export default function InventoryProductsPage() {
         </Card>
       )}
 
-      <ProductCreateDialog open={createOpen} onOpenChange={setCreateOpen} />
-      <ProductEditDialog
-        productId={selectedProductId}
-        open={editOpen}
-        onOpenChange={setEditOpen}
-      />
+      <CreateProductDialog open={createOpen} onOpenChange={setCreateOpen} />
+      {canManageProducts && (
+        <ProductEditDialog
+          productId={selectedProductId}
+          open={editOpen}
+          onOpenChange={setEditOpen}
+        />
+      )}
+
+      <AlertDialog open={deactivateDialogOpen} onOpenChange={setDeactivateDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Desactivar producto</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Seguro que deseas desactivar este registro? Esta acción oculta el registro pero no lo elimina.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (productToDeactivateId) {
+                  deactivateMutation.mutate(productToDeactivateId);
+                }
+              }}
+              disabled={deactivateMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deactivateMutation.isPending ? "Desactivando..." : "Desactivar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

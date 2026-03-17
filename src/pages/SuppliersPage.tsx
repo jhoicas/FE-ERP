@@ -8,6 +8,7 @@ import apiClient from "@/lib/api/client";
 import { getApiErrorMessage } from "@/lib/api/errors";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthUser } from "@/features/auth/useAuthUser";
+import { isAdmin } from "@/features/auth/permissions";
 import { deactivateSupplier } from "@/features/crm/services";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -144,7 +145,7 @@ export default function SuppliersPage() {
 	const user = useAuthUser();
 	const [searchParams, setSearchParams] = useSearchParams();
 
-	const isAdmin = user?.roles?.includes("admin") ?? false;
+	const canManageSuppliers = isAdmin(user);
 
 	const initialPageSize = Number(searchParams.get("pageSize")) || 5;
 	const initialOffset = Number(searchParams.get("offset")) || 0;
@@ -209,6 +210,10 @@ export default function SuppliersPage() {
 
 	const mutation = useMutation({
 		mutationFn: async () => {
+			if (!canManageSuppliers) {
+				throw new Error("No tienes permisos");
+			}
+
 			const payload = {
 				name: form.name.trim(),
 				nit: form.tax_id.trim() || undefined,
@@ -270,6 +275,7 @@ export default function SuppliersPage() {
 	});
 
 	const handleDeactivateClick = (supplierId: string) => {
+		if (!canManageSuppliers) return;
 		setDeactivatingId(supplierId);
 		setConfirmOpen(true);
 	};
@@ -281,6 +287,7 @@ export default function SuppliersPage() {
 	};
 
 	const openCreateDialog = () => {
+		if (!canManageSuppliers) return;
 		setEditSupplier(null);
 		setForm(createEmptyForm());
 		mutation.reset();
@@ -288,6 +295,7 @@ export default function SuppliersPage() {
 	};
 
 	const openEditDialog = (supplier: SupplierDTO) => {
+		if (!canManageSuppliers) return;
 		setEditSupplier(supplier);
 		setForm({
 			name: supplier.name ?? "",
@@ -328,12 +336,14 @@ export default function SuppliersPage() {
 						className="h-8 text-xs"
 					/>
 				</div>
-				<div className="sm:ml-auto">
-					<Button size="sm" className="text-xs" onClick={openCreateDialog}>
-						<Plus className="h-3.5 w-3.5 mr-1" />
-						Nuevo proveedor
-					</Button>
-				</div>
+				{canManageSuppliers && (
+					<div className="sm:ml-auto">
+						<Button size="sm" className="text-xs" onClick={openCreateDialog}>
+							<Plus className="h-3.5 w-3.5 mr-1" />
+							Nuevo proveedor
+						</Button>
+					</div>
+				)}
 			</div>
 
 			{isLoading && (
@@ -387,16 +397,18 @@ export default function SuppliersPage() {
 											{getSupplierSupplyDays(supplier) ?? "—"}
 										</TableCell>
 										<TableCell className="text-right space-x-2 flex items-center justify-end">
-											<Button
-												variant="ghost"
-												size="sm"
-												className="text-xs"
-												onClick={() => openEditDialog(supplier)}
-											>
-												<Pencil className="h-3 w-3 mr-1" />
-												Editar
-											</Button>
-											{isAdmin && (
+											{canManageSuppliers && (
+												<Button
+													variant="ghost"
+													size="sm"
+													className="text-xs"
+													onClick={() => openEditDialog(supplier)}
+												>
+													<Pencil className="h-3 w-3 mr-1" />
+													Editar
+												</Button>
+											)}
+											{canManageSuppliers && (
 												<Button
 													variant="outline"
 													size="sm"

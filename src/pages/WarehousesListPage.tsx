@@ -2,8 +2,8 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useQueryClient } from "@tanstack/react-query";
-import { Warehouse, Warehouse as WarehouseIcon, Plus, AlertCircle } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Warehouse, Warehouse as WarehouseIcon, Plus, AlertCircle, Pencil, Trash2 } from "lucide-react";
 
 import {
   useWarehouses,
@@ -11,10 +11,14 @@ import {
   type ListWarehousesParams,
 } from "@/features/inventory/warehouses.api";
 import type { WarehouseResponse } from "@/types/inventory";
+import apiClient from "@/lib/api/client";
 import {
   createWarehouseRequestSchema,
 } from "@/lib/validations/inventory";
 import { getApiErrorMessage } from "@/lib/api/errors";
+import { useToast } from "@/hooks/use-toast";
+import { useAuthUser } from "@/features/auth/useAuthUser";
+import { isAdmin } from "@/features/auth/permissions";
 import {
   Table,
   TableBody,
@@ -33,6 +37,16 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Form,
   FormControl,
@@ -149,11 +163,117 @@ function WarehouseCreateDialog({
   );
 }
 
+function WarehouseEditDialog({
+  open,
+  onOpenChange,
+  warehouse,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  warehouse: WarehouseResponse | null;
+}) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const form = useForm<any>({
+    resolver: zodResolver(createWarehouseRequestSchema),
+    defaultValues: {
+      name: warehouse?.name ?? "",
+      address: warehouse?.address ?? "",
+    },
+    values: {
+      name: warehouse?.name ?? "",
+      address: warehouse?.address ?? "",
+    },
+  });
+
+  const mutation = useMutation({
+    mutationFn: async (values: { name: string; address?: string }) => {
+      if (!warehouse) return;
+      await apiClient.put(`/api/warehouses/${warehouse.id}`, values);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["inventory-warehouses"] });
+      toast({ title: "Bodega actualizada" });
+      onOpenChange(false);
+    },
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Pencil className="h-4 w-4 text-primary" />
+            Editar bodega
+          </DialogTitle>
+        </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit((values) => mutation.mutate(values))} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nombre</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Nombre de la bodega" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="address"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Dirección (opcional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Dirección física" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            {mutation.isError && (
+              <p className="text-sm text-destructive">
+                {getApiErrorMessage(mutation.error, "Inventario / Bodegas")}
+              </p>
+            )}
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => onOpenChange(false)}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={mutation.isPending}>
+                {mutation.isPending ? "Guardando…" : "Guardar cambios"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function WarehousesListPage() {
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const user = useAuthUser();
+  const canManageWarehouses = isAdmin(user);
+
+  const queryClient = useQueryClient();
   const [pageSize, setPageSize] = useState(5);
   const [offset, setOffset] = useState(0);
   const [createOpen, setCreateOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingWarehouse, setEditingWarehouse] = useState<WarehouseResponse | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deactivatingWarehouseId, setDeactivatingWarehouseId] = useState<string | null>(null);
 
   const params: ListWarehousesParams = { limit: pageSize, offset };
   const { data, isLoading, isError, error } = useWarehouses(params);
@@ -162,6 +282,40 @@ export default function WarehousesListPage() {
   const total = data?.page.total ?? 0;
   const hasMore = offset + items.length < total;
   const hasPrev = offset > 0;
+
+  const deactivateMutation = useMutation({
+    mutationFn: async (warehouseId: string) => {
+      if (!canManageWarehouses) {
+        throw new Error("No tienes permisos");
+      }
+      await apiClient.put(`/api/warehouses/${warehouseId}/deactivate`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["inventory-warehouses"] });
+      toast({ title: "Desactivado correctamente" });
+      setConfirmOpen(false);
+      setDeactivatingWarehouseId(null);
+    },
+    onError: (error: unknown) => {
+      toast({
+        title: "Error al desactivar",
+        description: getApiErrorMessage(error, "Inventario / Bodegas"),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const openEdit = (warehouse: WarehouseResponse) => {
+    if (!canManageWarehouses) return;
+    setEditingWarehouse(warehouse);
+    setEditOpen(true);
+  };
+
+  const openDeactivate = (warehouseId: string) => {
+    if (!canManageWarehouses) return;
+    setDeactivatingWarehouseId(warehouseId);
+    setConfirmOpen(true);
+  };
 
   return (
     <div className="animate-fade-in space-y-4">
@@ -182,10 +336,12 @@ export default function WarehousesListPage() {
             </p>
           </div>
         </div>
-        <Button size="sm" onClick={() => setCreateOpen(true)}>
-          <Plus className="h-4 w-4 mr-1" />
-          Nueva bodega
-        </Button>
+        {canManageWarehouses && (
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" />
+            Nueva bodega
+          </Button>
+        )}
       </div>
 
       {isLoading && (
@@ -252,16 +408,41 @@ export default function WarehousesListPage() {
                       {new Date(w.updated_at).toLocaleDateString("es-CO")}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-xs"
-                        onClick={() =>
-                          navigate(`/inventory/warehouses/${w.id}/stock`)
-                        }
-                      >
-                        Ver stock
-                      </Button>
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs"
+                          onClick={() =>
+                            navigate(`/inventory/warehouses/${w.id}/stock`)
+                          }
+                        >
+                          Ver stock
+                        </Button>
+                        {canManageWarehouses && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-xs"
+                              onClick={() => openEdit(w)}
+                            >
+                              <Pencil className="h-3 w-3 mr-1" />
+                              Editar
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-xs text-destructive hover:text-destructive"
+                              onClick={() => openDeactivate(w.id)}
+                              disabled={deactivateMutation.isPending}
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-1" />
+                              Desactivar
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -329,6 +510,36 @@ export default function WarehousesListPage() {
       )}
 
       <WarehouseCreateDialog open={createOpen} onOpenChange={setCreateOpen} />
+      <WarehouseEditDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        warehouse={editingWarehouse}
+      />
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Desactivar bodega</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Seguro que deseas desactivar este registro? Esta acción oculta el registro pero no lo elimina.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deactivatingWarehouseId) {
+                  deactivateMutation.mutate(deactivatingWarehouseId);
+                }
+              }}
+              disabled={deactivateMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deactivateMutation.isPending ? "Desactivando..." : "Desactivar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
