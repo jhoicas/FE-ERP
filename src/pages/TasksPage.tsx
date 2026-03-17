@@ -277,15 +277,6 @@ export default function TasksPage() {
                   <TableCell
                     colSpan={6}
                     className="py-8 text-center text-sm text-muted-foreground"
-
-                        <CreateCustomerDialog
-                          open={createCustomerOpen}
-                          onOpenChange={setCreateCustomerOpen}
-                          onCreated={(customerId) => {
-                            createForm.setValue("customer_id", customerId);
-                            queryClient.invalidateQueries({ queryKey: ["customers-list"] });
-                          }}
-                        />
                   >
                     No hay tareas.
                   </TableCell>
@@ -400,6 +391,15 @@ export default function TasksPage() {
       )}
 
       {/* Dialog Crear tarea */}
+      <CreateCustomerDialog
+        open={createCustomerOpen}
+        onOpenChange={setCreateCustomerOpen}
+        onCreated={(customerId) => {
+          createForm.setValue("customer_id", customerId);
+          queryClient.invalidateQueries({ queryKey: ["customers-list"] });
+        }}
+      />
+
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent>
           <DialogHeader>
@@ -415,7 +415,19 @@ export default function TasksPage() {
                 name="customer_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Cliente (opcional)</FormLabel>
+                    <div className="flex items-center gap-2">
+                      <FormLabel>Cliente (opcional)</FormLabel>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8 shrink-0"
+                        onClick={() => setCreateCustomerOpen(true)}
+                        title="Crear nuevo cliente"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
                     <Select
                       onValueChange={(v) => field.onChange(v || undefined)}
                       value={field.value || "_none"}
@@ -437,19 +449,7 @@ export default function TasksPage() {
                     </Select>
                     <FormMessage />
                   </FormItem>
-                    <div className="flex items-center gap-2">
-                      <FormLabel>Cliente</FormLabel>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8 shrink-0"
-                        onClick={() => setCreateCustomerOpen(true)}
-                        title="Crear nuevo cliente"
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </div>
+                )}
               />
               <FormField
                 control={createForm.control}
