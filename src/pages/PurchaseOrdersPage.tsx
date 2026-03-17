@@ -210,10 +210,12 @@ export default function PurchaseOrdersPage() {
 	const [newSupplierDialogOpen, setNewSupplierDialogOpen] = useState(false);
 	const [createProductDialogOpen, setCreateProductDialogOpen] = useState(false);
 	const [receiveDialogOpen, setReceiveDialogOpen] = useState(false);
+	const [detailDialogOpen, setDetailDialogOpen] = useState(false);
 	const [supplierId, setSupplierId] = useState("");
 	const [newItems, setNewItems] = useState<NewOrderItemRow[]>([createOrderItemRow()]);
 	const [newSupplierForm, setNewSupplierForm] = useState<NewSupplierFormState>(createSupplierForm());
 	const [receiveOrder, setReceiveOrder] = useState<PurchaseOrderDTO | null>(null);
+	const [detailOrder, setDetailOrder] = useState<PurchaseOrderDTO | null>(null);
 	const [receiveItems, setReceiveItems] = useState<ReceiveItemRow[]>([]);
 
 	useEffect(() => {
@@ -378,6 +380,80 @@ export default function PurchaseOrdersPage() {
 		setReceiveDialogOpen(true);
 	};
 
+	const openDetailDialog = (order: PurchaseOrderDTO) => {
+		setDetailOrder(order);
+		setDetailDialogOpen(true);
+	};
+
+	const printDetailOrder = () => {
+		if (!detailOrder) return;
+
+		const supplier = detailOrder.supplier_name ?? detailOrder.supplier_id ?? "—";
+		const date = detailOrder.date ? new Date(detailOrder.date).toLocaleDateString("es-CO") : "—";
+		const total = toNumber(detailOrder.total).toLocaleString("es-CO", {
+			style: "currency",
+			currency: "COP",
+			maximumFractionDigits: 2,
+		});
+		const rows = (detailOrder.items ?? [])
+			.map((item) => {
+				const qty = toNumber(item.quantity);
+				const cost = toNumber(item.unit_cost);
+				const lineTotal = (qty * cost).toLocaleString("es-CO", {
+					style: "currency",
+					currency: "COP",
+					maximumFractionDigits: 2,
+				});
+				const unitCost = cost.toLocaleString("es-CO", {
+					style: "currency",
+					currency: "COP",
+					maximumFractionDigits: 2,
+				});
+				return `<tr><td>${item.product_name ?? item.product_id}</td><td style="text-align:right">${qty}</td><td style="text-align:right">${unitCost}</td><td style="text-align:right">${lineTotal}</td></tr>`;
+			})
+			.join("");
+
+		const printWindow = window.open("", "_blank", "width=900,height=700");
+		if (!printWindow) return;
+
+		printWindow.document.write(`
+			<html>
+				<head>
+					<title>Detalle OC</title>
+					<style>
+						body { font-family: Arial, sans-serif; padding: 24px; color: #111; }
+						h1 { margin: 0 0 12px; font-size: 20px; }
+						.meta { margin-bottom: 16px; font-size: 14px; }
+						table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+						th, td { border: 1px solid #ddd; padding: 8px; font-size: 13px; }
+						th { background: #f5f5f5; text-align: left; }
+					</style>
+				</head>
+				<body>
+					<h1>Detalle de Orden de Compra</h1>
+					<div class="meta"><strong>Proveedor:</strong> ${supplier}</div>
+					<div class="meta"><strong>Estado:</strong> ${detailOrder.status}</div>
+					<div class="meta"><strong>Fecha:</strong> ${date}</div>
+					<div class="meta"><strong>Total:</strong> ${total}</div>
+					<table>
+						<thead>
+							<tr>
+								<th>Producto</th>
+								<th style="text-align:right">Cantidad</th>
+								<th style="text-align:right">Costo unitario</th>
+								<th style="text-align:right">Total línea</th>
+							</tr>
+						</thead>
+						<tbody>${rows || '<tr><td colspan="4" style="text-align:center">Sin productos en esta orden.</td></tr>'}</tbody>
+					</table>
+				</body>
+			</html>
+		`);
+		printWindow.document.close();
+		printWindow.focus();
+		printWindow.print();
+	};
+
 	const addItemRow = () => setNewItems((current) => [...current, createOrderItemRow()]);
 	const removeItemRow = (id: string) =>
 		setNewItems((current) => (current.length === 1 ? current : current.filter((item) => item.id !== id)));
@@ -473,15 +549,25 @@ export default function PurchaseOrdersPage() {
 											})}
 										</TableCell>
 										<TableCell className="text-right">
-											<Button
-												variant="outline"
-												size="sm"
-												className="text-xs"
-												disabled={order.status.toUpperCase() === "CERRADA"}
-												onClick={() => openReceiveDialog(order)}
-											>
-												Recibir
-											</Button>
+											<div className="flex items-center justify-end gap-2">
+												<Button
+													variant="ghost"
+													size="sm"
+													className="text-xs"
+													onClick={() => openDetailDialog(order)}
+												>
+													Ver detalle
+												</Button>
+												<Button
+													variant="outline"
+													size="sm"
+													className="text-xs"
+													disabled={order.status.toUpperCase() === "CERRADA"}
+													onClick={() => openReceiveDialog(order)}
+												>
+													Recibir
+												</Button>
+											</div>
 										</TableCell>
 									</TableRow>
 								))
@@ -857,6 +943,104 @@ export default function PurchaseOrdersPage() {
 						</Button>
 						<Button type="button" disabled={receiveMutation.isPending || receiveItems.length === 0} onClick={() => receiveMutation.mutate()}>
 							{receiveMutation.isPending ? "Guardando…" : "Registrar recepción"}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			<Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
+				<DialogContent className="max-w-3xl">
+					<DialogHeader>
+						<DialogTitle>Detalle de OC</DialogTitle>
+						<DialogDescription>
+							Consulta el detalle de la orden de compra.
+						</DialogDescription>
+					</DialogHeader>
+
+					{detailOrder ? (
+						<div className="space-y-4">
+							<div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+								<div>
+									<p className="text-muted-foreground">Proveedor</p>
+									<p className="font-medium">{detailOrder.supplier_name ?? detailOrder.supplier_id ?? "—"}</p>
+								</div>
+								<div>
+									<p className="text-muted-foreground">Estado</p>
+									<div className="mt-1">
+										<StatusBadge status={detailOrder.status} />
+									</div>
+								</div>
+								<div>
+									<p className="text-muted-foreground">Fecha</p>
+									<p className="font-medium">{detailOrder.date ? new Date(detailOrder.date).toLocaleDateString("es-CO") : "—"}</p>
+								</div>
+								<div>
+									<p className="text-muted-foreground">Total</p>
+									<p className="font-medium">
+										{toNumber(detailOrder.total).toLocaleString("es-CO", {
+											style: "currency",
+											currency: "COP",
+											maximumFractionDigits: 2,
+										})}
+									</p>
+								</div>
+							</div>
+
+							<div className="rounded-md border overflow-hidden">
+								<Table>
+									<TableHeader>
+										<TableRow className="bg-muted/50 hover:bg-muted/50">
+											<TableHead className="text-xs text-muted-foreground">Producto</TableHead>
+											<TableHead className="text-right text-xs text-muted-foreground">Cantidad</TableHead>
+											<TableHead className="text-right text-xs text-muted-foreground">Costo unitario</TableHead>
+											<TableHead className="text-right text-xs text-muted-foreground">Total línea</TableHead>
+										</TableRow>
+									</TableHeader>
+									<TableBody>
+										{(detailOrder.items ?? []).length === 0 ? (
+											<TableRow>
+												<TableCell colSpan={4} className="py-6 text-center text-sm text-muted-foreground">
+													Sin productos en esta orden.
+												</TableCell>
+											</TableRow>
+										) : (
+											(detailOrder.items ?? []).map((item) => {
+												const qty = toNumber(item.quantity);
+												const cost = toNumber(item.unit_cost);
+												return (
+													<TableRow key={item.id ?? item.product_id}>
+														<TableCell className="text-sm font-medium">{item.product_name ?? item.product_id}</TableCell>
+														<TableCell className="text-right font-mono">{qty}</TableCell>
+														<TableCell className="text-right font-mono">
+															{cost.toLocaleString("es-CO", {
+																style: "currency",
+																currency: "COP",
+																maximumFractionDigits: 2,
+															})}
+														</TableCell>
+														<TableCell className="text-right font-mono">
+															{(qty * cost).toLocaleString("es-CO", {
+																style: "currency",
+																currency: "COP",
+																maximumFractionDigits: 2,
+															})}
+														</TableCell>
+													</TableRow>
+												);
+											})
+										)}
+									</TableBody>
+								</Table>
+							</div>
+						</div>
+					) : null}
+
+					<DialogFooter>
+						<Button type="button" variant="outline" onClick={printDetailOrder} disabled={!detailOrder}>
+							Imprimir
+						</Button>
+						<Button variant="ghost" type="button" onClick={() => setDetailDialogOpen(false)}>
+							Cerrar
 						</Button>
 					</DialogFooter>
 				</DialogContent>
