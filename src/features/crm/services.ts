@@ -2,6 +2,7 @@ import axios from "axios";
 import apiClient from "@/lib/api/client";
 import { isApiError, type ApiError } from "@/types/crm";
 import type {
+  CampaignTemplate,
   Profile360Response,
   CategoryResponse,
   BenefitResponse,
@@ -41,6 +42,14 @@ import {
 } from "@/lib/validations/crm";
 import { z } from "zod";
 import { CustomerSchema, CustomerListResponseSchema, type CustomerDTO, type CustomerListResponse } from "./schemas";
+
+const CampaignTemplateSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  subject: z.string(),
+  body: z.string(),
+  created_at: z.string(),
+}).passthrough();
 
 const CRM_BASE = "/api/crm";
 const CUSTOMERS_BASE = "/api/customers";
@@ -368,6 +377,45 @@ export async function sendCampaign(body: SendCampaignRequest): Promise<{ status:
   try {
     const { data } = await apiClient.post<{ status: string }>(`${CRM_BASE}/campaigns/send`, payload);
     return z.object({ status: z.string() }).parse(data);
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}
+
+export async function getCampaignTemplates(): Promise<CampaignTemplate[]> {
+  try {
+    const { data } = await apiClient.get(`${CRM_BASE}/campaign-templates`, {
+      params: { limit: 100, offset: 0 },
+    });
+
+    if (Array.isArray(data)) {
+      return z.array(CampaignTemplateSchema).parse(data);
+    }
+
+    if (data && Array.isArray((data as { items?: unknown[] }).items)) {
+      return z.array(CampaignTemplateSchema).parse((data as { items: unknown[] }).items);
+    }
+
+    return [];
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}
+
+export async function createCampaignTemplate(body: {
+  name: string;
+  subject: string;
+  body: string;
+}): Promise<CampaignTemplate> {
+  const payload = z.object({
+    name: z.string().min(1),
+    subject: z.string().min(1),
+    body: z.string().min(1),
+  }).parse(body);
+
+  try {
+    const { data } = await apiClient.post(`${CRM_BASE}/campaign-templates`, payload);
+    return CampaignTemplateSchema.parse(data);
   } catch (error) {
     return throwOnApiError(error);
   }

@@ -40,6 +40,14 @@ export interface CategoryResponse {
   updated_at: string;
 }
 
+export interface CampaignTemplate {
+  id: string;
+  name: string;
+  subject: string;
+  body: string;
+  created_at: string;
+}
+
 export interface TaskResponse {
   id: string;
   company_id: string;

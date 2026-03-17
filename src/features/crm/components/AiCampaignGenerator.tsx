@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Sparkles, Copy, ArrowLeft, Send, Loader2 } from "lucide-react";
+import { Sparkles, Copy, ArrowLeft, Send, Loader2, Save, FolderOpen } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import apiClient from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,14 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
-import { generateCampaignCopy, listCategories, sendCampaign } from "@/features/crm/services";
+import {
+  createCampaignTemplate,
+  generateCampaignCopy,
+  getCampaignTemplates,
+  listCategories,
+  sendCampaign,
+} from "@/features/crm/services";
+import type { CampaignTemplate } from "@/types/crm";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
@@ -48,6 +55,21 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 
 const schema = z.object({
   prompt: z.string().min(10, "Describe la campaña en al menos 10 caracteres"),
@@ -87,6 +109,10 @@ const ProductLookupSchema = z.object({
 const ProductListLookupSchema = z.object({
   items: z.array(ProductLookupSchema),
 }).passthrough();
+
+const saveTemplateSchema = z.object({
+  name: z.string().min(1, "El nombre de la plantilla es obligatorio"),
+});
 
 type RecipientStrategy =
   | { type: "category_gold" }
@@ -163,6 +189,9 @@ export default function AiCampaignGenerator() {
   const [lastPreviewStrategies, setLastPreviewStrategies] = useState<RecipientStrategy[]>([]);
   const [recipientsPage, setRecipientsPage] = useState(1);
   const [confirmSendOpen, setConfirmSendOpen] = useState(false);
+  const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [generatedText, setGeneratedText] = useState("");
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -177,6 +206,19 @@ export default function AiCampaignGenerator() {
   const categoriesQuery = useQuery({
     queryKey: ["crm-categories", "campaign-send"],
     queryFn: () => listCategories({ limit: 100, offset: 0 }),
+  });
+
+  const templatesQuery = useQuery({
+    queryKey: ["crm", "campaign-templates"],
+    queryFn: getCampaignTemplates,
+    enabled: templatesOpen,
+  });
+
+  const saveTemplateForm = useForm<z.infer<typeof saveTemplateSchema>>({
+    resolver: zodResolver(saveTemplateSchema),
+    defaultValues: {
+      name: "",
+    },
   });
 
   const createCampaignForm = useForm<CreateCampaignValues>({
@@ -241,10 +283,16 @@ export default function AiCampaignGenerator() {
       return text;
     },
     onSuccess: (generatedText, values) => {
+      setGeneratedText(generatedText);
+      createCampaignForm.setValue("body", generatedText, { shouldDirty: true, shouldValidate: true });
       const currentSubject = form.getValues("subject");
       if (!currentSubject || currentSubject.trim().length === 0) {
         const suggestedSubject = suggestSubjectFromGeneratedText(generatedText, values.prompt);
         form.setValue("subject", suggestedSubject, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+        createCampaignForm.setValue("subject", suggestedSubject, {
           shouldDirty: true,
           shouldValidate: true,
         });
@@ -275,7 +323,6 @@ export default function AiCampaignGenerator() {
         title: "Campaña enviada",
         description: "Campaña enviada exitosamente a los clientes",
       });
-      mutation.reset();
       setConfirmSendOpen(false);
     },
     onError: (error) => {
@@ -342,6 +389,7 @@ export default function AiCampaignGenerator() {
       setResolvedRecipients([]);
       setLastPreviewStrategies([]);
       setRecipientsPage(1);
+      setGeneratedText("");
       toast({
         title: "Campaña creada",
         description: "La campaña fue programada correctamente.",
@@ -357,34 +405,74 @@ export default function AiCampaignGenerator() {
   });
 
   const handleCopy = async () => {
-    if (!mutation.data) return;
-    await navigator.clipboard.writeText(mutation.data);
+    if (!generatedText) return;
+    await navigator.clipboard.writeText(generatedText);
     toast({
       title: "Texto copiado",
       description: "El copy se ha copiado al portapapeles.",
     });
   };
 
+  const saveTemplateMutation = useMutation<CampaignTemplate, Error, z.infer<typeof saveTemplateSchema>>({
+    mutationFn: async ({ name }) => {
+      const subject = form.getValues("subject").trim();
+      return createCampaignTemplate({
+        name,
+        subject,
+        body: generatedText,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["crm", "campaign-templates"] });
+      toast({
+        title: "Plantilla guardada",
+        description: "La plantilla se guardó correctamente.",
+      });
+      setSaveTemplateOpen(false);
+      saveTemplateForm.reset({ name: "" });
+    },
+    onError: (error) => {
+      toast({
+        title: "No se pudo guardar la plantilla",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const selectedAudience = form.watch("category_id");
   const campaignSubject = form.watch("subject");
-  const canSendCampaign = Boolean(mutation.data && campaignSubject?.trim());
+  const canSendCampaign = Boolean(generatedText && campaignSubject?.trim());
+  const canSaveTemplate = Boolean(generatedText && campaignSubject?.trim());
   const selectedCategory = (categoriesQuery.data ?? []).find((c) => c.id === selectedAudience);
   const selectedSegmentLabel = selectedAudience === "all"
     ? "Todos los clientes"
     : selectedCategory?.name ?? "Segmento no encontrado";
-  const campaignBodyPreview = (mutation.data ?? "")
+  const campaignBodyPreview = (generatedText ?? "")
     .split(/\r?\n/)
     .filter((line) => line.trim().length > 0)
     .slice(0, 3)
     .join("\n");
 
   const handleSendCampaign = () => {
-    if (!mutation.data || !campaignSubject?.trim()) return;
+    if (!generatedText || !campaignSubject?.trim()) return;
 
     sendCampaignMutation.mutate({
       subject: campaignSubject.trim(),
-      body: mutation.data,
+      body: generatedText,
       category_id: selectedAudience === "all" ? null : selectedAudience,
+    });
+  };
+
+  const handleUseTemplate = (template: CampaignTemplate) => {
+    form.setValue("subject", template.subject, { shouldDirty: true, shouldValidate: true });
+    createCampaignForm.setValue("subject", template.subject, { shouldDirty: true, shouldValidate: true });
+    createCampaignForm.setValue("body", template.body, { shouldDirty: true, shouldValidate: true });
+    setGeneratedText(template.body);
+    setTemplatesOpen(false);
+    toast({
+      title: "Plantilla cargada",
+      description: `Se cargó la plantilla \"${template.name}\".`,
     });
   };
 
@@ -448,6 +536,12 @@ export default function AiCampaignGenerator() {
         <p className="text-sm text-muted-foreground">
           Describe tu campaña y genera copy comercial al instante.
         </p>
+      </div>
+      <div className="flex justify-end">
+        <Button type="button" variant="outline" onClick={() => setTemplatesOpen(true)}>
+          <FolderOpen className="h-4 w-4 mr-2" />
+          Mis Plantillas
+        </Button>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left: Form */}
@@ -571,18 +665,25 @@ export default function AiCampaignGenerator() {
               <Skeleton className="h-4 w-3/6" />
             </div>
           )}
-          {!mutation.isPending && mutation.data && (
+          {!mutation.isPending && generatedText && (
             <>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleCopy}
-                className="absolute top-3 right-3"
-              >
-                <Copy className="h-4 w-4" />
-              </Button>
+              <div className="absolute top-3 right-3 flex items-center gap-2">
+                <Button variant="ghost" size="icon" onClick={handleCopy}>
+                  <Copy className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSaveTemplateOpen(true)}
+                  disabled={!canSaveTemplate || saveTemplateMutation.isPending}
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  Guardar como Plantilla
+                </Button>
+              </div>
               <div className="text-sm whitespace-pre-wrap leading-relaxed text-foreground/90">
-                {mutation.data}
+                {generatedText}
               </div>
               <Button
                 type="button"
@@ -604,7 +705,7 @@ export default function AiCampaignGenerator() {
               </Button>
             </>
           )}
-          {!mutation.isPending && !mutation.data && (
+          {!mutation.isPending && !generatedText && (
             <p className="text-sm text-muted-foreground">
               El copy generado aparecerá aquí.
             </p>
@@ -945,6 +1046,93 @@ export default function AiCampaignGenerator() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={saveTemplateOpen} onOpenChange={setSaveTemplateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Guardar como Plantilla</DialogTitle>
+            <DialogDescription>
+              Guarda este asunto y contenido para reutilizarlos después.
+            </DialogDescription>
+          </DialogHeader>
+
+          <Form {...saveTemplateForm}>
+            <form
+              onSubmit={saveTemplateForm.handleSubmit((values) =>
+                saveTemplateMutation.mutate({ name: values.name ?? "" })
+              )}
+              className="space-y-4"
+            >
+              <FormField
+                control={saveTemplateForm.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nombre de la plantilla</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Ej: Promo Oro Marzo" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <DialogFooter>
+                <Button type="button" variant="ghost" onClick={() => setSaveTemplateOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={saveTemplateMutation.isPending || !canSaveTemplate}>
+                  {saveTemplateMutation.isPending ? "Guardando..." : "Guardar plantilla"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      <Sheet open={templatesOpen} onOpenChange={setTemplatesOpen}>
+        <SheetContent className="sm:max-w-xl w-full overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Mis Plantillas</SheetTitle>
+            <SheetDescription>
+              Reutiliza plantillas guardadas para acelerar el envío de campañas.
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="mt-6 space-y-3">
+            {templatesQuery.isLoading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <Skeleton key={i} className="h-24 w-full" />
+                ))}
+              </div>
+            ) : templatesQuery.isError ? (
+              <p className="text-sm text-destructive">{(templatesQuery.error as Error).message}</p>
+            ) : (templatesQuery.data ?? []).length === 0 ? (
+              <p className="text-sm text-muted-foreground">No hay plantillas guardadas.</p>
+            ) : (
+              (templatesQuery.data ?? []).map((template) => (
+                <Card key={template.id} className="p-4">
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-sm font-semibold">{template.name}</p>
+                      <p className="text-xs text-muted-foreground">{template.subject}</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground line-clamp-3 whitespace-pre-wrap">
+                      {template.body}
+                    </p>
+                    <div className="flex justify-end">
+                      <Button type="button" size="sm" onClick={() => handleUseTemplate(template)}>
+                        Usar Plantilla
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              ))
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
