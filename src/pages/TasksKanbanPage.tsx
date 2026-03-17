@@ -137,7 +137,7 @@ function TaskCard({
 
           <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
             <span className="font-mono">
-              Cliente: {customerName ?? task.customer_id || "—"}
+              Cliente: {customerName ?? task.customer_id ?? "—"}
             </span>
             {task.due_at ? (
               <span className={overdue ? "text-red-600 dark:text-red-400" : ""}>
@@ -241,7 +241,7 @@ function TaskDetailDialog({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
               <div>
                 <p className="text-xs text-muted-foreground">Cliente</p>
-                <p className="font-mono">{taskQuery.data.customer_id || "—"}</p>
+                <p className="font-mono">{taskQuery.data.customer_id ?? "—"}</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Creada</p>
