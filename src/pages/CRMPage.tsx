@@ -18,7 +18,7 @@ const CRM_TABS: {
   {
     value: "customers",
     label: "Directorio de Clientes",
-    allowedRoles: ["sales", "support", "marketing", "admin"],
+    allowedRoles: ["crm", "sales", "support", "marketing", "admin"],
     content: <CustomersTable />,
   },
   {

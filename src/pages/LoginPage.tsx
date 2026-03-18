@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { LoginSchema, type LoginInput } from "@/features/auth/schemas";
 import { loginService } from "@/features/auth/services";
+import { getDefaultRouteForRoles, getUserRoles } from "@/features/auth/permissions";
 import { AUTH_TOKEN_COOKIE_KEY, AUTH_USER_STORAGE_KEY } from "@/config/auth";
 
 export default function LoginPage() {
@@ -34,7 +35,20 @@ export default function LoginPage() {
       });
 
       if (result.user) {
-        localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(result.user));
+        const sessionUser = {
+          ...result.user,
+          role_id: result.role_id ?? (result.user as Record<string, unknown>).role_id,
+          role:
+            (result.user as Record<string, unknown>).role
+            ?? result.role_key
+            ?? (result.user as Record<string, unknown>).role_key,
+        };
+
+        localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(sessionUser));
+
+        const nextRoles = getUserRoles(sessionUser);
+        navigate(getDefaultRouteForRoles(nextRoles), { replace: true });
+        return;
       }
 
       navigate("/dashboard", { replace: true });

@@ -31,7 +31,7 @@ const navItems: {
     label: "CRM / Clientes",
     path: "/crm",
     icon: Users,
-    allowedRoles: ["sales", "support", "marketing", "admin"],
+    allowedRoles: ["crm", "sales", "support", "marketing", "admin"],
   },
 ];
 

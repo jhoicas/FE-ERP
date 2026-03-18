@@ -3,7 +3,7 @@ import { Navigate } from "react-router-dom";
 import Cookies from "js-cookie";
 
 import { AUTH_TOKEN_COOKIE_KEY } from "@/config/auth";
-import { getUserRoles, hasAccess } from "@/features/auth/permissions";
+import { getDefaultRouteForRoles, getUserRoles, hasAccess } from "@/features/auth/permissions";
 import { useAuthUser } from "@/features/auth/useAuthUser";
 
 type ProtectedRouteProps = {
@@ -21,7 +21,7 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
   }
 
   if (!hasAccess(roles, allowedRoles)) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={getDefaultRouteForRoles(roles)} replace />;
   }
 
   return <>{children}</>;

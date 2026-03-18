@@ -138,7 +138,7 @@ const App = () => (
             <Route
               path="/crm"
               element={
-                <ProtectedRoute allowedRoles={["sales", "support", "marketing", "admin"]}>
+                <ProtectedRoute allowedRoles={["crm", "sales", "support", "marketing", "admin"]}>
                   <CRMPage />
                 </ProtectedRoute>
               }
@@ -240,7 +240,7 @@ const App = () => (
             <Route
               path="/crm/customers/:id"
               element={
-                <ProtectedRoute allowedRoles={["sales", "support", "marketing", "admin"]}>
+                <ProtectedRoute allowedRoles={["crm", "sales", "support", "marketing", "admin"]}>
                   <CustomerProfile360Page />
                 </ProtectedRoute>
               }
@@ -248,7 +248,7 @@ const App = () => (
             <Route
               path="/crm/:id"
               element={
-                <ProtectedRoute allowedRoles={["sales", "support", "marketing", "admin"]}>
+                <ProtectedRoute allowedRoles={["crm", "sales", "support", "marketing", "admin"]}>
                   <ClientDetailPage />
                 </ProtectedRoute>
               }

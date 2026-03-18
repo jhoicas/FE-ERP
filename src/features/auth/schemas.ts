@@ -10,6 +10,8 @@ export type LoginInput = z.infer<typeof LoginSchema>;
 export const LoginResponseSchema = z.object({
   token: z.string(),
   user: z.record(z.unknown()),
+  role_id: z.string().optional(),
+  role_key: z.string().optional(),
 });
 
 export type LoginResponse = z.infer<typeof LoginResponseSchema>;
