@@ -82,8 +82,34 @@ const schema = z.object({
 
 const sendTestSchema = z.object({
   mode: z.enum(["customer", "email"]),
-  customer_id: z.string().optional(),
-  email: z.string().email("Email inválido").optional(),
+  // Nota: en react-hook-form el campo puede existir con "" cuando no está visible.
+  // Hacemos que "" cuente como `undefined` para que no bloquee el submit.
+  customer_id: z
+    .preprocess((v) => (typeof v === "string" && v.trim() === "" ? undefined : v), z.string())
+    .optional(),
+  email: z
+    .preprocess((v) => (typeof v === "string" && v.trim() === "" ? undefined : v), z.string().email("Email inválido"))
+    .optional(),
+}).superRefine((values, ctx) => {
+  if (values.mode === "customer") {
+    if (!values.customer_id) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["customer_id"],
+        message: "Selecciona un cliente.",
+      });
+    }
+  }
+
+  if (values.mode === "email") {
+    if (!values.email) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["email"],
+        message: "Ingresa un email.",
+      });
+    }
+  }
 });
 
 const createCampaignSchema = z.object({
