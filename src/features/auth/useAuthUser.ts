@@ -7,6 +7,7 @@ export interface AuthUser {
   role?: string;
   role_id?: string;
   role_key?: string;
+  company_id?: string;
   [key: string]: unknown;
 }
 

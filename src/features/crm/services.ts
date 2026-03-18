@@ -207,13 +207,28 @@ export async function updateBenefit(
   }
 }
 
+export async function deleteBenefit(benefitId: string): Promise<void> {
+  try {
+    await apiClient.put(`${CRM_BASE}/benefits/${benefitId}/deactivate`, {});
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}
+
 export async function listCategories(params?: {
   limit?: number;
   offset?: number;
+  search?: string;
+  status?: "active" | "inactive";
 }): Promise<CategoryResponse[]> {
   try {
     const { data } = await apiClient.get<CategoryResponse[]>(`${CRM_BASE}/categories`, {
-      params: { limit: params?.limit, offset: params?.offset },
+      params: {
+        limit: params?.limit,
+        offset: params?.offset,
+        search: params?.search,
+        status: params?.status,
+      },
     });
     return Array.isArray(data) ? data : [];
   } catch (error) {

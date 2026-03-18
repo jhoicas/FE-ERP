@@ -1,11 +1,22 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Link } from "react-router-dom";
-import { Gift, FileText } from "lucide-react";
+import { Gift, FileText, Plus, Pencil, Trash2 } from "lucide-react";
 
-import { listCategories, listBenefitsByCategory } from "@/features/crm/services";
+import { listCategories, listBenefitsByCategory, createBenefit, updateBenefit, deleteBenefit } from "@/features/crm/services";
 import { getApiErrorMessage } from "@/lib/api/errors";
 import type { CategoryResponse, BenefitResponse } from "@/types/crm";
+import { useAuthUser } from "@/features/auth/useAuthUser";
+import { isAdmin } from "@/features/auth/permissions";
+import { useToast } from "@/hooks/use-toast";
+import {
+  createBenefitSchema,
+  updateBenefitSchema,
+  type CreateBenefitRequest,
+  type UpdateBenefitRequest,
+} from "@/lib/validations/crm";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,11 +28,113 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
 const PAGE_SIZE = 50;
+
+function BenefitForm({
+  mode,
+  defaultValues,
+  onSubmit,
+  isSubmitting,
+}: {
+  mode: "create" | "edit";
+  defaultValues: { name: string; description: string };
+  onSubmit: (values: CreateBenefitRequest | UpdateBenefitRequest) => void;
+  isSubmitting: boolean;
+}) {
+  const schema = mode === "create" ? createBenefitSchema : updateBenefitSchema;
+  const form = useForm<CreateBenefitRequest | UpdateBenefitRequest>({
+    resolver: zodResolver(schema as any),
+    defaultValues,
+  });
+
+  return (
+    <Form {...form}>
+      <form
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="space-y-4"
+      >
+        <FormField
+          control={form.control}
+          name="name"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Nombre</FormLabel>
+              <FormControl>
+                <input
+                  {...field}
+                  className="w-full h-9 px-3 py-1 rounded-md border border-input bg-background text-sm"
+                  placeholder="Nombre del beneficio"
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="description"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Descripción</FormLabel>
+              <FormControl>
+                <textarea
+                  {...field}
+                  rows={4}
+                  className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm resize-none"
+                  placeholder="Describe claramente el beneficio para el cliente"
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <DialogFooter>
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? "Guardando…" : "Guardar"}
+          </Button>
+        </DialogFooter>
+      </form>
+    </Form>
+  );
+}
 
 export default function CategoryBenefitsPage() {
   const { id: categoryId } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const user = useAuthUser();
+  const { toast } = useToast();
+
+  const canManage = isAdmin(user);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [editingBenefit, setEditingBenefit] = useState<BenefitResponse | null>(null);
+  const [benefitToDelete, setBenefitToDelete] = useState<BenefitResponse | null>(null);
 
   const categoriesQuery = useQuery({
     queryKey: ["crm-categories", 200, 0],
@@ -43,6 +156,60 @@ export default function CategoryBenefitsPage() {
     (c: CategoryResponse) => c.id === categoryId
   );
   const benefits = benefitsQuery.data ?? [];
+
+  const createMutation = useMutation({
+    mutationFn: (body: CreateBenefitRequest) => createBenefit(categoryId!, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["crm-benefits", categoryId, PAGE_SIZE, 0],
+      });
+      setCreateDialogOpen(false);
+      toast({ title: "Beneficio creado" });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error al crear beneficio",
+        description: getApiErrorMessage(error, "Beneficios"),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (body: UpdateBenefitRequest) => updateBenefit(editingBenefit!.id, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["crm-benefits", categoryId, PAGE_SIZE, 0],
+      });
+      setEditingBenefit(null);
+      toast({ title: "Beneficio actualizado" });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error al actualizar beneficio",
+        description: getApiErrorMessage(error, "Beneficios"),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (benefitId: string) => deleteBenefit(benefitId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["crm-benefits", categoryId, PAGE_SIZE, 0],
+      });
+      setBenefitToDelete(null);
+      toast({ title: "Beneficio eliminado" });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error al eliminar beneficio",
+        description: getApiErrorMessage(error, "Beneficios"),
+        variant: "destructive",
+      });
+    },
+  });
 
   if (!categoryId) {
     return (
@@ -87,9 +254,19 @@ export default function CategoryBenefitsPage() {
             {category ? ` · ${category.name}` : ""}
           </h1>
           <p className="text-sm text-muted-foreground">
-            Listado de beneficios asociados a esta categoría (solo lectura).
+            Listado de beneficios asociados a esta categoría.
           </p>
         </div>
+        {canManage && (
+          <Button
+            className="ml-auto"
+            size="sm"
+            onClick={() => setCreateDialogOpen(true)}
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Agregar beneficio
+          </Button>
+        )}
       </div>
 
       {categoriesQuery.isLoading && !category && (
@@ -124,6 +301,7 @@ export default function CategoryBenefitsPage() {
             {benefits.length === 0 ? (
               <p className="px-6 pb-6 text-sm text-muted-foreground">
                 No hay beneficios definidos para esta categoría.
+                {canManage ? " Usa el botón \"Agregar beneficio\" para crear el primero." : ""}
               </p>
             ) : (
               <>
@@ -136,6 +314,11 @@ export default function CategoryBenefitsPage() {
                       <TableHead className="text-xs text-muted-foreground">
                         Descripción
                       </TableHead>
+                          {canManage && (
+                            <TableHead className="text-xs text-muted-foreground text-right">
+                              Acciones
+                            </TableHead>
+                          )}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -145,6 +328,29 @@ export default function CategoryBenefitsPage() {
                         <TableCell className="text-sm text-muted-foreground">
                           {b.description || "—"}
                         </TableCell>
+                            {canManage && (
+                              <TableCell className="text-right space-x-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-xs"
+                                  onClick={() => setEditingBenefit(b)}
+                                >
+                                  <Pencil className="h-3.5 w-3.5 mr-1" />
+                                  Editar
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-xs text-destructive hover:text-destructive"
+                                  onClick={() => setBenefitToDelete(b)}
+                                  disabled={deleteMutation.isPending}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5 mr-1" />
+                                  Quitar
+                                </Button>
+                              </TableCell>
+                            )}
                       </TableRow>
                     ))}
                   </TableBody>
@@ -162,6 +368,64 @@ export default function CategoryBenefitsPage() {
       >
         Volver a categorías
       </Button>
+
+      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Agregar beneficio</DialogTitle>
+          </DialogHeader>
+          <BenefitForm
+            mode="create"
+            defaultValues={{ name: "", description: "" }}
+            onSubmit={(values) => createMutation.mutate(values as CreateBenefitRequest)}
+            isSubmitting={createMutation.isPending}
+          />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editingBenefit != null} onOpenChange={(open) => !open && setEditingBenefit(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar beneficio</DialogTitle>
+          </DialogHeader>
+          {editingBenefit && (
+            <BenefitForm
+              mode="edit"
+              defaultValues={{
+                name: editingBenefit.name,
+                description: editingBenefit.description ?? "",
+              }}
+              onSubmit={(values) => updateMutation.mutate(values as UpdateBenefitRequest)}
+              isSubmitting={updateMutation.isPending}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={benefitToDelete != null} onOpenChange={(open) => !open && setBenefitToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Quitar beneficio</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Seguro que deseas quitar este beneficio de la categoría? Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (benefitToDelete) {
+                  deleteMutation.mutate(benefitToDelete.id);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? "Quitando…" : "Quitar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

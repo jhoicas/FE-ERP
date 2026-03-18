@@ -24,6 +24,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useDianEnvironment } from "@/hooks/use-dian-environment";
 import { useRbacMenu } from "@/features/auth/useRbacMenu";
+import { useCompanyModules } from "@/features/auth/useCompanyModules";
 
 const moduleIconByKey: Record<string, ComponentType<{ className?: string }>> = {
   dashboard: LayoutDashboard,
@@ -70,7 +71,43 @@ export default function AppSidebar() {
   const { environment } = useDianEnvironment();
   const queryClient = useQueryClient();
   const { data: menu, isLoading } = useRbacMenu();
-  const visibleModules = useMemo(() => getVisibleRbacModules(menu), [menu]);
+  const companyId = typeof user?.company_id === "string" ? user.company_id : undefined;
+  const { data: companyModules } = useCompanyModules(companyId);
+
+  const activeCompanyModules = useMemo(() => {
+    const set = new Set<string>();
+    for (const m of companyModules?.modules ?? []) {
+      if (m.is_active) {
+        set.add(m.module_name.toLowerCase());
+      }
+    }
+    return set;
+  }, [companyModules]);
+
+  const visibleModules = useMemo(() => {
+    const raw = getVisibleRbacModules(menu);
+    if (activeCompanyModules.size === 0) return raw;
+
+    const isModuleEnabledForCompany = (module: any) => {
+      const explicitModuleName = typeof module.module_name === "string" ? module.module_name.toLowerCase() : null;
+      if (explicitModuleName && activeCompanyModules.has(explicitModuleName)) {
+        return true;
+      }
+
+      const route = (module.frontend_route ?? "").toLowerCase();
+      if (route.startsWith("/crm")) return activeCompanyModules.has("crm");
+      if (route.startsWith("/inventario") || route.startsWith("/inventory"))
+        return activeCompanyModules.has("inventory");
+      if (route.startsWith("/facturacion") || route.startsWith("/billing"))
+        return activeCompanyModules.has("billing");
+      if (route.startsWith("/dashboard") || route.startsWith("/analytics"))
+        return activeCompanyModules.has("analytics");
+
+      return true;
+    };
+
+    return raw.filter(isModuleEnabledForCompany);
+  }, [menu, activeCompanyModules]);
   const hasDashboardShortcut = useMemo(
     () =>
       visibleModules.some((module) => {

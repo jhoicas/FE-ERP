@@ -15,6 +15,7 @@ import { AUTH_TOKEN_COOKIE_KEY, AUTH_USER_STORAGE_KEY } from "@/config/auth";
 import { prefetchRbacMenu, RBAC_MENU_QUERY_KEY } from "@/features/auth/useRbacMenu";
 import { getDefaultRouteFromMenu } from "@/features/auth/permissions";
 import type { RbacMenuDTO } from "@/features/auth/services";
+import { prefetchCompanyModules, COMPANY_MODULES_QUERY_KEY } from "@/features/auth/useCompanyModules";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -57,12 +58,18 @@ export default function LoginPage() {
           role: sessionRoleKey,
           role_key: sessionRoleKey,
           roles: sessionRoleKey ? [sessionRoleKey] : [],
+          company_id: (result.user as Record<string, unknown>).company_id as string | undefined,
         };
 
         localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(sessionUser));
 
         queryClient.removeQueries({ queryKey: RBAC_MENU_QUERY_KEY });
         await prefetchRbacMenu(queryClient).catch(() => undefined);
+
+        if (sessionUser.company_id) {
+          queryClient.removeQueries({ queryKey: [...COMPANY_MODULES_QUERY_KEY, sessionUser.company_id] });
+          await prefetchCompanyModules(queryClient, sessionUser.company_id).catch(() => undefined);
+        }
 
         const cachedMenu = queryClient.getQueryData<RbacMenuDTO>(RBAC_MENU_QUERY_KEY);
         const nextRoles = getUserRoles(sessionUser);

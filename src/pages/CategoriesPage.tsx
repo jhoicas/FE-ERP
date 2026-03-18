@@ -1,14 +1,18 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
-import { Gift, ChevronRight, Trash2 } from "lucide-react";
+import { Gift, ChevronRight, Trash2, Plus, Pencil } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 
-import { listCategories, deactivateCrmCategory } from "@/features/crm/services";
+import { listCategories, deactivateCrmCategory, createCategory, updateCategory } from "@/features/crm/services";
 import { getApiErrorMessage } from "@/lib/api/errors";
 import type { CategoryResponse } from "@/types/crm";
 import { useAuthUser } from "@/features/auth/useAuthUser";
 import { useToast } from "@/hooks/use-toast";
 import ExplainableAcronym from "@/components/shared/ExplainableAcronym";
+import { isAdmin as isAdminUser } from "@/features/auth/permissions";
+import { createCategorySchema, type CreateCategoryRequest } from "@/lib/validations/crm";
 import {
   Table,
   TableBody,
@@ -20,6 +24,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
 import {
   Pagination,
   PaginationContent,
@@ -44,6 +49,21 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
 
@@ -65,6 +85,8 @@ function formatLtv(value: string): string {
   return `$${n.toLocaleString("es-CO")}`;
 }
 
+type StatusFilter = "all" | "active" | "inactive";
+
 export default function CategoriesPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -72,14 +94,73 @@ export default function CategoriesPage() {
   const user = useAuthUser();
   const [pageSize, setPageSize] = useState(5);
   const [offset, setOffset] = useState(0);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [deactivatingId, setDeactivatingId] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<CategoryResponse | null>(null);
 
-  const isAdmin = user?.roles?.includes("admin") ?? false;
+  const isAdmin = isAdminUser(user);
+
+  const createCategoryForm = useForm<CreateCategoryRequest>({
+    resolver: zodResolver(createCategorySchema),
+    defaultValues: { name: "", min_ltv: 0 },
+  });
+
+  const editCategoryForm = useForm<CreateCategoryRequest>({
+    resolver: zodResolver(createCategorySchema),
+    defaultValues: { name: "", min_ltv: 0 },
+  });
 
   const categoriesQuery = useQuery({
-    queryKey: ["crm-categories", pageSize, offset],
-    queryFn: () => listCategories({ limit: pageSize, offset }),
+    queryKey: ["crm-categories", pageSize, offset, search, statusFilter],
+    queryFn: () =>
+      listCategories({
+        limit: pageSize,
+        offset,
+        search: search.trim() || undefined,
+        status:
+          statusFilter === "all"
+            ? undefined
+            : statusFilter === "active"
+              ? "active"
+              : "inactive",
+      }),
+  });
+
+  const createCategoryMutation = useMutation({
+    mutationFn: createCategory,
+    onSuccess: () => {
+      toast({ title: "Categoría creada" });
+      queryClient.invalidateQueries({ queryKey: ["crm-categories"] });
+      setCreateDialogOpen(false);
+      createCategoryForm.reset({ name: "", min_ltv: 0 });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error al crear categoría",
+        description: getApiErrorMessage(error, "Categorías CRM"),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateCategoryMutation = useMutation({
+    mutationFn: (body: CreateCategoryRequest) =>
+      updateCategory(editingCategory!.id, body),
+    onSuccess: () => {
+      toast({ title: "Categoría actualizada" });
+      queryClient.invalidateQueries({ queryKey: ["crm-categories"] });
+      setEditingCategory(null);
+    },
+    onError: (error) => {
+      toast({
+        title: "Error al actualizar categoría",
+        description: getApiErrorMessage(error, "Categorías CRM"),
+        variant: "destructive",
+      });
+    },
   });
 
   const deactivateMutation = useMutation({
@@ -130,6 +211,12 @@ export default function CategoriesPage() {
   const hasMore = items.length === pageSize;
   const hasPrev = offset > 0;
 
+  const filteredItems = useMemo(() => {
+    if (statusFilter === "all") return items;
+    const wantActive = statusFilter === "active";
+    return items.filter((c) => (c.is_active ?? true) === wantActive);
+  }, [items, statusFilter]);
+
   return (
     <div className="animate-fade-in space-y-4">
       <Link
@@ -146,8 +233,41 @@ export default function CategoriesPage() {
           </h1>
           <p className="text-sm text-muted-foreground">
             <ExplainableAcronym sigla="LTV" /> mínimo y beneficios asociados a cada categoría
-            (solo lectura).
+            {isAdmin ? "" : " (solo lectura)."}
           </p>
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <Input
+            value={search}
+            onChange={(e) => {
+              setOffset(0);
+              setSearch(e.target.value);
+            }}
+            placeholder="Buscar…"
+            className="h-9 w-48"
+          />
+          <Select
+            value={statusFilter}
+            onValueChange={(v) => {
+              setOffset(0);
+              setStatusFilter(v as StatusFilter);
+            }}
+          >
+            <SelectTrigger className="h-9 w-40">
+              <SelectValue placeholder="Estado" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="active">Activas</SelectItem>
+              <SelectItem value="inactive">Inactivas</SelectItem>
+            </SelectContent>
+          </Select>
+          {isAdmin && (
+            <Button onClick={() => setCreateDialogOpen(true)} className="h-9">
+              <Plus className="h-4 w-4 mr-2" />
+              Crear
+            </Button>
+          )}
         </div>
       </div>
 
@@ -182,23 +302,26 @@ export default function CategoriesPage() {
                 <TableHead className="text-xs text-muted-foreground">
                   Actualizado
                 </TableHead>
+                <TableHead className="text-xs text-muted-foreground">
+                  Estado
+                </TableHead>
                 <TableHead className="text-right text-xs text-muted-foreground">
                   Acciones
                 </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {items.length === 0 ? (
+              {filteredItems.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={5}
+                    colSpan={6}
                     className="py-8 text-center text-sm text-muted-foreground"
                   >
                     No hay categorías.
                   </TableCell>
                 </TableRow>
               ) : (
-                items.map((cat: CategoryResponse) => (
+                filteredItems.map((cat: CategoryResponse) => (
                   <TableRow key={cat.id} className="hover:bg-muted/40">
                     <TableCell className="font-medium">{cat.name}</TableCell>
                     <TableCell>
@@ -212,6 +335,11 @@ export default function CategoriesPage() {
                     <TableCell className="text-sm text-muted-foreground">
                       {formatDate(cat.updated_at)}
                     </TableCell>
+                    <TableCell>
+                      <Badge variant={(cat.is_active ?? true) ? "default" : "secondary"}>
+                        {(cat.is_active ?? true) ? "Activa" : "Inactiva"}
+                      </Badge>
+                    </TableCell>
                     <TableCell className="text-right space-x-2 flex items-center justify-end">
                       <Button
                         variant="outline"
@@ -224,6 +352,23 @@ export default function CategoriesPage() {
                         Ver beneficios
                         <ChevronRight className="h-4 w-4 ml-1" />
                       </Button>
+                      {isAdmin && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs"
+                          onClick={() => {
+                            setEditingCategory(cat);
+                            editCategoryForm.reset({
+                              name: cat.name,
+                              min_ltv: Number(cat.min_ltv),
+                            });
+                          }}
+                        >
+                          <Pencil className="h-3.5 w-3.5 mr-1" />
+                          Editar
+                        </Button>
+                      )}
                       {isAdmin && (
                         <Button
                           variant="outline"
@@ -326,6 +471,102 @@ export default function CategoriesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Crear categoría</DialogTitle>
+          </DialogHeader>
+          <Form {...createCategoryForm}>
+            <form
+              onSubmit={createCategoryForm.handleSubmit((values) => createCategoryMutation.mutate(values))}
+              className="space-y-4"
+            >
+              <FormField
+                control={createCategoryForm.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nombre</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Ej. Oro" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={createCategoryForm.control}
+                name="min_ltv"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      <ExplainableAcronym sigla="LTV" /> mínimo
+                    </FormLabel>
+                    <FormControl>
+                      <Input type="number" placeholder="1000000" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button type="submit" disabled={createCategoryMutation.isPending}>
+                  {createCategoryMutation.isPending ? "Guardando…" : "Crear"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editingCategory != null} onOpenChange={(open) => !open && setEditingCategory(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar categoría</DialogTitle>
+          </DialogHeader>
+          <Form {...editCategoryForm}>
+            <form
+              onSubmit={editCategoryForm.handleSubmit((values) => updateCategoryMutation.mutate(values))}
+              className="space-y-4"
+            >
+              <FormField
+                control={editCategoryForm.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nombre</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Ej. Plata" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editCategoryForm.control}
+                name="min_ltv"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      <ExplainableAcronym sigla="LTV" /> mínimo
+                    </FormLabel>
+                    <FormControl>
+                      <Input type="number" placeholder="500000" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button type="submit" disabled={updateCategoryMutation.isPending}>
+                  {updateCategoryMutation.isPending ? "Guardando…" : "Guardar cambios"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

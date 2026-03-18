@@ -42,6 +42,24 @@ export async function getRbacMenu(): Promise<RbacMenuDTO> {
   return RbacMenuSchema.parse(response.data);
 }
 
+const CompanyModuleSchema = z.object({
+  module_name: z.string(),
+  is_active: z.boolean(),
+});
+
+const CompanyModulesResponseSchema = z.object({
+  company_id: z.string(),
+  modules: z.array(CompanyModuleSchema),
+});
+
+export type CompanyModuleDTO = z.infer<typeof CompanyModuleSchema>;
+export type CompanyModulesDTO = z.infer<typeof CompanyModulesResponseSchema>;
+
+export async function getCompanyModules(companyId: string): Promise<CompanyModulesDTO> {
+  const response = await apiClient.get(`/api/companies/${companyId}/modules`);
+  return CompanyModulesResponseSchema.parse(response.data);
+}
+
 const UserSchema = z.object({
   id: z.string(),
   name: z.string(),
