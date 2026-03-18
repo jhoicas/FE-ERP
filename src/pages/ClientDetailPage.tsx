@@ -95,7 +95,7 @@ export default function ClientDetailPage() {
         <button onClick={() => navigate("/crm")} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft className="h-4 w-4" />Volver al directorio
         </button>
-        <p className="text-sm text-destructive">{getApiErrorMessage(customersQuery.error, "CRM")}</p>
+        <p className="text-sm text-destructive">{getApiErrorMessage(customersQuery.error, "CRM / Perfil de cliente")}</p>
       </div>
     );
   }

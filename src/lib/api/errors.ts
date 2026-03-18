@@ -10,9 +10,13 @@ export function getApiErrorMessage(error: unknown, moduleName?: string): string 
     const data = error.response?.data as { code?: string; message?: string } | undefined;
 
     if (status === 403 && data?.code === "MODULE_DISABLED") {
+      if (typeof data?.message === "string" && data.message.trim().length > 0) {
+        return data.message;
+      }
+
       return moduleName
-        ? `El módulo "${moduleName}" no está disponible en tu plan.`
-        : "Este módulo no está disponible en tu plan.";
+        ? `No tienes acceso a "${moduleName}" con tu rol actual.`
+        : "No tienes acceso a este módulo con tu rol actual.";
     }
     if (status === 401) return "Sesión expirada. Inicia sesión de nuevo.";
     if (status === 404) return "Recurso no encontrado.";
