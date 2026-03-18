@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate } from "react-router-dom";
 import Cookies from "js-cookie";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,9 +12,13 @@ import { LoginSchema, type LoginInput } from "@/features/auth/schemas";
 import { loginService } from "@/features/auth/services";
 import { getDefaultRouteForRoles, getUserRoles } from "@/features/auth/permissions";
 import { AUTH_TOKEN_COOKIE_KEY, AUTH_USER_STORAGE_KEY } from "@/config/auth";
+import { prefetchRbacMenu, RBAC_MENU_QUERY_KEY } from "@/features/auth/useRbacMenu";
+import { getDefaultRouteFromMenu } from "@/features/auth/permissions";
+import type { RbacMenuDTO } from "@/features/auth/services";
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [serverError, setServerError] = useState<string | null>(null);
 
   const form = useForm<LoginInput>({
@@ -35,19 +40,36 @@ export default function LoginPage() {
       });
 
       if (result.user) {
+        const sessionRoleIdCandidate = result.role_id ?? (result.user as Record<string, unknown>).role_id;
+        const sessionRoleKeyCandidate =
+          result.role_key
+          ?? (result.user as Record<string, unknown>).role_key
+          ?? (result.user as Record<string, unknown>).role;
+        const sessionRoleId = typeof sessionRoleIdCandidate === "string" ? sessionRoleIdCandidate : undefined;
+        const sessionRoleKey =
+          typeof sessionRoleKeyCandidate === "string" && sessionRoleKeyCandidate.trim().length > 0
+            ? sessionRoleKeyCandidate
+            : undefined;
+
         const sessionUser = {
           ...result.user,
-          role_id: result.role_id ?? (result.user as Record<string, unknown>).role_id,
-          role:
-            (result.user as Record<string, unknown>).role
-            ?? result.role_key
-            ?? (result.user as Record<string, unknown>).role_key,
+          role_id: sessionRoleId,
+          role: sessionRoleKey,
+          role_key: sessionRoleKey,
+          roles: sessionRoleKey ? [sessionRoleKey] : [],
         };
 
         localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(sessionUser));
 
+        queryClient.removeQueries({ queryKey: RBAC_MENU_QUERY_KEY });
+        await prefetchRbacMenu(queryClient).catch(() => undefined);
+
+        const cachedMenu = queryClient.getQueryData<RbacMenuDTO>(RBAC_MENU_QUERY_KEY);
         const nextRoles = getUserRoles(sessionUser);
-        navigate(getDefaultRouteForRoles(nextRoles), { replace: true });
+        navigate(
+          cachedMenu ? getDefaultRouteFromMenu(cachedMenu) : getDefaultRouteForRoles(nextRoles),
+          { replace: true },
+        );
         return;
       }
 

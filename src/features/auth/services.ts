@@ -12,6 +12,36 @@ export async function loginService(data: LoginInput): Promise<LoginResponse> {
   return parsed;
 }
 
+const RbacRouteSchema = z.object({
+  id: z.union([z.string(), z.number()]).transform(String).optional(),
+  name: z.string().optional(),
+  label: z.string().optional(),
+  title: z.string().optional(),
+  frontend_route: z.string().optional(),
+  icon: z.string().optional(),
+}).passthrough();
+
+export const RbacScreenSchema = RbacRouteSchema.extend({
+  frontend_route: z.string().min(1),
+});
+
+export const RbacModuleSchema = RbacRouteSchema.extend({
+  screens: z.array(RbacScreenSchema).default([]),
+});
+
+export const RbacMenuSchema = z.object({
+  modules: z.array(RbacModuleSchema).default([]),
+}).passthrough();
+
+export type RbacScreenDTO = z.infer<typeof RbacScreenSchema>;
+export type RbacModuleDTO = z.infer<typeof RbacModuleSchema>;
+export type RbacMenuDTO = z.infer<typeof RbacMenuSchema>;
+
+export async function getRbacMenu(): Promise<RbacMenuDTO> {
+  const response = await apiClient.get("/api/rbac/menu");
+  return RbacMenuSchema.parse(response.data);
+}
+
 const UserSchema = z.object({
   id: z.string(),
   name: z.string(),

@@ -5,6 +5,8 @@ export interface AuthUser {
   roles?: string[];
   // Para compatibilidad con backend viejo que enviaba `role: string`
   role?: string;
+  role_id?: string;
+  role_key?: string;
   [key: string]: unknown;
 }
 

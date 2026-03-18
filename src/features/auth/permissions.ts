@@ -1,4 +1,6 @@
+import { matchPath } from "react-router-dom";
 import type { AuthUser } from "./useAuthUser";
+import type { RbacMenuDTO, RbacModuleDTO, RbacScreenDTO } from "./services";
 
 function normalizeRole(rawRole: string): string {
   const role = rawRole.trim().toLowerCase();
@@ -62,5 +64,107 @@ export function getDefaultRouteForRoles(userRoles: string[] | undefined): string
   }
 
   return "/dashboard";
+}
+
+function normalizeRoute(route: string): string {
+  const trimmed = route.trim();
+  if (!trimmed) return "/";
+  if (trimmed === "/") return "/";
+  return trimmed.startsWith("/") ? trimmed.replace(/\/+$/, "") : `/${trimmed.replace(/\/+$/, "")}`;
+}
+
+export function getMenuItemLabel(
+  item: Pick<RbacModuleDTO | RbacScreenDTO, "name" | "label" | "title"> & { frontend_route?: string },
+): string {
+  return item.label ?? item.name ?? item.title ?? item.frontend_route ?? "Sin nombre";
+}
+
+export function getVisibleRbacModules(menu: RbacMenuDTO | null | undefined): RbacModuleDTO[] {
+  return (menu?.modules ?? [])
+    .map((module) => ({
+      ...module,
+      screens: (module.screens ?? []).filter((screen) => Boolean(screen.frontend_route?.trim())),
+    }))
+    .filter((module) => module.screens.length > 0);
+}
+
+export function getFlattenedRbacRoutes(menu: RbacMenuDTO | null | undefined): string[] {
+  const routes = new Set<string>();
+
+  for (const module of menu?.modules ?? []) {
+    if (module.frontend_route) {
+      routes.add(normalizeRoute(module.frontend_route));
+    }
+
+    for (const screen of module.screens ?? []) {
+      if (screen.frontend_route?.trim()) {
+        routes.add(normalizeRoute(screen.frontend_route));
+      }
+    }
+  }
+
+  return Array.from(routes);
+}
+
+function routeMatches(pattern: string, pathname: string): boolean {
+  const normalizedPattern = normalizeRoute(pattern);
+  const normalizedPath = normalizeRoute(pathname);
+
+  if (normalizedPattern === "/") {
+    return normalizedPath === "/";
+  }
+
+  return Boolean(
+    matchPath({ path: normalizedPattern, end: false }, normalizedPath) ??
+      matchPath({ path: normalizedPattern, end: true }, normalizedPath),
+  );
+}
+
+export function canAccessFrontendRoute(menu: RbacMenuDTO | null | undefined, pathname: string): boolean {
+  const normalizedPath = normalizeRoute(pathname);
+  if (normalizedPath === "/" || normalizedPath === "/dashboard" || normalizedPath.startsWith("/dashboard/")) {
+    return true;
+  }
+
+  const routes = getFlattenedRbacRoutes(menu);
+  if (routes.length === 0) return false;
+
+  return routes.some((route) => routeMatches(route, normalizedPath));
+}
+
+export function getDefaultRouteFromMenu(menu: RbacMenuDTO | null | undefined): string {
+  const routes = getFlattenedRbacRoutes(menu);
+
+  if (routes.includes("/dashboard")) {
+    return "/dashboard";
+  }
+
+  return routes[0] ?? "/dashboard";
+}
+
+export function getMenuTitleForPath(menu: RbacMenuDTO | null | undefined, pathname: string): string | null {
+  let bestMatch: { route: string; label: string } | null = null;
+
+  for (const module of menu?.modules ?? []) {
+    const moduleLabel = getMenuItemLabel(module);
+
+    if (module.frontend_route && routeMatches(module.frontend_route, pathname)) {
+      const route = normalizeRoute(module.frontend_route);
+      if (!bestMatch || route.length > bestMatch.route.length) {
+        bestMatch = { route, label: moduleLabel };
+      }
+    }
+
+    for (const screen of module.screens ?? []) {
+      if (routeMatches(screen.frontend_route, pathname)) {
+        const route = normalizeRoute(screen.frontend_route);
+        if (!bestMatch || route.length > bestMatch.route.length) {
+          bestMatch = { route, label: getMenuItemLabel(screen) };
+        }
+      }
+    }
+  }
+
+  return bestMatch?.label ?? null;
 }
 

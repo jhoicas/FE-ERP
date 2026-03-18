@@ -5,59 +5,55 @@ import CustomersTable from "@/features/crm/components/CustomersTable";
 import TicketsList from "@/features/crm/components/TicketsList";
 import CrmTasksBoard from "@/features/crm/components/CrmTasksBoard";
 import ExplainableAcronym from "@/components/shared/ExplainableAcronym";
-import { useAuthUser } from "@/features/auth/useAuthUser";
-import { getUserRoles, hasAccess } from "@/features/auth/permissions";
+import { canAccessFrontendRoute } from "@/features/auth/permissions";
+import { useRbacMenu } from "@/features/auth/useRbacMenu";
 
 const CRM_TABS: {
   value: string;
   label: string;
   path?: string;
-  allowedRoles: string[];
   content?: React.ReactNode;
 }[] = [
   {
     value: "customers",
     label: "Directorio de Clientes",
-    allowedRoles: ["crm", "sales", "support", "marketing", "admin"],
     content: <CustomersTable />,
   },
   {
     value: "tickets",
     label: "Tickets",
     path: "/crm/tickets",
-    allowedRoles: ["support", "admin"],
     content: <TicketsList />,
   },
   {
     value: "tasks",
     label: "Tareas",
     path: "/crm/tasks/kanban",
-    allowedRoles: ["sales", "admin"],
     content: <CrmTasksBoard />,
   },
   {
     value: "campaigns",
     label: "Laboratorio de campañas",
     path: "/crm/campaigns",
-    allowedRoles: ["marketing", "admin"],
     content: null,
   },
   {
     value: "loyalty",
     label: "Fidelización",
     path: "/crm/loyalty",
-    allowedRoles: ["admin"],
     content: null,
   },
 ];
 
 export default function CRMPage() {
-  const user = useAuthUser();
-  const roles = getUserRoles(user);
+  const { data: menu } = useRbacMenu();
 
   const visibleTabs = useMemo(
-    () => CRM_TABS.filter((tab) => hasAccess(roles, tab.allowedRoles)),
-    [roles],
+    () =>
+      CRM_TABS.filter((tab) =>
+        canAccessFrontendRoute(menu, tab.path ?? "/crm"),
+      ),
+    [menu],
   );
 
   const defaultTab = visibleTabs[0]?.value ?? "customers";

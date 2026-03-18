@@ -1,27 +1,56 @@
 import { ReactNode } from "react";
 import { Navigate } from "react-router-dom";
 import Cookies from "js-cookie";
+import { Button } from "@/components/ui/button";
 
 import { AUTH_TOKEN_COOKIE_KEY } from "@/config/auth";
-import { getDefaultRouteForRoles, getUserRoles, hasAccess } from "@/features/auth/permissions";
-import { useAuthUser } from "@/features/auth/useAuthUser";
+import { canAccessFrontendRoute, getDefaultRouteFromMenu } from "@/features/auth/permissions";
+import { useRbacMenu } from "@/features/auth/useRbacMenu";
+import { useLocation } from "react-router-dom";
 
 type ProtectedRouteProps = {
   children: ReactNode;
   allowedRoles?: string[];
 };
 
-export default function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
+export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const token = Cookies.get(AUTH_TOKEN_COOKIE_KEY);
-  const user = useAuthUser();
-  const roles = getUserRoles(user);
+  const location = useLocation();
+  const { data: menu, isLoading, isFetching, isError, refetch } = useRbacMenu();
 
   if (!token) {
     return <Navigate to="/login" replace />;
   }
 
-  if (!hasAccess(roles, allowedRoles)) {
-    return <Navigate to={getDefaultRouteForRoles(roles)} replace />;
+  if (isLoading || (isFetching && !menu)) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <p className="text-sm text-muted-foreground">Cargando...</p>
+      </div>
+    );
+  }
+
+  if (menu) {
+    if (!canAccessFrontendRoute(menu, location.pathname)) {
+      return <Navigate to={getDefaultRouteFromMenu(menu)} replace />;
+    }
+    return <>{children}</>;
+  }
+
+  if (isError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-4">
+        <div className="erp-card max-w-md text-center space-y-3">
+          <p className="text-sm font-medium">No se pudieron cargar los permisos.</p>
+          <p className="text-xs text-muted-foreground">
+            Verifica tu conexión e inténtalo de nuevo.
+          </p>
+          <Button type="button" onClick={() => void refetch()}>
+            Reintentar
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   return <>{children}</>;

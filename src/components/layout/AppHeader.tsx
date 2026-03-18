@@ -4,6 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useDianEnvironment } from "@/hooks/use-dian-environment";
+import { getMenuTitleForPath } from "@/features/auth/permissions";
+import { useRbacMenu } from "@/features/auth/useRbacMenu";
 
 const titles: Record<string, string> = {
   "/": "Dashboard",
@@ -16,13 +18,16 @@ const titles: Record<string, string> = {
 export default function AppHeader() {
   const location = useLocation();
   const { environment } = useDianEnvironment();
+  const { data: menu } = useRbacMenu();
+  const menuTitle = getMenuTitleForPath(menu, location.pathname);
   const title = Object.entries(titles).find(([path]) =>
     path === "/" ? location.pathname === "/" : location.pathname.startsWith(path)
-  )?.[1] ?? "NaturERP";
+  )?.[1];
+  const resolvedTitle = menuTitle ?? title ?? "NaturERP";
 
   return (
     <header className="h-14 border-b flex items-center gap-4 px-6">
-      <h1 className="text-sm font-semibold">{title}</h1>
+      <h1 className="text-sm font-semibold">{resolvedTitle}</h1>
       <Badge
         variant="outline"
         className={
