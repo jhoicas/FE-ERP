@@ -4,8 +4,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Sparkles, Copy, ArrowLeft, Send, Loader2, Save, FolderOpen } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Sparkles, Copy, Send, Loader2, Save, FolderOpen } from "lucide-react";
 import apiClient from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,7 +17,9 @@ import {
   generateCampaignCopy,
   getCampaignTemplates,
   listCategories,
+  listCustomers,
   sendCampaign,
+  sendCampaignTest,
 } from "@/features/crm/services";
 import type { CampaignTemplate } from "@/types/crm";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -77,6 +78,12 @@ const schema = z.object({
   target_audience: z.string().min(3, "Indica el público objetivo"),
   category_id: z.string().min(1, "Selecciona segmento"),
   subject: z.string().min(1, "El asunto del correo es obligatorio para enviar"),
+});
+
+const sendTestSchema = z.object({
+  mode: z.enum(["customer", "email"]),
+  customer_id: z.string().optional(),
+  email: z.string().email("Email inválido").optional(),
 });
 
 const createCampaignSchema = z.object({
@@ -178,7 +185,6 @@ function suggestSubjectFromGeneratedText(generatedText: string, fallbackPrompt: 
 }
 
 export default function AiCampaignGenerator() {
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [sendToCategoryGold, setSendToCategoryGold] = useState(false);
   const [sendToReorderProduct, setSendToReorderProduct] = useState(false);
@@ -192,6 +198,8 @@ export default function AiCampaignGenerator() {
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [generatedText, setGeneratedText] = useState("");
+  const [testSendOpen, setTestSendOpen] = useState(false);
+  const [customerSearch, setCustomerSearch] = useState("");
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -212,6 +220,17 @@ export default function AiCampaignGenerator() {
     queryKey: ["crm", "campaign-templates"],
     queryFn: getCampaignTemplates,
     enabled: templatesOpen,
+  });
+
+  const customersQuery = useQuery({
+    queryKey: ["crm", "customers", "campaign-test", customerSearch],
+    queryFn: () =>
+      listCustomers({
+        limit: 20,
+        offset: 0,
+        search: customerSearch.trim() || undefined,
+      }),
+    enabled: testSendOpen,
   });
 
   const saveTemplateForm = useForm<z.infer<typeof saveTemplateSchema>>({
@@ -276,7 +295,11 @@ export default function AiCampaignGenerator() {
         `Tema de la campaña: ${values.prompt}.`,
         `Público objetivo: ${values.target_audience}.`,
         `Tono deseado: ${values.tone}.`,
-        `Incluye un asunto atractivo, un cuerpo de email o texto comercial y un cierre con llamada a la acción.`,
+        `Incluye un asunto atractivo y un cuerpo de email listo para enviar.`,
+        `Reglas estrictas:`,
+        `- Debes incluir el placeholder [Nombre] para personalizar el saludo al cliente (por ejemplo: "Hola [Nombre], ...").`,
+        `- No agregues placeholders adicionales entre corchetes (solo [Nombre]).`,
+        `- No inventes secciones tipo "[Llamada a la acción...]" ni agregues enlaces si no fueron solicitados.`,
       ].join(" ");
 
       const { text } = await generateCampaignCopy({ prompt: fullPrompt });
@@ -464,6 +487,42 @@ export default function AiCampaignGenerator() {
     });
   };
 
+  const sendTestForm = useForm<z.infer<typeof sendTestSchema>>({
+    resolver: zodResolver(sendTestSchema),
+    defaultValues: { mode: "email", email: "" },
+  });
+
+  const sendTestMutation = useMutation<{ status: string }, Error, z.infer<typeof sendTestSchema>>({
+    mutationFn: async (values) => {
+      const subject = form.getValues("subject").trim();
+      const body = generatedText;
+      if (!subject || !body) {
+        throw new Error("Primero genera el mensaje y define el asunto.");
+      }
+
+      if (values.mode === "customer") {
+        if (!values.customer_id) throw new Error("Selecciona un cliente.");
+        return sendCampaignTest({ subject, body, customer_id: values.customer_id });
+      }
+
+      if (!values.email) throw new Error("Ingresa un email.");
+      return sendCampaignTest({ subject, body, email: values.email });
+    },
+    onSuccess: () => {
+      toast({ title: "Correo de prueba enviado" });
+      setTestSendOpen(false);
+      sendTestForm.reset({ mode: "email", email: "" });
+      setCustomerSearch("");
+    },
+    onError: (error) => {
+      toast({
+        title: "No se pudo enviar el correo de prueba",
+        description: error.message ?? "Intenta nuevamente.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleUseTemplate = (template: CampaignTemplate) => {
     form.setValue("subject", template.subject, { shouldDirty: true, shouldValidate: true });
     createCampaignForm.setValue("subject", template.subject, { shouldDirty: true, shouldValidate: true });
@@ -522,12 +581,7 @@ export default function AiCampaignGenerator() {
 
   return (
     <div className="animate-fade-in space-y-4">
-      <button
-        onClick={() => navigate("/crm")}
-        className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-      >
-        <ArrowLeft className="h-3.5 w-3.5" /> Volver a CRM
-      </button>
+      {/* Sin botón "Volver a CRM" */}
       <div>
         <h2 className="text-lg font-bold flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-primary" />
@@ -685,24 +739,35 @@ export default function AiCampaignGenerator() {
               <div className="text-sm whitespace-pre-wrap leading-relaxed text-foreground/90">
                 {generatedText}
               </div>
-              <Button
-                type="button"
-                className="mt-4 w-full"
-                onClick={() => setConfirmSendOpen(true)}
-                disabled={!canSendCampaign || sendCampaignMutation.isPending}
-              >
-                {sendCampaignMutation.isPending ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Enviando...
-                  </>
-                ) : (
-                  <>
-                    <Send className="w-4 h-4 mr-2" />
-                    Enviar a Clientes
-                  </>
-                )}
-              </Button>
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setTestSendOpen(true)}
+                  disabled={!canSendCampaign}
+                >
+                  Enviar prueba
+                </Button>
+                <Button
+                  type="button"
+                  className="w-full"
+                  onClick={() => setConfirmSendOpen(true)}
+                  disabled={!canSendCampaign || sendCampaignMutation.isPending}
+                >
+                  {sendCampaignMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Enviando...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4 mr-2" />
+                      Enviar a Clientes
+                    </>
+                  )}
+                </Button>
+              </div>
             </>
           )}
           {!mutation.isPending && !generatedText && (
@@ -1046,6 +1111,110 @@ export default function AiCampaignGenerator() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={testSendOpen} onOpenChange={setTestSendOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Enviar correo de prueba</DialogTitle>
+            <DialogDescription>
+              Envía el mensaje actual a un email manual o a un cliente específico. El placeholder{" "}
+              <span className="font-mono">[Nombre]</span> se mantiene.
+            </DialogDescription>
+          </DialogHeader>
+
+          <Form {...sendTestForm}>
+            <form
+              onSubmit={sendTestForm.handleSubmit((values) => sendTestMutation.mutate(values))}
+              className="space-y-4"
+            >
+              <FormField
+                control={sendTestForm.control}
+                name="mode"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Destino</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="email">Email manual</SelectItem>
+                        <SelectItem value="customer">Cliente</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {sendTestForm.watch("mode") === "email" ? (
+                <FormField
+                  control={sendTestForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input placeholder="correo@ejemplo.com" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <FormLabel>Buscar cliente</FormLabel>
+                    <Input
+                      value={customerSearch}
+                      onChange={(e) => setCustomerSearch(e.target.value)}
+                      placeholder="Nombre, NIT o email…"
+                    />
+                  </div>
+
+                  <FormField
+                    control={sendTestForm.control}
+                    name="customer_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Cliente</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue
+                                placeholder={customersQuery.isLoading ? "Cargando..." : "Seleccionar"}
+                              />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {(customersQuery.data?.items ?? []).map((c) => (
+                              <SelectItem key={c.id} value={c.id}>
+                                {c.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </>
+              )}
+
+              <DialogFooter>
+                <Button type="button" variant="ghost" onClick={() => setTestSendOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={sendTestMutation.isPending}>
+                  {sendTestMutation.isPending ? "Enviando..." : "Enviar prueba"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={saveTemplateOpen} onOpenChange={setSaveTemplateOpen}>
         <DialogContent>

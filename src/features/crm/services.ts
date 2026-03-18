@@ -411,7 +411,28 @@ export async function sendCampaign(body: SendCampaignRequest): Promise<{ status:
   const payload = sendCampaignSchema.parse(body);
   try {
     const { data } = await apiClient.post<{ status: string }>(`${CRM_BASE}/campaigns/send`, payload);
-    return z.object({ status: z.string() }).parse(data);
+    return z.object({ status: z.string() }).parse(data) as { status: string };
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}
+
+export async function sendCampaignTest(body: {
+  subject: string;
+  body: string;
+  customer_id?: string;
+  email?: string;
+}): Promise<{ status: string }> {
+  const payload = z.object({
+    subject: z.string().min(1),
+    body: z.string().min(1),
+    customer_id: z.string().optional(),
+    email: z.string().email().optional(),
+  }).parse(body);
+
+  try {
+    const { data } = await apiClient.post<{ status: string }>(`${CRM_BASE}/campaigns/send-test`, payload);
+    return z.object({ status: z.string() }).parse(data) as { status: string };
   } catch (error) {
     return throwOnApiError(error);
   }
@@ -424,11 +445,13 @@ export async function getCampaignTemplates(): Promise<CampaignTemplate[]> {
     });
 
     if (Array.isArray(data)) {
-      return z.array(CampaignTemplateSchema).parse(data);
+      return z.array(CampaignTemplateSchema).parse(data) as CampaignTemplate[];
     }
 
     if (data && Array.isArray((data as { items?: unknown[] }).items)) {
-      return z.array(CampaignTemplateSchema).parse((data as { items: unknown[] }).items);
+      return z
+        .array(CampaignTemplateSchema)
+        .parse((data as { items: unknown[] }).items) as CampaignTemplate[];
     }
 
     return [];
@@ -450,7 +473,7 @@ export async function createCampaignTemplate(body: {
 
   try {
     const { data } = await apiClient.post(`${CRM_BASE}/campaign-templates`, payload);
-    return CampaignTemplateSchema.parse(data);
+    return CampaignTemplateSchema.parse(data) as CampaignTemplate;
   } catch (error) {
     return throwOnApiError(error);
   }
