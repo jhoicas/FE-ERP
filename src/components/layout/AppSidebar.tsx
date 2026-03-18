@@ -17,50 +17,67 @@ import { AUTH_TOKEN_COOKIE_KEY } from "@/config/auth";
 import { useMemo, useState, type ComponentType } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthUser } from "@/features/auth/useAuthUser";
-import {
-  getMenuItemLabel,
-  getVisibleRbacModules,
-} from "@/features/auth/permissions";
 import { Badge } from "@/components/ui/badge";
 import { useDianEnvironment } from "@/hooks/use-dian-environment";
-import { useRbacMenu } from "@/features/auth/useRbacMenu";
 import { useCompanyModules } from "@/features/auth/useCompanyModules";
 
+// --- 1. DICCIONARIO DE ÍCONOS ---
 const moduleIconByKey: Record<string, ComponentType<{ className?: string }>> = {
-  dashboard: LayoutDashboard,
-  inventario: Package,
+  analytics: LayoutDashboard,
   inventory: Package,
-  facturacion: FileText,
   billing: FileText,
   crm: Users,
-  usuarios: Users,
-  users: Users,
-  ajustes: Settings,
+  purchasing: Package,
   settings: Settings,
-  inicio: LayoutDashboard,
 };
 
-function getModuleIcon(label: string, icon?: string) {
-  const normalizedIcon = icon?.trim().toLowerCase();
-  if (normalizedIcon && moduleIconByKey[normalizedIcon]) {
-    return moduleIconByKey[normalizedIcon];
-  }
-
-  const normalizedLabel = label.trim().toLowerCase();
-  if (normalizedLabel.includes("invent")) return Package;
-  if (normalizedLabel.includes("fact")) return FileText;
-  if (normalizedLabel.includes("crm") || normalizedLabel.includes("cliente") || normalizedLabel.includes("usuario")) {
-    return Users;
-  }
-  if (normalizedLabel.includes("ajust") || normalizedLabel.includes("config")) return Settings;
-  if (normalizedLabel.includes("dash") || normalizedLabel.includes("inicio")) return LayoutDashboard;
-
-  return LayoutDashboard;
+function getModuleIcon(key: string) {
+  return moduleIconByKey[key.toLowerCase()] || LayoutDashboard;
 }
 
-function getScreenIcon() {
-  return Circle;
-}
+// --- 2. CONFIGURACIÓN MAESTRA DEL MENÚ FRONTEND ---
+// Aquí defines todas las rutas y subrutas de tu aplicación. 
+// El "module_key" debe coincidir EXACTAMENTE con el "module_name" que devuelve tu API.
+const APP_MENU_CONFIG = [
+  {
+    module_key: "analytics",
+    label: "Dashboard",
+    frontend_route: "/dashboard",
+    screens: []
+  },
+  {
+    module_key: "crm",
+    label: "CRM",
+    frontend_route: "/crm",
+    screens: [
+      { id: "crm-cliente", label: "Cliente CRM", frontend_route: "/crm/customers" },
+      { id: "crm-categorias", label: "Categorías", frontend_route: "/crm/categories" },
+      { id: "crm-campanas", label: "Campañas", frontend_route: "/crm/campaigns" },
+      { id: "crm-tareas", label: "Tareas", frontend_route: "/crm/tasks" },
+      { id: "crm-tickets", label: "Tickets", frontend_route: "/crm/tickets" },
+      { id: "crm-fidelizacion", label: "Fidelización", frontend_route: "/crm/loyalty" }
+    ]
+  },
+  {
+    module_key: "billing",
+    label: "Facturación",
+    frontend_route: "/facturacion",
+    screens: []
+  },
+  {
+    module_key: "inventory",
+    label: "Inventario",
+    frontend_route: "/inventario",
+    screens: []
+  },
+  {
+    module_key: "purchasing",
+    label: "Compras",
+    frontend_route: "/compras",
+    screens: []
+  }
+];
+
 
 export default function AppSidebar() {
   const [collapsed, setCollapsed] = useState(false);
@@ -70,58 +87,35 @@ export default function AppSidebar() {
   const user = useAuthUser();
   const { environment } = useDianEnvironment();
   const queryClient = useQueryClient();
-  const { data: menu, isLoading } = useRbacMenu();
+  
+  // Obtenemos los módulos de la API
   const companyId = typeof user?.company_id === "string" ? user.company_id : undefined;
-  const { data: companyModules } = useCompanyModules(companyId);
+  const { data: companyModules, isLoading } = useCompanyModules(companyId);
 
-  const activeCompanyModules = useMemo(() => {
-    const set = new Set<string>();
-    for (const m of companyModules?.modules ?? []) {
-      if (m.is_active) {
-        set.add(m.module_name.toLowerCase());
-      }
-    }
-    return set;
+  // --- 3. LÓGICA DE FILTRADO ESTRICTO ---
+  const visibleModules = useMemo(() => {
+    // Si la API no ha respondido, no mostramos nada
+    if (!companyModules?.modules) return [];
+
+    // Creamos un diccionario rápido de la respuesta para saber qué está activo
+    // Ejemplo: { analytics: true, billing: false, crm: true, ... }
+    const activeModulesMap = companyModules.modules.reduce((acc: any, curr: any) => {
+      acc[curr.module_name.toLowerCase()] = curr.is_active;
+      return acc;
+    }, {});
+
+    // Filtramos la configuración maestra. 
+    // Si el map dice que está activo (true), pasa. Si dice false, se oculta.
+    return APP_MENU_CONFIG.filter(mod => activeModulesMap[mod.module_key] === true);
+    
   }, [companyModules]);
 
-  const visibleModules = useMemo(() => {
-    const raw = getVisibleRbacModules(menu);
-    if (activeCompanyModules.size === 0) return raw;
-
-    const isModuleEnabledForCompany = (module: any) => {
-      const explicitModuleName = typeof module.module_name === "string" ? module.module_name.toLowerCase() : null;
-      if (explicitModuleName && activeCompanyModules.has(explicitModuleName)) {
-        return true;
-      }
-
-      const route = (module.frontend_route ?? "").toLowerCase();
-      if (route.startsWith("/crm")) return activeCompanyModules.has("crm");
-      if (route.startsWith("/inventario") || route.startsWith("/inventory"))
-        return activeCompanyModules.has("inventory");
-      if (route.startsWith("/facturacion") || route.startsWith("/billing"))
-        return activeCompanyModules.has("billing");
-      if (route.startsWith("/dashboard") || route.startsWith("/analytics"))
-        return activeCompanyModules.has("analytics");
-
-      return true;
-    };
-
-    return raw.filter(isModuleEnabledForCompany);
-  }, [menu, activeCompanyModules]);
   const hasDashboardShortcut = useMemo(
     () =>
       visibleModules.some((module) => {
-        const moduleRoute = module.frontend_route?.trim();
-        if (moduleRoute === "/" || moduleRoute === "/dashboard") {
-          return true;
-        }
-
-        return (module.screens ?? []).some((screen) => {
-          const screenRoute = screen.frontend_route?.trim();
-          return screenRoute === "/" || screenRoute === "/dashboard";
-        });
+        return module.frontend_route === "/" || module.frontend_route === "/dashboard";
       }),
-    [visibleModules],
+    [visibleModules]
   );
 
   const handleLogout = () => {
@@ -130,8 +124,6 @@ export default function AppSidebar() {
     queryClient.clear();
     navigate("/login", { replace: true });
   };
-
-  const moduleCount = visibleModules.length;
 
   const toggleSubmenu = (moduleKey: string) => {
     setClosedSubmenus((prev) => ({
@@ -186,15 +178,15 @@ export default function AppSidebar() {
       </div>
 
       <nav className="flex-1 py-3 px-2 space-y-1">
-        {isLoading && !menu && (
+        {isLoading && (
           <p className="px-3 py-2 text-xs text-sidebar-fg">Cargando menú...</p>
         )}
 
-        {!isLoading && moduleCount === 0 && (
+        {!isLoading && visibleModules.length === 0 && (
           <p className="px-3 py-2 text-xs text-sidebar-fg">Sin opciones disponibles.</p>
         )}
 
-        {!hasDashboardShortcut && (
+        {!hasDashboardShortcut && !isLoading && visibleModules.length > 0 && (
           <NavLink
             to="/dashboard"
             end
@@ -213,16 +205,13 @@ export default function AppSidebar() {
         )}
 
         {visibleModules.map((module) => {
-          const moduleLabel = getMenuItemLabel(module);
-          const moduleRoute = module.frontend_route?.trim();
-          const ModuleIcon = getModuleIcon(moduleLabel, module.icon);
-          const screens = (module.screens ?? []).filter((screen) => Boolean(screen.frontend_route));
-          const hasModuleLink = Boolean(moduleRoute);
-          const moduleKey = String(module.id ?? moduleRoute ?? moduleLabel);
-          const hasScreens = screens.length > 0;
+          const moduleKey = module.module_key;
+          const moduleRoute = module.frontend_route;
+          const ModuleIcon = getModuleIcon(moduleKey);
+          const hasScreens = module.screens.length > 0;
+          
           const moduleIsActive = Boolean(
-            moduleRoute &&
-              (location.pathname === moduleRoute || location.pathname.startsWith(`${moduleRoute}/`)),
+            location.pathname === moduleRoute || location.pathname.startsWith(`${moduleRoute}/`)
           );
           const isSubmenuOpen = !closedSubmenus[moduleKey];
 
@@ -233,9 +222,6 @@ export default function AppSidebar() {
                   type="button"
                   onClick={() => {
                     toggleSubmenu(moduleKey);
-                    if (hasModuleLink) {
-                      navigate(moduleRoute!);
-                    }
                   }}
                   className={cn(
                     "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
@@ -245,7 +231,7 @@ export default function AppSidebar() {
                   )}
                 >
                   <ModuleIcon className="h-4 w-4 shrink-0" />
-                  <span className="flex-1 text-left">{moduleLabel}</span>
+                  <span className="flex-1 text-left">{module.label}</span>
                   <ChevronDown
                     className={cn(
                       "h-4 w-4 transition-transform",
@@ -253,9 +239,9 @@ export default function AppSidebar() {
                     )}
                   />
                 </button>
-              ) : hasModuleLink ? (
+              ) : (
                 <NavLink
-                  to={moduleRoute!}
+                  to={moduleRoute}
                   end={moduleRoute === "/"}
                   className={({ isActive }) =>
                     cn(
@@ -267,25 +253,18 @@ export default function AppSidebar() {
                   }
                 >
                   <ModuleIcon className="h-4 w-4 shrink-0" />
-                  {!collapsed && <span>{moduleLabel}</span>}
+                  {!collapsed && <span>{module.label}</span>}
                 </NavLink>
-              ) : (
-                <div className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-sidebar-fg">
-                  <ModuleIcon className="h-4 w-4 shrink-0" />
-                  {!collapsed && <span>{moduleLabel}</span>}
-                </div>
               )}
 
+              {/* RENDERIZADO DE SUBMENÚS */}
               {!collapsed && hasScreens && isSubmenuOpen && (
                 <div className="ml-9 mt-1 mb-1 space-y-1">
-                  {screens.map((screen) => {
-                    const screenRoute = screen.frontend_route.trim();
-                    const ScreenIcon = getScreenIcon();
-
+                  {module.screens.map((screen) => {
                     return (
                       <NavLink
-                        key={screen.id ?? screenRoute}
-                        to={screenRoute}
+                        key={screen.id}
+                        to={screen.frontend_route}
                         className={({ isActive }) =>
                           cn(
                             "flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors",
@@ -295,8 +274,8 @@ export default function AppSidebar() {
                           )
                         }
                       >
-                        <ScreenIcon className="h-3.5 w-3.5 shrink-0" />
-                        <span>{getMenuItemLabel(screen)}</span>
+                        <Circle className="h-3.5 w-3.5 shrink-0" />
+                        <span>{screen.label}</span>
                       </NavLink>
                     );
                   })}

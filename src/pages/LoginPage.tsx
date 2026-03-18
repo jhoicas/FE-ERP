@@ -40,6 +40,19 @@ export default function LoginPage() {
         sameSite: "lax",
       });
 
+      let tokenCompanyId: string | undefined;
+      try {
+        const [, payload] = result.token.split(".");
+        if (payload) {
+          const decoded = JSON.parse(atob(payload)) as { company_id?: unknown };
+          if (typeof decoded.company_id === "string") {
+            tokenCompanyId = decoded.company_id;
+          }
+        }
+      } catch {
+        tokenCompanyId = undefined;
+      }
+
       if (result.user) {
         const sessionRoleIdCandidate = result.role_id ?? (result.user as Record<string, unknown>).role_id;
         const sessionRoleKeyCandidate =
@@ -58,7 +71,9 @@ export default function LoginPage() {
           role: sessionRoleKey,
           role_key: sessionRoleKey,
           roles: sessionRoleKey ? [sessionRoleKey] : [],
-          company_id: (result.user as Record<string, unknown>).company_id as string | undefined,
+          company_id:
+            (result.user as Record<string, unknown>).company_id as string | undefined
+            ?? tokenCompanyId,
         };
 
         localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(sessionUser));
@@ -72,11 +87,8 @@ export default function LoginPage() {
         }
 
         const cachedMenu = queryClient.getQueryData<RbacMenuDTO>(RBAC_MENU_QUERY_KEY);
-        const nextRoles = getUserRoles(sessionUser);
-        navigate(
-          cachedMenu ? getDefaultRouteFromMenu(cachedMenu) : getDefaultRouteForRoles(nextRoles),
-          { replace: true },
-        );
+        void cachedMenu;
+        navigate("/dashboard", { replace: true });
         return;
       }
 

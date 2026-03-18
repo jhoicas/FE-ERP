@@ -279,12 +279,6 @@ export default function TicketsPage() {
 
   return (
     <div className="animate-fade-in space-y-4">
-      <Link
-        to="/crm"
-        className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4"
-      >
-        ← Volver al <ExplainableAcronym sigla="CRM" />
-      </Link>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <MessageCircle className="h-4 w-4 text-primary" />

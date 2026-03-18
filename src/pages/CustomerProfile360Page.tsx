@@ -808,12 +808,6 @@ export default function CustomerProfile360Page() {
   if (!customerId) {
     return (
       <div className="animate-fade-in space-y-6 max-w-4xl">
-        <button
-          onClick={() => navigate("/crm")}
-          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" /> Volver al CRM
-        </button>
         <p className="text-sm text-destructive">ID de cliente no válido.</p>
       </div>
     );
@@ -822,12 +816,6 @@ export default function CustomerProfile360Page() {
   if (profileQuery.isLoading) {
     return (
       <div className="animate-fade-in space-y-6 max-w-4xl">
-        <button
-          onClick={() => navigate("/crm")}
-          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" /> Volver al CRM
-        </button>
         <Skeleton className="h-32 w-full" />
         <Skeleton className="h-24 w-full" />
       </div>
@@ -838,12 +826,6 @@ export default function CustomerProfile360Page() {
     const err = profileQuery.error as Error & { code?: string };
     return (
       <div className="animate-fade-in space-y-6 max-w-4xl">
-        <button
-          onClick={() => navigate("/crm")}
-          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" /> Volver al CRM
-        </button>
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
           <p className="text-sm font-medium text-destructive">
             {err.code ? `[${err.code}] ` : ""}
@@ -874,12 +856,6 @@ export default function CustomerProfile360Page() {
   return (
     <div className="animate-fade-in space-y-4 max-w-6xl">
       <div className="flex items-center justify-between gap-2">
-        <button
-          onClick={() => navigate("/crm")}
-          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" /> Volver al CRM
-        </button>
         <div className="flex gap-2">
           {canEditCustomer && (
             <Button

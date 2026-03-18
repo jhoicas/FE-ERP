@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
-import { CalendarClock, CheckCircle2, CircleDashed, Plus, XCircle } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { CalendarClock, CheckCircle2, CircleDashed, Plus, XCircle, LayoutList, Columns3 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
@@ -50,6 +50,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 type TaskStatus = "pending" | "done" | "cancelled";
 
@@ -371,6 +372,8 @@ function TaskDetailDialog({
 
 export default function TasksKanbanPage() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -462,13 +465,6 @@ export default function TasksKanbanPage() {
 
   return (
     <div className="animate-fade-in space-y-4">
-      <Link
-        to="/crm"
-        className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-      >
-        ← Volver al CRM
-      </Link>
-
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <CalendarClock className="h-4 w-4 text-primary" />
@@ -479,10 +475,36 @@ export default function TasksKanbanPage() {
             </p>
           </div>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nueva tarea
-        </Button>
+        <div className="flex items-center gap-2">
+          <ToggleGroup
+            type="single"
+            value={location.pathname.includes("/crm/tasks/kanban") ? "kanban" : "list"}
+            onValueChange={(value) => {
+              if (value === "kanban") {
+                navigate("/crm/tasks/kanban");
+              }
+              if (value === "list") {
+                navigate("/crm/tasks");
+              }
+            }}
+            variant="outline"
+            size="sm"
+            aria-label="Cambiar visualización"
+          >
+            <ToggleGroupItem value="list" aria-label="Listado">
+              <LayoutList className="h-4 w-4" />
+              <span className="ml-2 hidden sm:inline">Listado</span>
+            </ToggleGroupItem>
+            <ToggleGroupItem value="kanban" aria-label="Kanban">
+              <Columns3 className="h-4 w-4" />
+              <span className="ml-2 hidden sm:inline">Kanban</span>
+            </ToggleGroupItem>
+          </ToggleGroup>
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4 mr-2" />
+            Nueva tarea
+          </Button>
+        </div>
       </div>
 
       {(pendingQuery.isError || doneQuery.isError || cancelledQuery.isError) && (

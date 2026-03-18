@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { UserCircle, Pencil } from "lucide-react";
+import { UserCircle, Pencil, Plus, Trash2 } from "lucide-react";
 
-import { listCustomers } from "@/features/crm/services";
+import { deactivateCustomer, listCustomers } from "@/features/crm/services";
 import { useAuthUser } from "@/features/auth/useAuthUser";
 import { isAdmin } from "@/features/auth/permissions";
+import CreateCustomerDialog from "@/features/crm/components/CreateCustomerDialog";
 import EditCustomerDialog from "@/features/crm/components/EditCustomerDialog";
 import type { CustomerDTO } from "@/features/crm/schemas";
 import { getApiErrorMessage } from "@/lib/api/errors";
@@ -35,22 +36,39 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
+type CustomerFilter = "_all" | "with_tax_id" | "with_email" | "with_phone";
 
 export default function CustomersTable() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const user = useAuthUser();
   const initialPageSize = Number(searchParams.get("pageSize")) || 5;
   const initialOffset = Number(searchParams.get("offset")) || 0;
   const initialSearch = searchParams.get("search") ?? "";
+  const initialFilter = (searchParams.get("filter") as CustomerFilter) ?? "_all";
   const [pageSize, setPageSize] = useState(initialPageSize);
   const [offset, setOffset] = useState(initialOffset);
+  const [createOpen, setCreateOpen] = useState(false);
   const [editCustomer, setEditCustomer] = useState<CustomerDTO | null>(null);
+  const [deactivatingCustomer, setDeactivatingCustomer] = useState<CustomerDTO | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const canEditCustomers = isAdmin(user);
    const [search, setSearch] = useState(initialSearch);
   const [debouncedSearch, setDebouncedSearch] = useState(initialSearch.trim());
+  const [filter, setFilter] = useState<CustomerFilter>(initialFilter);
 
   useEffect(() => {
     const handle = setTimeout(() => {
@@ -67,6 +85,10 @@ export default function CustomersTable() {
       nextParams.set("search", search.trim());
     }
 
+    if (filter !== "_all") {
+      nextParams.set("filter", filter);
+    }
+
     if (offset > 0) {
       nextParams.set("offset", String(offset));
     }
@@ -76,7 +98,7 @@ export default function CustomersTable() {
     }
 
     setSearchParams(nextParams, { replace: true });
-  }, [search, offset, pageSize, setSearchParams]);
+  }, [search, filter, offset, pageSize, setSearchParams]);
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["customers", pageSize, offset, debouncedSearch],
@@ -89,9 +111,31 @@ export default function CustomersTable() {
   });
 
   const items = data?.items ?? [];
+  const filteredItems = items.filter((c) => {
+    if (filter === "_all") return true;
+    if (filter === "with_tax_id") return Boolean(c.tax_id);
+    if (filter === "with_email") return Boolean(c.email);
+    if (filter === "with_phone") return Boolean(c.phone);
+    return true;
+  });
   const total = data?.total ?? items.length;
   const hasMore = offset + items.length < total || items.length === pageSize;
   const hasPrev = offset > 0;
+
+  const deactivateMutation = useMutation({
+    mutationFn: (customerId: string) => deactivateCustomer(customerId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: ["customers-list"] });
+      setConfirmOpen(false);
+      setDeactivatingCustomer(null);
+    },
+  });
+
+  const openDeactivate = (customer: CustomerDTO) => {
+    setDeactivatingCustomer(customer);
+    setConfirmOpen(true);
+  };
 
   return (
     <div className="space-y-4">
@@ -105,14 +149,44 @@ export default function CustomersTable() {
             , contacto y acceso al Perfil 360.
           </p>
         </div>
-        </div>
-        <div className="ml-auto w-full sm:w-64">
+      </div>
+
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="w-full sm:w-64">
           <Input
             placeholder="Buscar por nombre, NIT o email…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="h-8 text-xs"
           />
+        </div>
+        <div className="w-full sm:w-56">
+          <Select
+            value={filter}
+            onValueChange={(value) => {
+              setOffset(0);
+              setFilter(value as CustomerFilter);
+            }}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="Filtrar" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="_all">Todos</SelectItem>
+              <SelectItem value="with_tax_id">Con NIT</SelectItem>
+              <SelectItem value="with_email">Con email</SelectItem>
+              <SelectItem value="with_phone">Con teléfono</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {canEditCustomers && (
+          <div className="w-full sm:w-auto sm:ml-auto">
+            <Button size="sm" className="w-full sm:w-auto" onClick={() => setCreateOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Nuevo cliente
+            </Button>
+          </div>
+        )}
       </div>
 
       {isLoading && (
@@ -144,14 +218,14 @@ export default function CustomersTable() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {items.length === 0 ? (
+              {filteredItems.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
-                    No hay clientes registrados.
+                    No hay clientes que coincidan con los filtros.
                   </TableCell>
                 </TableRow>
               ) : (
-                items.map((c) => (
+                filteredItems.map((c) => (
                   <TableRow key={c.id} className="hover:bg-muted/40">
                     <TableCell className="font-medium">{c.name}</TableCell>
                     <TableCell className="font-mono text-xs text-muted-foreground">
@@ -174,6 +248,18 @@ export default function CustomersTable() {
                           >
                             <Pencil className="h-3 w-3 mr-1" />
                             Editar Cliente
+                          </Button>
+                        )}
+                        {canEditCustomers && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-xs text-destructive hover:text-destructive"
+                            onClick={() => openDeactivate(c)}
+                            disabled={deactivateMutation.isPending}
+                          >
+                            <Trash2 className="h-3 w-3 mr-1" />
+                            Desactivar
                           </Button>
                         )}
                         <Button
@@ -256,6 +342,40 @@ export default function CustomersTable() {
         onOpenChange={(o) => !o && setEditCustomer(null)}
         customer={editCustomer}
       />
+
+      <CreateCustomerDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onCreated={(customerId) => {
+          // ir directo al perfil 360, y el dialog ya invalida queries de clientes
+          navigate(`/crm/customers/${customerId}`);
+        }}
+      />
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Desactivar cliente</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Seguro que deseas desactivar este cliente? Esta acción lo ocultará pero no lo elimina.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deactivatingCustomer) {
+                  deactivateMutation.mutate(deactivatingCustomer.id);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deactivateMutation.isPending}
+            >
+              {deactivateMutation.isPending ? "Desactivando..." : "Desactivar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -1,9 +1,10 @@
 import { TrendingUp, TrendingDown, DollarSign, Percent, Ticket, ListTodo } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, BarChart, Bar } from "recharts";
 
 import { getMarginsReport } from "@/features/analytics/services";
 import TopProductsTable from "@/features/analytics/components/TopProductsTable";
+import { listTickets } from "@/features/crm/services";
 
 const kpiIcons = [DollarSign, Percent, Ticket, ListTodo];
 
@@ -12,6 +13,25 @@ export default function DashboardPage() {
     queryKey: ["analytics", "margins"],
     queryFn: getMarginsReport,
   });
+
+  const ticketsQuery = useQuery({
+    queryKey: ["crm", "tickets", "summary"],
+    queryFn: () => listTickets({ limit: 100, offset: 0 }),
+  });
+
+  const tickets = ticketsQuery.data?.items ?? [];
+  const ticketsByStatus = Object.entries(
+    tickets.reduce<Record<string, number>>((acc, t) => {
+      const key = (t.status ?? "unknown").toString();
+      acc[key] = (acc[key] ?? 0) + 1;
+      return acc;
+    }, {}),
+  )
+    .map(([status, count]) => ({ status, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 8);
+
+  const totalTickets = tickets.length;
 
   const totalGrossRevenue =
     data?.channel_profitability.reduce((acc, ch) => acc + Number(ch.gross_revenue), 0) ?? 0;
@@ -151,6 +171,70 @@ export default function DashboardPage() {
           )}
           {!isLoading && !isError && data && !hasTopProducts && (
             <p className="text-sm text-muted-foreground">No hay información disponible en este momento.</p>
+          )}
+        </div>
+      </div>
+
+      {/* Casos (Tickets) */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+        <div className="lg:col-span-3 erp-card">
+          <h2 className="text-sm font-semibold mb-4">Casos por estado</h2>
+          {ticketsQuery.isLoading && (
+            <p className="text-sm text-muted-foreground">Cargando casos...</p>
+          )}
+          {ticketsQuery.isError && !ticketsQuery.isLoading && (
+            <p className="text-sm text-destructive">No se pudieron cargar los casos.</p>
+          )}
+          {!ticketsQuery.isLoading && !ticketsQuery.isError && (
+            <div className="h-64">
+              {ticketsByStatus.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={ticketsByStatus}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(150, 10%, 90%)" />
+                    <XAxis dataKey="status" tick={{ fontSize: 12 }} />
+                    <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
+                    <Tooltip />
+                    <Bar dataKey="count" name="Casos" fill="hsl(217, 91%, 60%)" radius={[6, 6, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+                  No hay casos disponibles.
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="lg:col-span-2 erp-card">
+          <h2 className="text-sm font-semibold mb-4">Resumen de casos</h2>
+          {ticketsQuery.isLoading && (
+            <p className="text-sm text-muted-foreground">Cargando resumen...</p>
+          )}
+          {!ticketsQuery.isLoading && !ticketsQuery.isError && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">Total</p>
+                <p className="text-sm font-semibold">{totalTickets}</p>
+              </div>
+              <div className="border-t pt-3 space-y-2">
+                {tickets.slice(0, 5).map((t) => (
+                  <div key={t.id} className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{t.subject}</p>
+                      <p className="text-xs text-muted-foreground truncate">{t.description}</p>
+                    </div>
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">{t.status}</span>
+                  </div>
+                ))}
+                {tickets.length === 0 && (
+                  <p className="text-sm text-muted-foreground">No hay casos para mostrar.</p>
+                )}
+              </div>
+            </div>
+          )}
+          {ticketsQuery.isError && !ticketsQuery.isLoading && (
+            <p className="text-sm text-destructive">No se pudo cargar el resumen de casos.</p>
           )}
         </div>
       </div>

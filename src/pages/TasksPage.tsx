@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Link } from "react-router-dom";
-import { CalendarClock, Plus } from "lucide-react";
+import { CalendarClock, LayoutList, Plus, Columns3 } from "lucide-react";
 
 import {
   listTasks,
@@ -54,6 +54,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   Pagination,
   PaginationContent,
@@ -121,6 +122,7 @@ function formatDateTime(iso: string): string {
 
 export default function TasksPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const [pageSize, setPageSize] = useState(5);
   const [offset, setOffset] = useState(0);
@@ -196,13 +198,7 @@ export default function TasksPage() {
 
   return (
     <div className="animate-fade-in space-y-4">
-      <Link
-        to="/crm"
-        className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4"
-      >
-        ← Volver al CRM
-      </Link>
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <CalendarClock className="h-4 w-4 text-primary" />
           <div>
@@ -212,10 +208,36 @@ export default function TasksPage() {
             </p>
           </div>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nueva tarea
-        </Button>
+        <div className="flex items-center gap-2">
+          <ToggleGroup
+            type="single"
+            value={location.pathname.includes("/crm/tasks/kanban") ? "kanban" : "list"}
+            onValueChange={(value) => {
+              if (value === "kanban") {
+                navigate("/crm/tasks/kanban");
+              }
+              if (value === "list") {
+                navigate("/crm/tasks");
+              }
+            }}
+            variant="outline"
+            size="sm"
+            aria-label="Cambiar visualización"
+          >
+            <ToggleGroupItem value="list" aria-label="Listado">
+              <LayoutList className="h-4 w-4" />
+              <span className="ml-2 hidden sm:inline">Listado</span>
+            </ToggleGroupItem>
+            <ToggleGroupItem value="kanban" aria-label="Kanban">
+              <Columns3 className="h-4 w-4" />
+              <span className="ml-2 hidden sm:inline">Kanban</span>
+            </ToggleGroupItem>
+          </ToggleGroup>
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4 mr-2" />
+            Nueva tarea
+          </Button>
+        </div>
       </div>
 
       <Tabs

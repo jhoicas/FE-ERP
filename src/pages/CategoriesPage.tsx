@@ -5,9 +5,9 @@ import { Gift, ChevronRight, Trash2, Plus, Pencil } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
-import { listCategories, deactivateCrmCategory, createCategory, updateCategory } from "@/features/crm/services";
+import { listBenefitsByCategory, listCategories, deactivateCrmCategory, createCategory, updateCategory } from "@/features/crm/services";
 import { getApiErrorMessage } from "@/lib/api/errors";
-import type { CategoryResponse } from "@/types/crm";
+import type { BenefitResponse, CategoryResponse } from "@/types/crm";
 import { useAuthUser } from "@/features/auth/useAuthUser";
 import { useToast } from "@/hooks/use-toast";
 import ExplainableAcronym from "@/components/shared/ExplainableAcronym";
@@ -100,6 +100,7 @@ export default function CategoriesPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<CategoryResponse | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<CategoryResponse | null>(null);
 
   const isAdmin = isAdminUser(user);
 
@@ -127,6 +128,12 @@ export default function CategoriesPage() {
               ? "active"
               : "inactive",
       }),
+  });
+
+  const benefitsQuery = useQuery({
+    queryKey: ["crm-category-benefits", selectedCategory?.id, 100, 0],
+    queryFn: () => listBenefitsByCategory(selectedCategory!.id, { limit: 100, offset: 0 }),
+    enabled: selectedCategory?.id != null,
   });
 
   const createCategoryMutation = useMutation({
@@ -219,12 +226,6 @@ export default function CategoriesPage() {
 
   return (
     <div className="animate-fade-in space-y-4">
-      <Link
-        to="/crm"
-        className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4"
-      >
-        ← Volver al CRM
-      </Link>
       <div className="flex items-center gap-2">
         <Gift className="h-4 w-4 text-primary" />
         <div>
@@ -345,9 +346,9 @@ export default function CategoriesPage() {
                         variant="outline"
                         size="sm"
                         className="text-xs"
-                        onClick={() =>
-                          navigate(`/crm/categories/${cat.id}/benefits`)
-                        }
+                        onClick={() => {
+                          setSelectedCategory(cat);
+                        }}
                       >
                         Ver beneficios
                         <ChevronRight className="h-4 w-4 ml-1" />
@@ -447,6 +448,75 @@ export default function CategoriesPage() {
                 </Pagination>
               </div>
             </div>
+          )}
+        </div>
+      )}
+
+      {selectedCategory && (
+        <div className="erp-card p-4">
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div>
+              <p className="text-sm font-semibold">
+                Beneficios · {selectedCategory.name}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Mostrando beneficios para esta categoría (limit 100).
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSelectedCategory(null)}
+            >
+              Cerrar
+            </Button>
+          </div>
+
+          {benefitsQuery.isLoading && (
+            <div className="space-y-2">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-10 w-full" />
+              ))}
+            </div>
+          )}
+
+          {benefitsQuery.isError && !benefitsQuery.isLoading && (
+            <p className="text-sm text-destructive">
+              {getApiErrorMessage(benefitsQuery.error, "Beneficios")}
+            </p>
+          )}
+
+          {!benefitsQuery.isLoading && !benefitsQuery.isError && (
+            <>
+              {(benefitsQuery.data ?? []).length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No hay beneficios definidos para esta categoría.
+                </p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50 hover:bg-muted/50">
+                      <TableHead className="text-xs text-muted-foreground">
+                        Nombre
+                      </TableHead>
+                      <TableHead className="text-xs text-muted-foreground">
+                        Descripción
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(benefitsQuery.data ?? []).map((b: BenefitResponse) => (
+                      <TableRow key={b.id} className="hover:bg-muted/40">
+                        <TableCell className="font-medium">{b.name}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {b.description || "—"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </>
           )}
         </div>
       )}

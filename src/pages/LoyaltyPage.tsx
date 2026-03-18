@@ -304,13 +304,6 @@ export default function LoyaltyPage() {
 
   return (
     <div className="animate-fade-in space-y-4 max-w-6xl">
-      <Link
-        to="/crm"
-        className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-      >
-        ← Volver al CRM
-      </Link>
-
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Star className="h-5 w-5 text-primary" />
@@ -323,11 +316,6 @@ export default function LoyaltyPage() {
             </p>
           </div>
         </div>
-        {canManageLoyalty && (
-          <Button variant="outline" size="sm" onClick={() => setCreateCategoryDialogOpen(true)}>
-            Crear categoría
-          </Button>
-        )}
       </div>
 
       {/* Grid de categorías */}
@@ -383,8 +371,10 @@ export default function LoyaltyPage() {
         <div className="flex items-center justify-between gap-2">
           <p className="text-sm font-semibold">Administrar categorías</p>
           {canManageLoyalty && (
-            <Button variant="outline" size="sm" onClick={() => setCreateCategoryDialogOpen(true)}>
-              Crear categoría
+            <Button asChild variant="outline" size="sm">
+              <Link to="/crm/categories" target="_blank" rel="noreferrer">
+                Crear categoría
+              </Link>
             </Button>
           )}
         </div>
