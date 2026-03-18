@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import axios from "axios";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -517,6 +517,13 @@ export default function AiCampaignGenerator() {
     resolver: zodResolver(sendTestSchema),
     defaultValues: { mode: "email", email: "" },
   });
+
+  useEffect(() => {
+    if (!testSendOpen) return;
+    // Evita estados “pegados” entre aperturas del modal.
+    sendTestForm.reset({ mode: "email", email: "" });
+    setCustomerSearch("");
+  }, [testSendOpen, sendTestForm]);
 
   const sendTestMutation = useMutation<{ status: string }, Error, z.infer<typeof sendTestSchema>>({
     mutationFn: async (values) => {
@@ -1150,7 +1157,19 @@ export default function AiCampaignGenerator() {
 
           <Form {...sendTestForm}>
             <form
-              onSubmit={sendTestForm.handleSubmit((values) => sendTestMutation.mutate(values))}
+              onSubmit={sendTestForm.handleSubmit(
+                (values) => sendTestMutation.mutate(values),
+                () => {
+                  toast({
+                    title: "Revisa el destino",
+                    description:
+                      sendTestForm.getValues("mode") === "customer"
+                        ? "Selecciona un cliente válido."
+                        : "Ingresa un email válido.",
+                    variant: "destructive",
+                  });
+                }
+              )}
               className="space-y-4"
             >
               <FormField
@@ -1206,7 +1225,10 @@ export default function AiCampaignGenerator() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Cliente</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
+                        <Select
+                          onValueChange={(value) => field.onChange(value)}
+                          value={field.value ?? undefined}
+                        >
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue
