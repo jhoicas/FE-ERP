@@ -36,6 +36,7 @@ export interface CategoryResponse {
   company_id: string;
   name: string;
   min_ltv: string;
+  is_active?: boolean;
   created_at: string;
   updated_at: string;
 }

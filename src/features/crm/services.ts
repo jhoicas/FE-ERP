@@ -171,6 +171,22 @@ export async function createCategory(
   }
 }
 
+export async function updateCategory(
+  categoryId: string,
+  body: CreateCategoryRequest,
+): Promise<CategoryResponse> {
+  const payload = createCategorySchema.parse(body);
+  try {
+    const { data } = await apiClient.put<CategoryResponse>(
+      `${CRM_BASE}/categories/${categoryId}`,
+      payload,
+    );
+    return data;
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}
+
 export async function updateBenefit(
   benefitId: string,
   body: UpdateBenefitRequest,
