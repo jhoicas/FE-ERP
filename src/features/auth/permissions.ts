@@ -73,31 +73,56 @@ function normalizeRoute(route: string): string {
   return trimmed.startsWith("/") ? trimmed.replace(/\/+$/, "") : `/${trimmed.replace(/\/+$/, "")}`;
 }
 
+function isHiddenMenuEntry(
+  item: { label?: string; name?: string; title?: string; frontend_route?: string | null | undefined },
+): boolean {
+  const haystack = `${item.label ?? ""} ${item.name ?? ""} ${item.title ?? ""} ${item.frontend_route ?? ""}`
+    .toLowerCase()
+    .trim();
+
+  return haystack.includes("plantill") || haystack.includes("template") || haystack.includes("campaign-templates");
+}
+
 export function getMenuItemLabel(
   item: Pick<RbacModuleDTO | RbacScreenDTO, "name" | "label" | "title"> & { frontend_route?: string },
 ): string {
-  return item.label ?? item.name ?? item.title ?? item.frontend_route ?? "Sin nombre";
+  const rawLabel = item.label ?? item.name ?? item.title ?? item.frontend_route ?? "Sin nombre";
+  if (rawLabel.toLowerCase().includes("lealtad")) {
+    return "Fidelización";
+  }
+  return rawLabel;
 }
 
 export function getVisibleRbacModules(menu: RbacMenuDTO | null | undefined): RbacModuleDTO[] {
   return (menu?.modules ?? [])
     .map((module) => ({
       ...module,
-      screens: (module.screens ?? []).filter((screen) => Boolean(screen.frontend_route?.trim())),
+      screens: (module.screens ?? []).filter(
+        (screen) => Boolean(screen.frontend_route?.trim()) && !isHiddenMenuEntry(screen),
+      ),
     }))
-    .filter((module) => module.screens.length > 0);
+    .filter((module) => {
+      if (isHiddenMenuEntry(module)) {
+        return false;
+      }
+      return Boolean(module.frontend_route?.trim()) || module.screens.length > 0;
+    });
 }
 
 export function getFlattenedRbacRoutes(menu: RbacMenuDTO | null | undefined): string[] {
   const routes = new Set<string>();
 
   for (const module of menu?.modules ?? []) {
+    if (isHiddenMenuEntry(module)) {
+      continue;
+    }
+
     if (module.frontend_route) {
       routes.add(normalizeRoute(module.frontend_route));
     }
 
     for (const screen of module.screens ?? []) {
-      if (screen.frontend_route?.trim()) {
+      if (screen.frontend_route?.trim() && !isHiddenMenuEntry(screen)) {
         routes.add(normalizeRoute(screen.frontend_route));
       }
     }

@@ -1,4 +1,4 @@
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Package,
@@ -8,6 +8,7 @@ import {
   User,
   Leaf,
   ChevronLeft,
+  ChevronDown,
   Circle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -62,12 +63,29 @@ function getScreenIcon() {
 
 export default function AppSidebar() {
   const [collapsed, setCollapsed] = useState(false);
+  const [closedSubmenus, setClosedSubmenus] = useState<Record<string, boolean>>({});
   const navigate = useNavigate();
+  const location = useLocation();
   const user = useAuthUser();
   const { environment } = useDianEnvironment();
   const queryClient = useQueryClient();
   const { data: menu, isLoading } = useRbacMenu();
   const visibleModules = useMemo(() => getVisibleRbacModules(menu), [menu]);
+  const hasDashboardShortcut = useMemo(
+    () =>
+      visibleModules.some((module) => {
+        const moduleRoute = module.frontend_route?.trim();
+        if (moduleRoute === "/" || moduleRoute === "/dashboard") {
+          return true;
+        }
+
+        return (module.screens ?? []).some((screen) => {
+          const screenRoute = screen.frontend_route?.trim();
+          return screenRoute === "/" || screenRoute === "/dashboard";
+        });
+      }),
+    [visibleModules],
+  );
 
   const handleLogout = () => {
     Cookies.remove(AUTH_TOKEN_COOKIE_KEY);
@@ -77,6 +95,13 @@ export default function AppSidebar() {
   };
 
   const moduleCount = visibleModules.length;
+
+  const toggleSubmenu = (moduleKey: string) => {
+    setClosedSubmenus((prev) => ({
+      ...prev,
+      [moduleKey]: !prev[moduleKey],
+    }));
+  };
 
   return (
     <aside
@@ -132,16 +157,66 @@ export default function AppSidebar() {
           <p className="px-3 py-2 text-xs text-sidebar-fg">Sin opciones disponibles.</p>
         )}
 
+        {!hasDashboardShortcut && (
+          <NavLink
+            to="/dashboard"
+            end
+            className={({ isActive }) =>
+              cn(
+                "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
+                isActive
+                  ? "bg-sidebar-accent text-sidebar-fg-active"
+                  : "text-sidebar-fg hover:text-sidebar-fg-active hover:bg-sidebar-border/50",
+              )
+            }
+          >
+            <LayoutDashboard className="h-4 w-4 shrink-0" />
+            {!collapsed && <span>Dashboard</span>}
+          </NavLink>
+        )}
+
         {visibleModules.map((module) => {
           const moduleLabel = getMenuItemLabel(module);
           const moduleRoute = module.frontend_route?.trim();
           const ModuleIcon = getModuleIcon(moduleLabel, module.icon);
           const screens = (module.screens ?? []).filter((screen) => Boolean(screen.frontend_route));
           const hasModuleLink = Boolean(moduleRoute);
+          const moduleKey = String(module.id ?? moduleRoute ?? moduleLabel);
+          const hasScreens = screens.length > 0;
+          const moduleIsActive = Boolean(
+            moduleRoute &&
+              (location.pathname === moduleRoute || location.pathname.startsWith(`${moduleRoute}/`)),
+          );
+          const isSubmenuOpen = !closedSubmenus[moduleKey];
 
           return (
-            <div key={module.id ?? moduleRoute ?? moduleLabel} className="space-y-1">
-              {hasModuleLink ? (
+            <div key={moduleKey} className="space-y-1">
+              {!collapsed && hasScreens ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    toggleSubmenu(moduleKey);
+                    if (hasModuleLink) {
+                      navigate(moduleRoute!);
+                    }
+                  }}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
+                    moduleIsActive
+                      ? "bg-sidebar-accent text-sidebar-fg-active"
+                      : "text-sidebar-fg hover:text-sidebar-fg-active hover:bg-sidebar-border/50",
+                  )}
+                >
+                  <ModuleIcon className="h-4 w-4 shrink-0" />
+                  <span className="flex-1 text-left">{moduleLabel}</span>
+                  <ChevronDown
+                    className={cn(
+                      "h-4 w-4 transition-transform",
+                      !isSubmenuOpen && "-rotate-90",
+                    )}
+                  />
+                </button>
+              ) : hasModuleLink ? (
                 <NavLink
                   to={moduleRoute!}
                   end={moduleRoute === "/"}
@@ -164,7 +239,7 @@ export default function AppSidebar() {
                 </div>
               )}
 
-              {!collapsed && screens.length > 0 && (
+              {!collapsed && hasScreens && isSubmenuOpen && (
                 <div className="ml-9 mt-1 mb-1 space-y-1">
                   {screens.map((screen) => {
                     const screenRoute = screen.frontend_route.trim();
