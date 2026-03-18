@@ -168,10 +168,12 @@ function TaskDetailDialog({
   open,
   onOpenChange,
   taskId,
+  customerMap,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   taskId: string | null;
+  customerMap: Map<string, string>;
 }) {
   const queryClient = useQueryClient();
 
@@ -241,7 +243,11 @@ function TaskDetailDialog({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
               <div>
                 <p className="text-xs text-muted-foreground">Cliente</p>
-                <p className="font-mono">{taskQuery.data.customer_id ?? "—"}</p>
+                <p>
+                  {taskQuery.data.customer_id
+                    ? customerMap.get(taskQuery.data.customer_id) ?? taskQuery.data.customer_id
+                    : "—"}
+                </p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Creada</p>
@@ -672,6 +678,7 @@ export default function TasksKanbanPage() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         taskId={selectedTaskId}
+        customerMap={customerMap}
       />
     </div>
   );

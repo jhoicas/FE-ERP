@@ -143,6 +143,14 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/crm/customers"
+              element={
+                <ProtectedRoute allowedRoles={["crm", "sales", "support", "marketing", "admin"]}>
+                  <CRMPage />
+                </ProtectedRoute>
+              }
+            />
             {/* Tickets: soporte y admin */}
             <Route
               path="/crm/tickets"

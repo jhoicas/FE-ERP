@@ -52,7 +52,7 @@ const CampaignTemplateSchema = z.object({
 }).passthrough();
 
 const CRM_BASE = "/api/crm";
-const CUSTOMERS_BASE = "/api/customers";
+const CUSTOMERS_BASE = "/api/crm/customers";
 
 function throwOnApiError(error: unknown): never {
   if (axios.isAxiosError(error) && error.response?.data && isApiError(error.response.data)) {
@@ -84,7 +84,11 @@ export async function listCustomers(params?: {
 
 export async function getCustomers(): Promise<CustomerDTO[]> {
   const response = await apiClient.get(CUSTOMERS_BASE);
-  return z.array(CustomerSchema).parse(response.data);
+  if (Array.isArray(response.data)) {
+    return z.array(CustomerSchema).parse(response.data);
+  }
+  const parsed = CustomerListResponseSchema.parse(response.data);
+  return parsed.items;
 }
 
 export async function createCustomer(body: CreateCustomerRequest): Promise<CustomerDTO> {
