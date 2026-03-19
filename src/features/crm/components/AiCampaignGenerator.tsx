@@ -17,6 +17,7 @@ import {
   generateCampaignCopy,
   getCampaignTemplates,
   listCategories,
+  getCustomers,
   listCustomers,
   sendCampaign,
   sendCampaignTest,
@@ -535,7 +536,13 @@ export default function AiCampaignGenerator() {
 
       if (values.mode === "customer") {
         if (!values.customer_id) throw new Error("Selecciona un cliente.");
-        return sendCampaignTest({ subject, body, customer_id: values.customer_id });
+        return sendCampaignTest({
+          subject,
+          body,
+          customer_id: values.customer_id,
+          // El backend valida que `email` exista para el envío de prueba.
+          email: values.email,
+        });
       }
 
       if (!values.email) throw new Error("Ingresa un email.");
@@ -555,6 +562,90 @@ export default function AiCampaignGenerator() {
       });
     },
   });
+
+  const handleSendTest = () => {
+    const mode = sendTestForm.watch("mode");
+    const customerId = sendTestForm.watch("customer_id");
+    const emailInput = sendTestForm.watch("email");
+
+    if (mode === "customer") {
+      if (!customerId) {
+        toast({
+          title: "Revisa el destino",
+          description: "Selecciona un cliente válido.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const selected = (customersQuery.data?.items ?? []).find((c) => c.id === customerId);
+
+      const selectedEmail = selected?.email ?? undefined;
+      const maybeSend = (email?: string) => {
+        if (!email) {
+          toast({
+            title: "Cliente sin email",
+            description:
+              "El backend requiere `email` para el envío de prueba. No pude obtener el email del cliente seleccionado. Usa “Destino: Email manual”.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        sendTestMutation.mutate({
+          mode: "customer",
+          customer_id: customerId,
+          email,
+        });
+      };
+
+      if (selectedEmail) {
+        maybeSend(selectedEmail);
+        return;
+      }
+
+      // Fallback: si el query de clientes filtrado/buscado no trajo el email,
+      // lo consultamos completo para encontrar el email por `id`.
+      void (async () => {
+        try {
+          const all = await getCustomers();
+          const fromAll = all.find((c) => c.id === customerId);
+          maybeSend(fromAll?.email ?? undefined);
+        } catch {
+          toast({
+            title: "No se pudo obtener el email",
+            description: "Intenta nuevamente o usa “Destino: Email manual”.",
+            variant: "destructive",
+          });
+        }
+      })();
+      return;
+    }
+
+    if (mode === "email") {
+      const parsedEmail = z.string().email("Ingresa un email válido.").safeParse(emailInput);
+      if (!parsedEmail.success) {
+        toast({
+          title: "Revisa el destino",
+          description: parsedEmail.error.issues[0]?.message ?? "Ingresa un email válido.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      sendTestMutation.mutate({
+        mode: "email",
+        email: parsedEmail.data,
+      });
+      return;
+    }
+
+    toast({
+      title: "Revisa el destino",
+      description: "Selecciona un destino válido.",
+      variant: "destructive",
+    });
+  };
 
   const handleUseTemplate = (template: CampaignTemplate) => {
     form.setValue("subject", template.subject, { shouldDirty: true, shouldValidate: true });
@@ -1157,19 +1248,10 @@ export default function AiCampaignGenerator() {
 
           <Form {...sendTestForm}>
             <form
-              onSubmit={sendTestForm.handleSubmit(
-                (values) => sendTestMutation.mutate(values),
-                () => {
-                  toast({
-                    title: "Revisa el destino",
-                    description:
-                      sendTestForm.getValues("mode") === "customer"
-                        ? "Selecciona un cliente válido."
-                        : "Ingresa un email válido.",
-                    variant: "destructive",
-                  });
-                }
-              )}
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSendTest();
+              }}
               className="space-y-4"
             >
               <FormField
@@ -1178,10 +1260,19 @@ export default function AiCampaignGenerator() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Destino</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select
+                      value={field.value ?? ""}
+                      onValueChange={(value) => {
+                        field.onChange(value);
+                        sendTestForm.setValue("mode", value as "customer" | "email", {
+                          shouldDirty: true,
+                          shouldValidate: true,
+                        });
+                      }}
+                    >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue />
+                          <SelectValue placeholder="Selecciona destino" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -1226,8 +1317,16 @@ export default function AiCampaignGenerator() {
                       <FormItem>
                         <FormLabel>Cliente</FormLabel>
                         <Select
-                          onValueChange={(value) => field.onChange(value)}
-                          value={field.value ?? undefined}
+                          // `undefined` puede dejar el Select en estado no controlado.
+                          // Para sincronizar con RHF usamos "" cuando no hay valor.
+                          value={field.value ?? ""}
+                          onValueChange={(value) => {
+                            field.onChange(value);
+                            sendTestForm.setValue("customer_id", value, {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            });
+                          }}
                         >
                           <FormControl>
                             <SelectTrigger>
@@ -1248,6 +1347,13 @@ export default function AiCampaignGenerator() {
                       </FormItem>
                     )}
                   />
+
+                {/* <p className="text-xs text-muted-foreground">
+                    customer_id en el formulario:{" "}
+                    <span className="font-mono">
+                      {sendTestForm.watch("customer_id") || "—"}
+                    </span>
+                  </p> */}
                 </>
               )}
 
