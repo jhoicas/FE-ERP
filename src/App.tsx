@@ -33,6 +33,7 @@ import UsersManagement from "@/features/auth/components/UsersManagement";
 import NotFound from "./pages/NotFound";
 import LoyaltyPage from "@/pages/LoyaltyPage";
 import OpportunitiesPage from "@/pages/OpportunitiesPage";
+import { InboxPage } from "@/features/email/components/InboxPage";
 
 const queryClient = new QueryClient();
 
@@ -165,6 +166,15 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={["support", "admin"]}>
                   <TicketDetailPage />
+                </ProtectedRoute>
+              }
+            />
+            {/* Email / Inbox: soporte y admin */}
+            <Route
+              path="/crm/inbox"
+              element={
+                <ProtectedRoute allowedRoles={["support", "admin"]}>
+                  <InboxPage />
                 </ProtectedRoute>
               }
             />
