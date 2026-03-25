@@ -87,3 +87,44 @@ export interface TicketFromEmailResponse {
   ticket_id: string;
   created_at: string;
 }
+
+/**
+ * Configuración OAuth para Google Workspace
+ */
+export interface GoogleOAuthConfig {
+  provider: "google";
+  credential: string;
+  email_address: string;
+}
+
+/**
+ * Configuración OAuth para Microsoft 365
+ */
+export interface MicrosoftOAuthConfig {
+  provider: "microsoft";
+  access_token: string;
+  email_address: string;
+  id_token?: string;
+}
+
+/**
+ * Configuración personalizada IMAP/SMTP
+ */
+export interface CustomImapSmtpConfig {
+  email_address: string;
+  imap_host: string;
+  imap_port: number;
+  smtp_host: string;
+  smtp_port: number;
+  app_password: string;
+}
+
+/**
+ * Respuesta de configuración de cuenta de email
+ */
+export interface EmailConfigResponse {
+  success: boolean;
+  message: string;
+  account_id?: string;
+  error?: string;
+}

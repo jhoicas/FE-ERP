@@ -38,6 +38,13 @@ npm run preview
 
 El cliente API usa por defecto la base URL `https://api.ludoia.com`. Si necesitas otro origen, configura la variable de entorno correspondiente y actualiza `src/lib/api/client.ts`.
 
+Para OAuth de Email (Google/Microsoft), crea un `.env.local` a partir de `.env.example` y completa:
+
+- `VITE_GOOGLE_CLIENT_ID`
+- `VITE_MSAL_CLIENT_ID`
+- `VITE_MSAL_TENANT_ID` (opcional, por defecto `common`)
+- `VITE_MSAL_REDIRECT_URI` (opcional, por defecto `window.location.origin`)
+
 ## Scripts
 
 | Script        | Descripción              |

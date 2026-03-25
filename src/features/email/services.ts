@@ -310,3 +310,103 @@ export async function deleteEmailAccount(accountId: string): Promise<void> {
     throw error;
   }
 }
+
+/**
+ * Configura cuenta de email con OAuth de Google
+ * @param credential - JWT de Google
+ * @param emailAddress - Dirección de correo del usuario
+ */
+export async function configureGoogleOAuth(
+  credential: string,
+  emailAddress: string,
+): Promise<object> {
+  try {
+    const response = await apiClient.post(`${EMAIL_SETTINGS_API_PREFIX}/email-accounts/oauth/google`, {
+      credential,
+      email_address: emailAddress,
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error configuring Google OAuth:", error);
+    throw error;
+  }
+}
+
+/**
+ * Configura cuenta de email con OAuth de Microsoft
+ * @param accessToken - Token de acceso de Microsoft
+ * @param emailAddress - Dirección de correo del usuario
+ * @param idToken - Token ID de Microsoft (opcional)
+ */
+export async function configureMicrosoftOAuth(
+  accessToken: string,
+  emailAddress: string,
+  idToken?: string,
+): Promise<object> {
+  try {
+    const response = await apiClient.post(
+      `${EMAIL_SETTINGS_API_PREFIX}/email-accounts/oauth/microsoft`,
+      {
+        access_token: accessToken,
+        email_address: emailAddress,
+        id_token: idToken,
+      },
+    );
+    return response.data;
+  } catch (error) {
+    console.error("Error configuring Microsoft OAuth:", error);
+    throw error;
+  }
+}
+
+/**
+ * Configura cuenta de email con IMAP/SMTP personalizado
+ * @param data - Datos de configuración IMAP/SMTP
+ */
+export async function configureCustomImapSmtp(data: {
+  email_address: string;
+  imap_host: string;
+  imap_port: number;
+  smtp_host: string;
+  smtp_port: number;
+  app_password: string;
+}): Promise<object> {
+  try {
+    // Normalizar hosts IMAP y SMTP
+    const normalizedData = {
+      email_address: data.email_address,
+      imap_host: toImapHost(data.imap_host),
+      imap_port: data.imap_port,
+      smtp_host: toSmtpHost(data.smtp_host),
+      smtp_port: data.smtp_port,
+      password: data.app_password,
+    };
+
+    const response = await apiClient.post(
+      `${EMAIL_SETTINGS_API_PREFIX}/email-accounts/custom-imap`,
+      normalizedData,
+    );
+    return response.data;
+  } catch (error) {
+    console.error("Error configuring custom IMAP/SMTP:", error);
+    throw error;
+  }
+}
+
+/**
+ * Normaliza el host SMTP a formato estándar
+ */
+function toSmtpHost(value: string): string {
+  const trimmedValue = value.trim();
+
+  if (!trimmedValue) {
+    return trimmedValue;
+  }
+
+  try {
+    const parsedUrl = new URL(trimmedValue);
+    return parsedUrl.hostname;
+  } catch {
+    return trimmedValue.replace(/^smtps?:\/\//i, "");
+  }
+}
