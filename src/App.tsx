@@ -34,6 +34,7 @@ import NotFound from "./pages/NotFound";
 import LoyaltyPage from "@/pages/LoyaltyPage";
 import OpportunitiesPage from "@/pages/OpportunitiesPage";
 import { InboxPage } from "@/features/email/components/InboxPage";
+import { EmailSettings } from "@/features/email/components/EmailSettings";
 
 const queryClient = new QueryClient();
 
@@ -285,6 +286,14 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={["admin"]}>
                   <UsersManagement />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/settings/email"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <EmailSettings />
                 </ProtectedRoute>
               }
             />

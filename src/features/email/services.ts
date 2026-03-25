@@ -7,6 +7,7 @@ import { apiClient } from "@/lib/api/client";
 import {
   EmailAccount,
   EmailAccountRequest,
+  EmailAccountUpdateRequest,
   EmailConnectionTestResponse,
   EmailMessage,
   CreateTicketFromEmailRequest,
@@ -14,6 +15,31 @@ import {
 } from "@/types/email";
 
 const EMAIL_API_PREFIX = "/api/email";
+const EMAIL_SETTINGS_API_PREFIX = "/api/settings";
+
+function toImapHost(value: string): string {
+  const trimmedValue = value.trim();
+
+  if (!trimmedValue) {
+    return trimmedValue;
+  }
+
+  try {
+    const parsedUrl = new URL(trimmedValue);
+    return parsedUrl.hostname;
+  } catch {
+    return trimmedValue.replace(/^imaps?:\/\//i, "");
+  }
+}
+
+function toImapUrl(value: string): string {
+  const host = toImapHost(value);
+  if (!host) {
+    return host;
+  }
+
+  return /^imaps?:\/\//i.test(value.trim()) ? value.trim() : `imaps://${host}`;
+}
 
 /**
  * Obtiene todas las cuentas de email configuradas de la empresa
@@ -21,7 +47,7 @@ const EMAIL_API_PREFIX = "/api/email";
 export async function getEmailAccounts(): Promise<EmailAccount[]> {
   try {
     const response = await apiClient.get<EmailAccount[]>(
-      `${EMAIL_API_PREFIX}/accounts`,
+      `${EMAIL_SETTINGS_API_PREFIX}/email-accounts`,
     );
     return response.data;
   } catch (error) {
@@ -38,7 +64,7 @@ export async function getEmailAccount(
 ): Promise<EmailAccount> {
   try {
     const response = await apiClient.get<EmailAccount>(
-      `${EMAIL_API_PREFIX}/accounts/${accountId}`,
+      `${EMAIL_SETTINGS_API_PREFIX}/email-accounts/${accountId}`,
     );
     return response.data;
   } catch (error) {
@@ -56,9 +82,14 @@ export async function saveEmailAccount(
   data: EmailAccountRequest,
 ): Promise<EmailAccount> {
   try {
+    const payload: EmailAccountRequest = {
+      ...data,
+      imap_server: toImapHost(data.imap_server),
+    };
+
     const response = await apiClient.post<EmailAccount>(
-      `${EMAIL_API_PREFIX}/accounts`,
-      data,
+      `${EMAIL_SETTINGS_API_PREFIX}/email-accounts`,
+      payload,
     );
     return response.data;
   } catch (error) {
@@ -75,13 +106,68 @@ export async function testEmailConnection(
   data: EmailAccountRequest,
 ): Promise<EmailConnectionTestResponse> {
   try {
+    const payload: EmailAccountRequest = {
+      ...data,
+      imap_server: toImapUrl(data.imap_server),
+    };
+
+    try {
+      const response = await apiClient.post<EmailConnectionTestResponse>(
+        `${EMAIL_SETTINGS_API_PREFIX}/email-accounts/test-connection`,
+        payload,
+      );
+      return response.data;
+    } catch {
+      const fallbackResponse = await apiClient.post<EmailConnectionTestResponse>(
+        `${EMAIL_API_PREFIX}/accounts/test-connection`,
+        payload,
+      );
+      return fallbackResponse.data;
+    }
+  } catch (error) {
+    console.error("Error testing email connection:", error);
+    throw error;
+  }
+}
+
+/**
+ * Actualiza una cuenta de email existente
+ */
+export async function updateEmailAccount(
+  accountId: string,
+  data: EmailAccountUpdateRequest,
+): Promise<EmailAccount> {
+  try {
+    const payload: EmailAccountUpdateRequest = {
+      ...data,
+      imap_server: data.imap_server ? toImapHost(data.imap_server) : undefined,
+    };
+
+    const response = await apiClient.put<EmailAccount>(
+      `${EMAIL_SETTINGS_API_PREFIX}/email-accounts/${accountId}`,
+      payload,
+    );
+
+    return response.data;
+  } catch (error) {
+    console.error("Error updating email account:", error);
+    throw error;
+  }
+}
+
+/**
+ * Prueba una cuenta existente después de guardarla
+ */
+export async function testSavedEmailAccount(
+  accountId: string,
+): Promise<EmailConnectionTestResponse> {
+  try {
     const response = await apiClient.post<EmailConnectionTestResponse>(
-      `${EMAIL_API_PREFIX}/accounts/test-connection`,
-      data,
+      `${EMAIL_SETTINGS_API_PREFIX}/email-accounts/${accountId}/test`,
     );
     return response.data;
   } catch (error) {
-    console.error("Error testing email connection:", error);
+    console.error("Error testing saved email account:", error);
     throw error;
   }
 }

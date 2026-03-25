@@ -12,6 +12,7 @@ export interface EmailAccount {
   email_address: string;
   imap_server: string;
   imap_port: number;
+  is_active?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -24,6 +25,16 @@ export interface EmailAccountRequest {
   password: string;
   imap_server: string;
   imap_port: number;
+}
+
+/**
+ * Solicitud para actualizar una cuenta de email existente
+ */
+export interface EmailAccountUpdateRequest {
+  imap_server?: string;
+  imap_port?: number;
+  password?: string;
+  is_active?: boolean;
 }
 
 /**

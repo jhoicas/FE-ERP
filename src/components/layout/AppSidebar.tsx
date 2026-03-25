@@ -55,6 +55,7 @@ const APP_MENU_CONFIG = [
       { id: "crm-campanas", label: "Campañas", frontend_route: "/crm/campaigns" },
       { id: "crm-tareas", label: "Tareas", frontend_route: "/crm/tasks" },
       { id: "crm-tickets", label: "Tickets", frontend_route: "/crm/tickets" },
+      { id: "crm.inbox", label: "Inbox", frontend_route: "/crm/inbox" },
       { id: "crm-fidelizacion", label: "Fidelización", frontend_route: "/crm/loyalty" }
     ]
   },
@@ -75,6 +76,16 @@ const APP_MENU_CONFIG = [
     label: "Compras",
     frontend_route: "/compras",
     screens: []
+  },
+  {
+    module_key: "settings",
+    label: "Administrador General",
+    frontend_route: "/ajustes",
+    screens: [
+      { id: "settings-ajustes", label: "Ajustes", frontend_route: "/ajustes" },
+      { id: "settings-users", label: "Usuarios", frontend_route: "/settings/users" },
+      { id: "settings-email", label: "Correo IMAP", frontend_route: "/settings/email" }
+    ]
   }
 ];
 
@@ -87,6 +98,7 @@ export default function AppSidebar() {
   const user = useAuthUser();
   const { environment } = useDianEnvironment();
   const queryClient = useQueryClient();
+  const isAdmin = user?.roles?.includes("admin") ?? false;
   
   // Obtenemos los módulos de la API
   const companyId = typeof user?.company_id === "string" ? user.company_id : undefined;
@@ -94,8 +106,12 @@ export default function AppSidebar() {
 
   // --- 3. LÓGICA DE FILTRADO ESTRICTO ---
   const visibleModules = useMemo(() => {
-    // Si la API no ha respondido, no mostramos nada
-    if (!companyModules?.modules) return [];
+    // Si la API no ha respondido, mostramos solo Admin General cuando aplique
+    if (!companyModules?.modules) {
+      return isAdmin
+        ? APP_MENU_CONFIG.filter((mod) => mod.module_key === "settings")
+        : [];
+    }
 
     // Creamos un diccionario rápido de la respuesta para saber qué está activo
     // Ejemplo: { analytics: true, billing: false, crm: true, ... }
@@ -104,11 +120,17 @@ export default function AppSidebar() {
       return acc;
     }, {});
 
-    // Filtramos la configuración maestra. 
-    // Si el map dice que está activo (true), pasa. Si dice false, se oculta.
-    return APP_MENU_CONFIG.filter(mod => activeModulesMap[mod.module_key] === true);
+    // Filtramos la configuración maestra.
+    // settings: solo por rol admin. Otros módulos: por activación en API.
+    return APP_MENU_CONFIG.filter((mod) => {
+      if (mod.module_key === "settings") {
+        return isAdmin;
+      }
+
+      return activeModulesMap[mod.module_key] === true;
+    });
     
-  }, [companyModules]);
+  }, [companyModules, isAdmin]);
 
   const hasDashboardShortcut = useMemo(
     () =>
