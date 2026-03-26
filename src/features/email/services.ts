@@ -188,7 +188,7 @@ export async function getEmails(
     if (options?.unreadOnly) params.append("unreadOnly", "true");
 
     const response = await apiClient.get<EmailMessage[]>(
-      `${EMAIL_API_PREFIX}/accounts/${accountId}/emails${params.toString() ? `?${params.toString()}` : ""}`,
+      `${EMAIL_SETTINGS_API_PREFIX}/email-accounts/${accountId}/emails${params.toString() ? `?${params.toString()}` : ""}`,
     );
     return response.data;
   } catch (error) {

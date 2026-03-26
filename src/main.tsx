@@ -12,9 +12,13 @@ const msalClientId =
 	import.meta.env.VITE_MSAL_CLIENT_ID || "REPLACE_WITH_MSAL_CLIENT_ID";
 
 const msalTenantId = import.meta.env.VITE_MSAL_TENANT_ID || "common";
-const msalRedirectUri =
-	import.meta.env.VITE_MSAL_REDIRECT_URI ||
-	`${window.location.origin}/msal-popup.html`;
+const defaultMsalPopupRedirectUri = `${window.location.origin}/msal-popup.html`;
+const configuredMsalRedirectUri = import.meta.env.VITE_MSAL_REDIRECT_URI?.trim();
+const msalRedirectUri = configuredMsalRedirectUri
+	? configuredMsalRedirectUri.endsWith("/msal-popup.html")
+		? configuredMsalRedirectUri
+		: `${configuredMsalRedirectUri.replace(/\/$/, "")}/msal-popup.html`
+	: defaultMsalPopupRedirectUri;
 
 if (!import.meta.env.VITE_GOOGLE_CLIENT_ID) {
 	console.warn(

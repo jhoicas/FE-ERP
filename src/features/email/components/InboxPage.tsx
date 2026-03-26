@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import DOMPurify from "dompurify";
+import axios from "axios";
 import { Loader2, TicketPlus } from "lucide-react";
 
 import { useToast } from "@/hooks/use-toast";
@@ -320,9 +321,31 @@ export function InboxPage({ accountId }: InboxPageProps) {
       } catch (error) {
         console.error("Error loading inbox:", error);
         if (isMounted) {
+          let description = "No fue posible obtener la bandeja de entrada.";
+
+          if (axios.isAxiosError(error)) {
+            const status = error.response?.status;
+
+            if (status === 404) {
+              description =
+                "No se encontró la bandeja para esta cuenta. Verifica la configuración de correo.";
+            } else if (status === 403) {
+              description =
+                "No tienes permisos para consultar los correos de esta cuenta.";
+            } else if (status && status >= 500) {
+              description =
+                "El servidor de correo no está disponible en este momento. Intenta de nuevo más tarde.";
+            } else if (typeof error.response?.data === "object" && error.response?.data) {
+              const apiMessage = (error.response.data as { message?: string }).message;
+              if (apiMessage) {
+                description = apiMessage;
+              }
+            }
+          }
+
           toast({
             title: "Error al cargar correos",
-            description: "No fue posible obtener la bandeja de entrada.",
+            description,
             variant: "destructive",
           });
         }

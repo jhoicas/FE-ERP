@@ -70,6 +70,12 @@ function decodeGoogleEmailFromJwt(credential: string): string | null {
 export function EmailSettings() {
   const { toast } = useToast();
   const { instance } = useMsal();
+  const msalPopupRedirectUri =
+    import.meta.env.VITE_MSAL_REDIRECT_URI?.trim()
+      ? import.meta.env.VITE_MSAL_REDIRECT_URI.trim().endsWith("/msal-popup.html")
+        ? import.meta.env.VITE_MSAL_REDIRECT_URI.trim()
+        : `${import.meta.env.VITE_MSAL_REDIRECT_URI.trim().replace(/\/$/, "")}/msal-popup.html`
+      : `${window.location.origin}/msal-popup.html`;
 
   const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
@@ -185,6 +191,7 @@ export function EmailSettings() {
     try {
       const loginResult = await instance.loginPopup({
         scopes: ["openid", "profile", "email", "offline_access", "User.Read"],
+        redirectUri: msalPopupRedirectUri,
       });
 
       const account =
