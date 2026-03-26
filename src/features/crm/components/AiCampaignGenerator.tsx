@@ -23,7 +23,6 @@ import {
   sendCampaignTest,
 } from "@/features/crm/services";
 import type { CampaignTemplate } from "@/types/crm";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -135,51 +134,18 @@ const ResolveRecipientsResponseSchema = z.object({
   recipients: z.array(RecipientSchema),
 });
 
-const ProductLookupSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-}).passthrough();
-
-const ProductListLookupSchema = z.object({
-  items: z.array(ProductLookupSchema),
-}).passthrough();
-
 const saveTemplateSchema = z.object({
   name: z.string().min(1, "El nombre de la plantilla es obligatorio"),
 });
 
-type RecipientStrategy =
-  | { type: "category"; category_id: string }
-  | { type: "reorder_product"; product_id: string; months_ago: number };
+type RecipientStrategy = { type: "category"; category_id: string };
 
 type RecipientDTO = z.infer<typeof RecipientSchema>;
-type ProductLookupDTO = z.infer<typeof ProductLookupSchema>;
 
 const RECIPIENTS_PREVIEW_PAGE_SIZE = 10;
 
 type FormValues = z.infer<typeof schema>;
 type CreateCampaignValues = z.infer<typeof createCampaignSchema>;
-
-async function searchProducts(search: string): Promise<ProductLookupDTO[]> {
-  const { data } = await apiClient.get("/api/products", {
-    params: {
-      search,
-      limit: 20,
-      offset: 0,
-    },
-  });
-
-  if (Array.isArray(data)) {
-    return z.array(ProductLookupSchema).parse(data);
-  }
-
-  const parsed = ProductListLookupSchema.safeParse(data);
-  if (parsed.success) {
-    return parsed.data.items;
-  }
-
-  return [];
-}
 
 async function resolveCampaignRecipients(strategies: RecipientStrategy[]): Promise<RecipientDTO[]> {
   const { data } = await apiClient.post("/api/crm/campaigns/recipients/resolve", {
@@ -213,12 +179,7 @@ function suggestSubjectFromGeneratedText(generatedText: string, fallbackPrompt: 
 
 export default function AiCampaignGenerator() {
   const queryClient = useQueryClient();
-  const [sendToCategory, setSendToCategory] = useState(false);
-  const [selectedRecipientCategoryId, setSelectedRecipientCategoryId] = useState("");
-  const [sendToReorderProduct, setSendToReorderProduct] = useState(false);
-  const [productSearch, setProductSearch] = useState("");
-  const [selectedProductId, setSelectedProductId] = useState<string>("");
-  const [reorderMonthsAgo, setReorderMonthsAgo] = useState<number>(6);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
   const [resolvedRecipients, setResolvedRecipients] = useState<RecipientDTO[]>([]);
   const [lastPreviewStrategies, setLastPreviewStrategies] = useState<RecipientStrategy[]>([]);
   const [recipientsPage, setRecipientsPage] = useState(1);
@@ -280,28 +241,12 @@ export default function AiCampaignGenerator() {
     },
   });
 
-  const productsQuery = useQuery({
-    queryKey: ["products", "campaign-recipients-search", productSearch],
-    queryFn: () => searchProducts(productSearch),
-    enabled: sendToReorderProduct && productSearch.trim().length >= 2,
-  });
-
   const buildRecipientStrategies = (): RecipientStrategy[] => {
-    const strategies: RecipientStrategy[] = [];
-
-    if (sendToCategory && selectedRecipientCategoryId) {
-      strategies.push({ type: "category", category_id: selectedRecipientCategoryId });
+    if (!selectedCategoryId) {
+      return [];
     }
 
-    if (sendToReorderProduct && selectedProductId) {
-      strategies.push({
-        type: "reorder_product",
-        product_id: selectedProductId,
-        months_ago: reorderMonthsAgo,
-      });
-    }
-
-    return strategies;
+    return [{ type: "category", category_id: selectedCategoryId }];
   };
 
   const recipientsTotal = resolvedRecipients.length;
@@ -432,12 +377,7 @@ export default function AiCampaignGenerator() {
         channel: "Email",
         scheduled_at: "",
       });
-      setSendToCategory(false);
-      setSelectedRecipientCategoryId("");
-      setSendToReorderProduct(false);
-      setProductSearch("");
-      setSelectedProductId("");
-      setReorderMonthsAgo(6);
+      setSelectedCategoryId("");
       setResolvedRecipients([]);
       setLastPreviewStrategies([]);
       setRecipientsPage(1);
@@ -684,10 +624,10 @@ export default function AiCampaignGenerator() {
   const handlePreviewRecipients = () => {
     const strategies = buildRecipientStrategies();
 
-    if (sendToCategory && !selectedRecipientCategoryId) {
+    if (!selectedCategoryId) {
       toast({
         title: "Falta categoría",
-        description: "Selecciona una categoría para la estrategia por categoría.",
+        description: "Selecciona una categoría destino antes de previsualizar.",
         variant: "destructive",
       });
       return;
@@ -697,15 +637,6 @@ export default function AiCampaignGenerator() {
       toast({
         title: "Selecciona al menos una estrategia",
         description: "Define quiénes recibirán la campaña antes de previsualizar.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (sendToReorderProduct && !selectedProductId) {
-      toast({
-        title: "Falta producto para recompra",
-        description: "Selecciona un producto para la estrategia de recompra.",
         variant: "destructive",
       });
       return;
@@ -927,119 +858,34 @@ export default function AiCampaignGenerator() {
               <div className="space-y-1">
                 <p className="text-sm font-medium">Destinatarios</p>
                 <p className="text-xs text-muted-foreground">
-                  Selecciona una o más estrategias y previsualiza la audiencia.
+                  Selecciona la categoría de clientes y previsualiza la audiencia.
                 </p>
               </div>
 
               <div className="space-y-3 rounded-md border p-3">
-                <div className="flex items-start gap-2">
-                  <Checkbox
-                    id="recipient-category"
-                    checked={sendToCategory}
-                    onCheckedChange={(checked) => {
-                      const enabled = Boolean(checked);
-                      setSendToCategory(enabled);
-                      if (!enabled) {
-                        setSelectedRecipientCategoryId("");
-                      }
-                    }}
-                  />
-                  <label htmlFor="recipient-category" className="text-sm leading-5">
-                    Enviar a clientes de una categoría
-                  </label>
-                </div>
-
-                {sendToCategory && (
-                  <div className="space-y-2 pl-6">
-                    <Select
-                      value={selectedRecipientCategoryId || undefined}
-                      onValueChange={setSelectedRecipientCategoryId}
-                      disabled={categoriesQuery.isLoading}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar categoría" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(categoriesQuery.data ?? []).map((category) => (
-                          <SelectItem key={category.id} value={category.id}>
-                            {category.name}
-                          </SelectItem>
-                        ))}
-                        {(categoriesQuery.data ?? []).length === 0 && !categoriesQuery.isLoading && (
-                          <SelectItem value="_none" disabled>
-                            Sin categorías disponibles
-                          </SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
                 <div className="space-y-2">
-                  <div className="flex items-start gap-2">
-                    <Checkbox
-                      id="recipient-reorder-product"
-                      checked={sendToReorderProduct}
-                      onCheckedChange={(checked) => {
-                        const enabled = Boolean(checked);
-                        setSendToReorderProduct(enabled);
-                        if (!enabled) {
-                          setProductSearch("");
-                          setSelectedProductId("");
-                          setReorderMonthsAgo(6);
-                        }
-                      }}
-                    />
-                    <label htmlFor="recipient-reorder-product" className="text-sm leading-5">
-                      Enviar a los clientes que compraron X producto hace 6 meses
-                    </label>
-                  </div>
-
-                  {sendToReorderProduct && (
-                    <div className="space-y-2 pl-6">
-                      <Input
-                        placeholder="Buscar producto..."
-                        value={productSearch}
-                        onChange={(event) => setProductSearch(event.target.value)}
-                      />
-
-                      <Select
-                        value={selectedProductId || undefined}
-                        onValueChange={setSelectedProductId}
-                        disabled={productsQuery.isLoading}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Seleccionar producto" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(productsQuery.data ?? []).map((product) => (
-                            <SelectItem key={product.id} value={product.id}>
-                              {product.name}
-                            </SelectItem>
-                          ))}
-                          {(productsQuery.data ?? []).length === 0 && !productsQuery.isLoading && (
-                            <SelectItem value="_none" disabled>
-                              Sin productos para este criterio
-                            </SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
-
-                      <Select
-                        value={String(reorderMonthsAgo)}
-                        onValueChange={(value) => setReorderMonthsAgo(Number(value))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Rango de tiempo" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="3">3 meses</SelectItem>
-                          <SelectItem value="6">6 meses</SelectItem>
-                          <SelectItem value="12">12 meses</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
+                  <p className="text-sm font-medium">Categoría destino</p>
+                  <Select
+                    value={selectedCategoryId || undefined}
+                    onValueChange={setSelectedCategoryId}
+                    disabled={categoriesQuery.isLoading}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar categoría" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(categoriesQuery.data ?? []).map((category) => (
+                        <SelectItem key={category.id} value={category.id}>
+                          {category.name}
+                        </SelectItem>
+                      ))}
+                      {(categoriesQuery.data ?? []).length === 0 && !categoriesQuery.isLoading && (
+                        <SelectItem value="_none" disabled>
+                          Sin categorías disponibles
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
