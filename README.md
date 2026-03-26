@@ -43,7 +43,7 @@ Para OAuth de Email (Google/Microsoft), crea un `.env.local` a partir de `.env.e
 - `VITE_GOOGLE_CLIENT_ID`
 - `VITE_MSAL_CLIENT_ID`
 - `VITE_MSAL_TENANT_ID` (opcional, por defecto `common`)
-- `VITE_MSAL_REDIRECT_URI` (opcional, por defecto `window.location.origin`)
+- `VITE_MSAL_REDIRECT_URI` (opcional, por defecto `/msal-popup.html`)
 
 ## Scripts
 

@@ -183,24 +183,47 @@ export function EmailSettings() {
 
   const handleMicrosoftLogin = async () => {
     try {
-      const authResult = await instance.acquireTokenPopup({
+      const loginResult = await instance.loginPopup({
         scopes: ["openid", "profile", "email", "offline_access", "User.Read"],
       });
 
+      const account =
+        loginResult.account ?? instance.getActiveAccount() ?? instance.getAllAccounts()[0];
+
+      if (account) {
+        instance.setActiveAccount(account);
+      }
+
+      const tokenResult = account
+        ? await instance.acquireTokenSilent({
+            account,
+            scopes: ["openid", "profile", "email", "offline_access", "User.Read"],
+          })
+        : null;
+
+      const accessToken = tokenResult?.accessToken || loginResult.accessToken;
+      const idToken = tokenResult?.idToken || loginResult.idToken;
+
       const emailAddress =
-        authResult.account?.username ||
-        (typeof authResult.idTokenClaims?.preferred_username === "string"
-          ? authResult.idTokenClaims.preferred_username
+        account?.username ||
+        (typeof loginResult.idTokenClaims?.preferred_username === "string"
+          ? loginResult.idTokenClaims.preferred_username
+          : typeof tokenResult?.idTokenClaims?.preferred_username === "string"
+            ? tokenResult.idTokenClaims.preferred_username
           : "");
 
       if (!emailAddress) {
         throw new Error("No se pudo obtener el correo de la cuenta Microsoft.");
       }
 
+      if (!accessToken && !idToken) {
+        throw new Error("No se recibió access token ni id token de Microsoft.");
+      }
+
       await microsoftOAuthMutation.mutateAsync({
-        accessToken: authResult.accessToken,
+        accessToken: accessToken || idToken || "",
         email: emailAddress,
-        idToken: authResult.idToken,
+        idToken,
       });
 
       toast({

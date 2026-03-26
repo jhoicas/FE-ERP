@@ -13,7 +13,8 @@ const msalClientId =
 
 const msalTenantId = import.meta.env.VITE_MSAL_TENANT_ID || "common";
 const msalRedirectUri =
-	import.meta.env.VITE_MSAL_REDIRECT_URI || window.location.origin;
+	import.meta.env.VITE_MSAL_REDIRECT_URI ||
+	`${window.location.origin}/msal-popup.html`;
 
 if (!import.meta.env.VITE_GOOGLE_CLIENT_ID) {
 	console.warn(
@@ -32,6 +33,7 @@ const msalInstance = new PublicClientApplication({
 		clientId: msalClientId,
 		authority: `https://login.microsoftonline.com/${msalTenantId}`,
 		redirectUri: msalRedirectUri,
+		navigateToLoginRequestUrl: false,
 	},
 	cache: {
 		cacheLocation: "localStorage",
@@ -39,10 +41,19 @@ const msalInstance = new PublicClientApplication({
 	},
 });
 
-createRoot(document.getElementById("root")!).render(
-	<GoogleOAuthProvider clientId={googleClientId}>
-		<MsalProvider instance={msalInstance}>
-			<App />
-		</MsalProvider>
-	</GoogleOAuthProvider>,
-);
+async function bootstrap() {
+	await msalInstance.initialize();
+	await msalInstance.handleRedirectPromise().catch((error) => {
+		console.error("[MSAL] Error processing redirect hash:", error);
+	});
+
+	createRoot(document.getElementById("root")!).render(
+		<GoogleOAuthProvider clientId={googleClientId}>
+			<MsalProvider instance={msalInstance}>
+				<App />
+			</MsalProvider>
+		</GoogleOAuthProvider>,
+	);
+}
+
+void bootstrap();
