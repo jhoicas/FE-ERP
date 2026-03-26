@@ -4,13 +4,14 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { GoogleLogin, type CredentialResponse } from "@react-oauth/google";
 import { useMsal } from "@azure/msal-react";
 import { useMutation } from "@tanstack/react-query";
-import { Loader2, Mail, Zap } from "lucide-react";
+import { Loader2, Mail, Zap, Trash2 } from "lucide-react";
 
 import { useToast } from "@/components/ui/use-toast";
 import {
   configureCustomImapSmtp,
   configureGoogleOAuth,
   configureMicrosoftOAuth,
+  deleteEmailAccount,
   getEmailAccounts,
   testSavedEmailAccount,
   updateEmailAccount,
@@ -108,6 +109,10 @@ export function EmailSettings() {
 
   const customImapMutation = useMutation({
     mutationFn: (data: CustomImapSmtpFormData) => configureCustomImapSmtp(data),
+  });
+
+  const deleteAccountMutation = useMutation({
+    mutationFn: (accountId: string) => deleteEmailAccount(accountId),
   });
 
   const googleLoading = googleOAuthMutation.isPending;
@@ -334,6 +339,33 @@ export function EmailSettings() {
       toast({
         title: "Error al cambiar estado",
         description: "No se pudo actualizar el estado de la cuenta.",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingAccountId(null);
+    }
+  };
+
+  const handleDeleteAccount = async (account: EmailAccount) => {
+    if (!confirm(`¿Estás seguro de que deseas eliminar la cuenta ${account.email_address}? Esta acción no se puede deshacer.`)) {
+      return;
+    }
+
+    try {
+      setProcessingAccountId(account.id);
+      await deleteAccountMutation.mutateAsync(account.id);
+
+      toast({
+        title: "Cuenta eliminada",
+        description: `La cuenta ${account.email_address} fue eliminada correctamente.`,
+      });
+
+      await loadAccounts();
+    } catch (error) {
+      console.error("Error deleting account:", error);
+      toast({
+        title: "Error al eliminar",
+        description: "No se pudo eliminar la cuenta seleccionada.",
         variant: "destructive",
       });
     } finally {
@@ -660,6 +692,14 @@ export function EmailSettings() {
                       disabled={isProcessing}
                     >
                       {isActive ? "Desactivar" : "Reactivar"}
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={() => handleDeleteAccount(account)}
+                      disabled={isProcessing}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Eliminar
                     </Button>
                   </div>
 
