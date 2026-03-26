@@ -149,7 +149,7 @@ const saveTemplateSchema = z.object({
 });
 
 type RecipientStrategy =
-  | { type: "category_gold" }
+  | { type: "category"; category_id: string }
   | { type: "reorder_product"; product_id: string; months_ago: number };
 
 type RecipientDTO = z.infer<typeof RecipientSchema>;
@@ -213,7 +213,8 @@ function suggestSubjectFromGeneratedText(generatedText: string, fallbackPrompt: 
 
 export default function AiCampaignGenerator() {
   const queryClient = useQueryClient();
-  const [sendToCategoryGold, setSendToCategoryGold] = useState(false);
+  const [sendToCategory, setSendToCategory] = useState(false);
+  const [selectedRecipientCategoryId, setSelectedRecipientCategoryId] = useState("");
   const [sendToReorderProduct, setSendToReorderProduct] = useState(false);
   const [productSearch, setProductSearch] = useState("");
   const [selectedProductId, setSelectedProductId] = useState<string>("");
@@ -288,8 +289,8 @@ export default function AiCampaignGenerator() {
   const buildRecipientStrategies = (): RecipientStrategy[] => {
     const strategies: RecipientStrategy[] = [];
 
-    if (sendToCategoryGold) {
-      strategies.push({ type: "category_gold" });
+    if (sendToCategory && selectedRecipientCategoryId) {
+      strategies.push({ type: "category", category_id: selectedRecipientCategoryId });
     }
 
     if (sendToReorderProduct && selectedProductId) {
@@ -431,7 +432,8 @@ export default function AiCampaignGenerator() {
         channel: "Email",
         scheduled_at: "",
       });
-      setSendToCategoryGold(false);
+      setSendToCategory(false);
+      setSelectedRecipientCategoryId("");
       setSendToReorderProduct(false);
       setProductSearch("");
       setSelectedProductId("");
@@ -682,6 +684,15 @@ export default function AiCampaignGenerator() {
   const handlePreviewRecipients = () => {
     const strategies = buildRecipientStrategies();
 
+    if (sendToCategory && !selectedRecipientCategoryId) {
+      toast({
+        title: "Falta categoría",
+        description: "Selecciona una categoría para la estrategia por categoría.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (strategies.length === 0) {
       toast({
         title: "Selecciona al menos una estrategia",
@@ -923,14 +934,46 @@ export default function AiCampaignGenerator() {
               <div className="space-y-3 rounded-md border p-3">
                 <div className="flex items-start gap-2">
                   <Checkbox
-                    id="recipient-category-gold"
-                    checked={sendToCategoryGold}
-                    onCheckedChange={(checked) => setSendToCategoryGold(Boolean(checked))}
+                    id="recipient-category"
+                    checked={sendToCategory}
+                    onCheckedChange={(checked) => {
+                      const enabled = Boolean(checked);
+                      setSendToCategory(enabled);
+                      if (!enabled) {
+                        setSelectedRecipientCategoryId("");
+                      }
+                    }}
                   />
-                  <label htmlFor="recipient-category-gold" className="text-sm leading-5">
-                    Enviar a todos los clientes de Categoría Oro
+                  <label htmlFor="recipient-category" className="text-sm leading-5">
+                    Enviar a clientes de una categoría
                   </label>
                 </div>
+
+                {sendToCategory && (
+                  <div className="space-y-2 pl-6">
+                    <Select
+                      value={selectedRecipientCategoryId || undefined}
+                      onValueChange={setSelectedRecipientCategoryId}
+                      disabled={categoriesQuery.isLoading}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar categoría" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(categoriesQuery.data ?? []).map((category) => (
+                          <SelectItem key={category.id} value={category.id}>
+                            {category.name}
+                          </SelectItem>
+                        ))}
+                        {(categoriesQuery.data ?? []).length === 0 && !categoriesQuery.isLoading && (
+                          <SelectItem value="_none" disabled>
+                            Sin categorías disponibles
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <div className="flex items-start gap-2">

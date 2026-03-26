@@ -274,6 +274,12 @@ export function InboxPage({ accountId }: InboxPageProps) {
   const [activeEmailId, setActiveEmailId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasAccountConfigured, setHasAccountConfigured] = useState(true);
+  const [inboxErrorMessage, setInboxErrorMessage] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  const handleRetry = () => {
+    setReloadKey((current) => current + 1);
+  };
 
   const activeEmail = useMemo(
     () => emails.find((email) => email.id === activeEmailId) ?? null,
@@ -286,6 +292,7 @@ export function InboxPage({ accountId }: InboxPageProps) {
     async function loadEmails() {
       try {
         setIsLoading(true);
+        setInboxErrorMessage(null);
 
         let resolvedAccountId = accountId;
 
@@ -295,6 +302,7 @@ export function InboxPage({ accountId }: InboxPageProps) {
           if (!accounts.length) {
             if (isMounted) {
               setHasAccountConfigured(false);
+              setInboxErrorMessage(null);
               setEmails([]);
               setActiveEmailId(null);
             }
@@ -311,6 +319,7 @@ export function InboxPage({ accountId }: InboxPageProps) {
         }
 
         setHasAccountConfigured(true);
+        setInboxErrorMessage(null);
         setEmails(fetchedEmails);
 
         if (fetchedEmails.length > 0) {
@@ -348,6 +357,10 @@ export function InboxPage({ accountId }: InboxPageProps) {
             description,
             variant: "destructive",
           });
+
+          setInboxErrorMessage(description);
+          setEmails([]);
+          setActiveEmailId(null);
         }
       } finally {
         if (isMounted) {
@@ -361,7 +374,7 @@ export function InboxPage({ accountId }: InboxPageProps) {
     return () => {
       isMounted = false;
     };
-  }, [accountId, toast]);
+  }, [accountId, toast, reloadKey]);
 
   if (isLoading) {
     return (
@@ -387,7 +400,20 @@ export function InboxPage({ accountId }: InboxPageProps) {
       <div className="flex h-full">
         <div className="w-full border-r md:w-1/3">
           <ScrollArea className="h-full p-3">
-            {emails.length === 0 ? (
+            {inboxErrorMessage ? (
+              <Card className="border-destructive/40 bg-destructive/5 p-3">
+                <p className="text-sm text-destructive">{inboxErrorMessage}</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-3"
+                  onClick={handleRetry}
+                >
+                  Reintentar
+                </Button>
+              </Card>
+            ) : emails.length === 0 ? (
               <p className="p-2 text-sm text-muted-foreground">
                 No hay correos para mostrar.
               </p>
@@ -407,6 +433,10 @@ export function InboxPage({ accountId }: InboxPageProps) {
         <div className="hidden h-full md:block md:w-2/3">
           {activeEmail ? (
             <EmailDetail email={activeEmail} />
+          ) : inboxErrorMessage ? (
+            <div className="flex h-full items-center justify-center px-6 text-center text-sm text-destructive">
+              {inboxErrorMessage}
+            </div>
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
               Selecciona un correo para leerlo.
