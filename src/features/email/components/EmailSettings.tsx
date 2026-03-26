@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { GoogleLogin, type CredentialResponse } from "@react-oauth/google";
+import { useGoogleLogin } from "@react-oauth/google";
 import { useMsal } from "@azure/msal-react";
 import { useMutation } from "@tanstack/react-query";
 import { Loader2, Mail, Zap, Trash2 } from "lucide-react";
@@ -45,27 +45,6 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-
-function decodeGoogleEmailFromJwt(credential: string): string | null {
-  try {
-    const payloadSegment = credential.split(".")[1];
-    if (!payloadSegment) {
-      return null;
-    }
-
-    const base64 = payloadSegment.replace(/-/g, "+").replace(/_/g, "/");
-    const normalized = base64.padEnd(
-      base64.length + ((4 - (base64.length % 4)) % 4),
-      "=",
-    );
-    const json = atob(normalized);
-    const payload = JSON.parse(json) as { email?: string };
-
-    return payload.email ?? null;
-  } catch {
-    return null;
-  }
-}
 
 export function EmailSettings() {
   const { toast } = useToast();
@@ -146,46 +125,65 @@ export function EmailSettings() {
     void loadAccounts();
   }, [loadAccounts]);
 
-  const handleGoogleSuccess = async (
-    credentialResponse: CredentialResponse,
-  ) => {
-    const credential = credentialResponse.credential;
+  const login = useGoogleLogin({
+    scope: "https://mail.google.com/ https://www.googleapis.com/auth/userinfo.email",
+    onSuccess: async (tokenResponse) => {
+      const accessToken = tokenResponse.access_token;
 
-    if (!credential) {
+      if (!accessToken) {
+        toast({
+          title: "Error de Google",
+          description: "No se recibió access token de Google.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      try {
+        const userInfoResponse = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+
+        if (!userInfoResponse.ok) {
+          throw new Error("No se pudo obtener el perfil de usuario de Google.");
+        }
+
+        const userInfo = (await userInfoResponse.json()) as { email?: string };
+
+        if (!userInfo.email) {
+          throw new Error("No se pudo obtener el correo del usuario desde Google.");
+        }
+
+        await googleOAuthMutation.mutateAsync({
+          credential: accessToken,
+          email: userInfo.email,
+        });
+
+        toast({
+          title: "Google Workspace conectado",
+          description: `La cuenta ${userInfo.email} se configuró correctamente.`,
+        });
+
+        await loadAccounts();
+      } catch (error) {
+        console.error("Error configuring Google OAuth:", error);
+        toast({
+          title: "Error al conectar Google Workspace",
+          description: "No se pudo completar la configuración OAuth.",
+          variant: "destructive",
+        });
+      }
+    },
+    onError: () => {
       toast({
         title: "Error de Google",
-        description: "No se recibió la credencial de Google.",
+        description: "No se pudo iniciar sesión con Google.",
         variant: "destructive",
       });
-      return;
-    }
-
-    const email = decodeGoogleEmailFromJwt(credential);
-    if (!email) {
-      toast({
-        title: "Error de Google",
-        description: "No se pudo extraer el correo desde el token JWT.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      await googleOAuthMutation.mutateAsync({ credential, email });
-      toast({
-        title: "Google Workspace conectado",
-        description: `La cuenta ${email} se configuró correctamente.`,
-      });
-      await loadAccounts();
-    } catch (error) {
-      console.error("Error configuring Google OAuth:", error);
-      toast({
-        title: "Error al conectar Google Workspace",
-        description: "No se pudo completar la configuración OAuth.",
-        variant: "destructive",
-      });
-    }
-  };
+    },
+  });
 
   const handleMicrosoftLogin = async () => {
     try {
@@ -466,23 +464,14 @@ export function EmailSettings() {
                   Inicia sesión con tu cuenta de Google Workspace.
                 </div>
                 <div className="w-fit">
-                  {googleLoading ? (
-                    <Button disabled>
+                  <Button onClick={() => login()} disabled={googleLoading}>
+                    {googleLoading ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Conectando...
-                    </Button>
-                  ) : (
-                    <GoogleLogin
-                      onSuccess={handleGoogleSuccess}
-                      onError={() => {
-                        toast({
-                          title: "Error de Google",
-                          description: "No se pudo iniciar sesión con Google.",
-                          variant: "destructive",
-                        });
-                      }}
-                    />
-                  )}
+                    ) : (
+                      <Zap className="mr-2 h-4 w-4" />
+                    )}
+                    Conectar con Google
+                  </Button>
                 </div>
               </div>
             </TabsContent>
