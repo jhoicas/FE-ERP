@@ -1,7 +1,4 @@
 import ExplainableAcronym from "@/components/shared/ExplainableAcronym";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import CrmAnalyticsDashboard from "@/features/analytics/components/CrmAnalyticsDashboard";
-import CRMRemarketingTab from "@/features/crm/components/CRMRemarketingTab";
 import CustomersTable from "@/features/crm/components/CustomersTable";
 
 export default function CRMPage() {
@@ -11,32 +8,12 @@ export default function CRMPage() {
         <h1 className="text-lg font-semibold tracking-tight">
           <ExplainableAcronym sigla="CRM" />
         </h1>
+        <p className="text-sm text-muted-foreground">
+          Directorio de clientes con búsqueda, filtros y paginación.
+        </p>
       </div>
 
-      <Tabs defaultValue="analytics">
-        <TabsList>
-          <TabsTrigger value="analytics">Analítica</TabsTrigger>
-          <TabsTrigger value="directory">Directorio</TabsTrigger>
-          <TabsTrigger value="remarketing">Remarketing</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="analytics">
-          <CrmAnalyticsDashboard />
-        </TabsContent>
-
-        <TabsContent value="directory" className="space-y-4">
-          <div>
-            <p className="text-sm text-muted-foreground">
-              Directorio de clientes con búsqueda, filtros y paginación.
-            </p>
-          </div>
-          <CustomersTable />
-        </TabsContent>
-
-        <TabsContent value="remarketing" className="space-y-4">
-          <CRMRemarketingTab />
-        </TabsContent>
-      </Tabs>
+      <CustomersTable />
     </div>
   );
 }

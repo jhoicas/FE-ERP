@@ -52,6 +52,8 @@ const APP_MENU_CONFIG = [
     frontend_route: "/crm",
     screens: [
       { id: "crm-cliente", label: "Cliente CRM", frontend_route: "/crm/customers" },
+      { id: "crm-analytics", label: "Analítica", frontend_route: "/crm/analytics" },
+      { id: "crm-remarketing", label: "Remarketing", frontend_route: "/crm/remarketing" },
       { id: "crm-categorias", label: "Categorías", frontend_route: "/crm/categories" },
       { id: "crm-campanas", label: "Campañas", frontend_route: "/crm/campaigns" },
       { id: "crm-tareas", label: "Tareas", frontend_route: "/crm/tasks" },

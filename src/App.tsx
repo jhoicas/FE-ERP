@@ -8,6 +8,8 @@ import DashboardPage from "@/pages/DashboardPage";
 import InventoryPage from "@/pages/InventoryPage";
 import BillingPage from "@/pages/BillingPage";
 import CRMPage from "@/pages/CRMPage";
+import CRMAnalyticsPage from "@/pages/CRMAnalyticsPage";
+import CRMRemarketingPage from "@/pages/CRMRemarketingPage";
 import ClientDetailPage from "@/pages/ClientDetailPage";
 import CustomerProfile360Page from "@/pages/CustomerProfile360Page";
 import TicketsPage from "@/pages/TicketsPage";
@@ -151,6 +153,22 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={["crm", "sales", "support", "marketing", "admin"]}>
                   <CRMPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/crm/analytics"
+              element={
+                <ProtectedRoute allowedRoles={["crm", "sales", "support", "marketing", "admin"]}>
+                  <CRMAnalyticsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/crm/remarketing"
+              element={
+                <ProtectedRoute allowedRoles={["crm", "sales", "support", "marketing", "admin"]}>
+                  <CRMRemarketingPage />
                 </ProtectedRoute>
               }
             />

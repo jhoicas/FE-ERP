@@ -1,7 +1,12 @@
-# TODO - Integración AdminPage en navegación
+# TODO - CRM separar Analítica y Remarketing en páginas
 
-- [x] Actualizar ruta `/admin` en `src/App.tsx` para usar `<ProtectedRoute><AdminPage /></ProtectedRoute>`.
-- [x] Actualizar `src/components/layout/AppSidebar.tsx`:
-  - [x] Agregar `requiresSuperAdmin: true` al ítem **Super Admin**.
-  - [x] Filtrar renderizado de screens para ocultar ítems `requiresSuperAdmin` cuando el usuario no tenga rol `super_admin`.
-- [x] Marcar tareas completadas y validar consistencia final.
+- [x] Actualizar `src/pages/CRMPage.tsx` para dejar solo Directorio (sin tabs de Analítica/Remarketing).
+- [x] Crear `src/pages/CRMRemarketingPage.tsx` y usar `CRMRemarketingTab`.
+- [x] Crear `src/pages/CRMAnalyticsPage.tsx` y usar `CrmAnalyticsDashboard`.
+- [x] Actualizar rutas en `src/App.tsx`:
+  - [x] `/crm/remarketing`
+  - [x] `/crm/analytics`
+  - [x] Mantener `/crm/customers` en `CRMPage`.
+- [x] Actualizar `src/components/layout/AppSidebar.tsx` para agregar accesos:
+  - [x] Analítica → `/crm/analytics`
+  - [x] Remarketing → `/crm/remarketing`
