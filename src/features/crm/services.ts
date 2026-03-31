@@ -417,6 +417,33 @@ export async function sendCampaign(body: SendCampaignRequest): Promise<{ status:
   }
 }
 
+export async function importCrmExcel(file: File): Promise<{ status?: string }> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  try {
+    const { data } = await apiClient.post<{ status?: string }>(`${CRM_BASE}/import`, formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+    return data;
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}
+
+export async function sendBulkCampaign(customerIds: string[]): Promise<{ status: string }> {
+  try {
+    const { data } = await apiClient.post<{ status: string }>(`${CRM_BASE}/campaigns/send-bulk`, {
+      customer_ids: customerIds,
+    });
+    return z.object({ status: z.string() }).parse(data) as { status: string };
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}
+
 export async function sendCampaignTest(body: {
   subject: string;
   body: string;

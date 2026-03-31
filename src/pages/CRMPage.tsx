@@ -1,6 +1,7 @@
 import ExplainableAcronym from "@/components/shared/ExplainableAcronym";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CrmAnalyticsDashboard from "@/features/analytics/components/CrmAnalyticsDashboard";
+import CRMRemarketingTab from "@/features/crm/components/CRMRemarketingTab";
 import CustomersTable from "@/features/crm/components/CustomersTable";
 
 export default function CRMPage() {
@@ -33,12 +34,7 @@ export default function CRMPage() {
         </TabsContent>
 
         <TabsContent value="remarketing" className="space-y-4">
-          <div className="erp-card p-6">
-            <h2 className="text-sm font-semibold">Remarketing</h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              Próximamente: campañas y automatizaciones de remarketing.
-            </p>
-          </div>
+          <CRMRemarketingTab />
         </TabsContent>
       </Tabs>
     </div>
