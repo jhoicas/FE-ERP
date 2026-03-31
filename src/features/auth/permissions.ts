@@ -73,6 +73,34 @@ function normalizeRoute(route: string): string {
   return trimmed.startsWith("/") ? trimmed.replace(/\/+$/, "") : `/${trimmed.replace(/\/+$/, "")}`;
 }
 
+type ResolvedModule = {
+  key: string;
+  name?: string;
+};
+
+export function resolveScreenModule(
+  screen: Pick<RbacScreenDTO, "module_key" | "module_name">,
+  parentModule?: Pick<RbacModuleDTO, "name" | "label" | "title"> | null,
+): ResolvedModule | null {
+  const keyFromScreen = screen.module_key?.trim();
+  if (keyFromScreen) {
+    return { key: keyFromScreen.toLowerCase(), name: screen.module_name ?? keyFromScreen };
+  }
+
+  const nameFromScreen = screen.module_name?.trim();
+  if (nameFromScreen) {
+    return { key: nameFromScreen.toLowerCase(), name: nameFromScreen };
+  }
+
+  if (parentModule) {
+    const label = getMenuItemLabel({ ...parentModule, frontend_route: "" });
+    const key = label.toLowerCase();
+    return { key, name: label };
+  }
+
+  return null;
+}
+
 function isHiddenMenuEntry(
   item: { label?: string; name?: string; title?: string; frontend_route?: string | null | undefined },
 ): boolean {
@@ -154,7 +182,36 @@ export function canAccessFrontendRoute(menu: RbacMenuDTO | null | undefined, pat
   const routes = getFlattenedRbacRoutes(menu);
   if (routes.length === 0) return false;
 
-  return routes.some((route) => routeMatches(route, normalizedPath));
+  if (routes.some((route) => routeMatches(route, normalizedPath))) {
+    return true;
+  }
+
+  const crmCustomersBase = "/crm/customers";
+  if (routes.includes(crmCustomersBase) && normalizedPath.startsWith(`${crmCustomersBase}/`)) {
+    return true;
+  }
+
+  const crmCampaignsBase = "/crm/campaigns";
+  if (
+    routes.includes(crmCampaignsBase) &&
+    (normalizedPath === "/crm/campaigns/recipients-resolve" ||
+      normalizedPath.startsWith("/crm/campaigns/recipients-resolve/"))
+  ) {
+    return true;
+  }
+
+  const crmAnalyticsBase = "/crm/analytics";
+  const crmAnalyticsAllowed = [
+    "/crm/analytics/kpis",
+    "/crm/analytics/segmentation",
+    "/crm/analytics/monthly-evolution",
+  ];
+
+  if (routes.includes(crmAnalyticsBase) && crmAnalyticsAllowed.some((r) => normalizedPath.startsWith(r))) {
+    return true;
+  }
+
+  return false;
 }
 
 export function getDefaultRouteFromMenu(menu: RbacMenuDTO | null | undefined): string {

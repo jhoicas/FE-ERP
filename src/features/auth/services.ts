@@ -12,18 +12,22 @@ export async function loginService(data: LoginInput): Promise<LoginResponse> {
   return parsed;
 }
 
-const RbacRouteSchema = z.object({
-  id: z.union([z.string(), z.number()]).transform(String).optional(),
-  name: z.string().optional(),
-  label: z.string().optional(),
-  title: z.string().optional(),
-  frontend_route: z.string().optional(),
-  icon: z.string().optional(),
-}).passthrough();
+const RbacRouteSchema = z
+  .object({
+    id: z.union([z.string(), z.number()]).transform(String).optional(),
+    name: z.string().optional(),
+    label: z.string().optional(),
+    title: z.string().optional(),
+    frontend_route: z.string().optional(),
+    icon: z.string().optional(),
+  })
+  .passthrough();
 
 export const RbacScreenSchema = RbacRouteSchema.extend({
   frontend_route: z.string().min(1),
-});
+  module_key: z.string().optional(),
+  module_name: z.string().optional(),
+}).passthrough();
 
 export const RbacModuleSchema = RbacRouteSchema.extend({
   screens: z.array(RbacScreenSchema).default([]),

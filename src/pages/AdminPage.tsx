@@ -6,6 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import type { Tenant } from "@/types/admin";
 import { getTenants, toggleTenantModule, updateRolePermissions } from "@/features/admin/services";
@@ -13,15 +14,24 @@ import { getApiErrorMessage } from "@/lib/api/errors";
 
 const moduleList = ["Inventario", "Facturación", "CRM", "Analítica", "Compras"] as const;
 const roles = ["Admin", "Gerente", "Vendedor", "Bodeguero", "Contador"] as const;
-const screens = ["Dashboard", "Inventario", "Facturación", "CRM", "Analítica", "Compras", "Ajustes"] as const;
+const screens = [
+  { key: "Dashboard", module: "Analítica" },
+  { key: "Inventario", module: "Inventario" },
+  { key: "Facturación", module: "Facturación" },
+  { key: "CRM", module: "CRM" },
+  { key: "Analítica", module: "Analítica" },
+  { key: "Compras", module: "Compras" },
+  { key: "Ajustes", module: "Analítica" },
+] as const;
 
 type Role = (typeof roles)[number];
-type Screen = (typeof screens)[number];
-type PermissionsState = Record<Role, Record<Screen, boolean>>;
+type ScreenKey = (typeof screens)[number]["key"];
+type ModuleFilter = "Todos" | (typeof moduleList)[number];
+type PermissionsState = Record<Role, Record<ScreenKey, boolean>>;
 
 const initialPermissions: PermissionsState = {
-  Admin: Object.fromEntries(screens.map((s) => [s, true])) as Record<Screen, boolean>,
-  Gerente: Object.fromEntries(screens.map((s) => [s, s !== "Ajustes"])) as Record<Screen, boolean>,
+  Admin: Object.fromEntries(screens.map((s) => [s.key, true])) as Record<ScreenKey, boolean>,
+  Gerente: Object.fromEntries(screens.map((s) => [s.key, s.key !== "Ajustes"])) as Record<ScreenKey, boolean>,
   Vendedor: {
     Dashboard: true,
     Inventario: false,
@@ -63,6 +73,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [permissions, setPermissions] = useState<PermissionsState>(initialPermissions);
+  const [moduleFilter, setModuleFilter] = useState<ModuleFilter>("Todos");
 
   useEffect(() => {
     let active = true;
@@ -136,7 +147,7 @@ export default function AdminPage() {
     }
   };
 
-  const togglePermission = async (role: Role, screen: Screen) => {
+  const togglePermission = async (role: Role, screen: ScreenKey) => {
     const nextPermissionsForRole = {
       ...permissions[role],
       [screen]: !permissions[role][screen],
@@ -229,30 +240,59 @@ export default function AdminPage() {
 
         <TabsContent value="permissions" className="mt-4">
           <div className="erp-card p-0 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b gap-3">
+              <p className="text-xs text-muted-foreground">
+                Define qué pantallas puede ver cada rol dentro de cada módulo.
+              </p>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Filtrar por módulo</span>
+                <Select value={moduleFilter} onValueChange={(value) => setModuleFilter(value as ModuleFilter)}>
+                  <SelectTrigger className="h-8 w-[140px]">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Todos">Todos</SelectItem>
+                    {moduleList.map((mod) => (
+                      <SelectItem key={mod} value={mod}>
+                        {mod}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="text-xs sticky left-0 bg-card z-10">Rol</TableHead>
-                    {screens.map((s) => (
-                      <TableHead key={s} className="text-xs text-center">
-                        {s}
-                      </TableHead>
-                    ))}
+                    {screens
+                      .filter((s) => moduleFilter === "Todos" || s.module === moduleFilter)
+                      .map((s) => (
+                        <TableHead key={s.key} className="text-xs text-center">
+                          <div className="flex flex-col items-center gap-0.5">
+                            <span>{s.key}</span>
+                            <span className="text-[10px] text-muted-foreground">{s.module}</span>
+                          </div>
+                        </TableHead>
+                      ))}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {roles.map((role) => (
                     <TableRow key={role}>
                       <TableCell className="text-sm font-medium sticky left-0 bg-card z-10">{role}</TableCell>
-                      {screens.map((screen) => (
-                        <TableCell key={screen} className="text-center">
-                          <Checkbox
-                            checked={permissions[role][screen]}
-                            onCheckedChange={() => togglePermission(role, screen)}
-                          />
-                        </TableCell>
-                      ))}
+                      {screens
+                        .filter((s) => moduleFilter === "Todos" || s.module === moduleFilter)
+                        .map((screen) => (
+                          <TableCell key={screen.key} className="text-center">
+                            <Checkbox
+                              checked={permissions[role][screen.key]}
+                              onCheckedChange={() => togglePermission(role, screen.key)}
+                            />
+                          </TableCell>
+                        ))}
                     </TableRow>
                   ))}
                 </TableBody>
