@@ -12,6 +12,22 @@ import apiClient from "@/lib/api/client";
 type Segment = "VIP" | "Premium" | "Recurrente" | "Ocasional";
 type Category = "Aceites" | "Cremas" | "Infusiones" | "Jabones" | "Capilar";
 
+interface RecipientStrategy {
+  type: "category";
+  category_id: string;
+}
+
+interface RecipientDTO {
+  customer_id: string;
+  name: string;
+  email?: string | null;
+  segment?: string | null;
+}
+
+interface ResolveRecipientsResponse {
+  recipients: RecipientDTO[];
+}
+
 interface RemarketingClient {
   id: string;
   name: string;
@@ -42,11 +58,52 @@ export default function CRMRemarketingTab() {
   const [loadingCampaign, setLoadingCampaign] = useState(false);
   const [loadingData, setLoadingData] = useState(false);
 
+  const mapSegment = (segment?: string | null): Segment => {
+    if (segment === "VIP" || segment === "Premium" || segment === "Recurrente" || segment === "Ocasional") {
+      return segment;
+    }
+    return "Ocasional";
+  };
+
+  const inferCategoryFromSegment = (segment: Segment): Category => {
+    switch (segment) {
+      case "VIP":
+        return "Aceites";
+      case "Premium":
+        return "Cremas";
+      case "Recurrente":
+        return "Infusiones";
+      case "Ocasional":
+      default:
+        return "Jabones";
+    }
+  };
+
   const loadRemarketingTargets = async () => {
     setLoadingData(true);
     try {
-      const { data } = await apiClient.get<RemarketingClient[]>("/api/crm/remarketing-targets");
-      setClients(Array.isArray(data) ? data : []);
+      const strategies: RecipientStrategy[] = [];
+      const { data } = await apiClient.post<ResolveRecipientsResponse>(
+        "/api/crm/campaigns/recipients/resolve",
+        { strategies },
+      );
+
+      const recipients = Array.isArray(data?.recipients) ? data.recipients : [];
+      const mapped: RemarketingClient[] = recipients.map((r) => {
+        const normalizedSegment = mapSegment(r.segment);
+        return {
+          id: r.customer_id,
+          name: r.name ?? "Cliente",
+          email: r.email ?? "sin-email@cliente.local",
+          segment: normalizedSegment,
+          lastPurchase: "—",
+          ltv: "—",
+          category: inferCategoryFromSegment(normalizedSegment),
+          aiMessage: "Mensaje generado automáticamente para esta audiencia.",
+        };
+      });
+
+      setClients(mapped);
     } catch {
       setClients([]);
       toast({
