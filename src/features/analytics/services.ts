@@ -7,3 +7,8 @@ export async function getMarginsReport(): Promise<MarginsReportDTO> {
   return parsed;
 }
 
+export async function getCrmAnalytics() {
+  const response = await apiClient.get("/api/crm/analytics");
+  return response.data;
+}
+
