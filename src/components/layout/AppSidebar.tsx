@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   ChevronDown,
   Circle,
+  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Cookies from "js-cookie";
@@ -82,6 +83,7 @@ const APP_MENU_CONFIG = [
     label: "Administrador General",
     frontend_route: "/ajustes",
     screens: [
+      { id: "settings-super-admin", label: "Super Admin", frontend_route: "/admin", icon: ShieldCheck, requiresSuperAdmin: true },
       { id: "settings-ajustes", label: "Ajustes", frontend_route: "/ajustes" },
       { id: "settings-users", label: "Usuarios", frontend_route: "/settings/users" },
       { id: "settings-email", label: "Correo IMAP", frontend_route: "/settings/email" }
@@ -283,6 +285,10 @@ export default function AppSidebar() {
               {!collapsed && hasScreens && isSubmenuOpen && (
                 <div className="ml-9 mt-1 mb-1 space-y-1">
                   {module.screens.map((screen) => {
+                    if (screen.requiresSuperAdmin && !user?.roles?.includes("super_admin")) {
+                      return null;
+                    }
+
                     return (
                       <NavLink
                         key={screen.id}
