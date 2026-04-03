@@ -1,10 +1,8 @@
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+
 import React, { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuthUser } from "@/features/auth/useAuthUser";
-  const user = useAuthUser();
-  const queryClient = useQueryClient();
-// (Eliminado import duplicado de useQueryClient)
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,35 +11,19 @@ import {
 import { getRoles, createRole, updateRole, deleteRole, RoleDTO } from "@/features/auth/roles.service";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogFooter } from "@/components/ui/alert-dialog";
 import { Trash2 } from "lucide-react";
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [roleToDelete, setRoleToDelete] = useState<RoleDTO | null>(null);
-  const deleteMutation = useMutation({
-    mutationFn: async (role: RoleDTO) => {
-      const companyId = user?.company_id;
-      if (!companyId) throw new Error("No hay empresa activa");
-      return deleteRole(companyId, role.id);
-    },
-    onSuccess: () => {
-      toast.success("Rol eliminado correctamente");
-      setDeleteDialogOpen(false);
-      setRoleToDelete(null);
-      const companyId = user?.company_id;
-      if (companyId) queryClient.invalidateQueries({ queryKey: ["roles", companyId] });
-    },
-    onError: (error: any) => {
-      toast.error(error?.message || "Error al eliminar el rol");
-    },
-  });
 import { toast } from "@/components/ui/sonner";
 import RoleForm from "./RoleForm.tsx";
 
 
 export default function RolesManagement() {
+  // HOOKS SIEMPRE AL INICIO
   const user = useAuthUser();
   const companyId = user?.company_id;
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<RoleDTO | null>(null);
-  const queryClient = useQueryClient();
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [roleToDelete, setRoleToDelete] = useState<RoleDTO | null>(null);
 
   const {
     data: roles,
@@ -93,6 +75,23 @@ export default function RolesManagement() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async (role: RoleDTO) => {
+      if (!companyId) throw new Error("No hay empresa activa");
+      return deleteRole(companyId, role.id);
+    },
+    onSuccess: () => {
+      toast.success("Rol eliminado correctamente");
+      setDeleteDialogOpen(false);
+      setRoleToDelete(null);
+      queryClient.invalidateQueries({ queryKey: ["roles", companyId] });
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || "Error al eliminar el rol");
+    },
+  });
+
+  // HANDLERS
   const handleCreate = (role: { name: string; screenIds: string[] }) => {
     createMutation.mutate(role);
   };
