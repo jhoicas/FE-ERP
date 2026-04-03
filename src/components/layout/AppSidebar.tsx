@@ -128,7 +128,7 @@ export default function AppSidebar() {
     // Agrupamos screens por módulo usando resolveScreenModule
     const menuByModule: Record<string, any> = {};
 
-    for (const mod of companyModules.modules) {
+    for (const mod of companyModules.modules as Array<{ module_key?: string; module_name?: string; is_active?: boolean; screens?: any[] }>) {
       if (!mod.is_active && mod.module_key !== "settings") continue;
       const key = (mod.module_key ?? mod.module_name ?? "").toLowerCase();
       menuByModule[key] = {
@@ -138,9 +138,15 @@ export default function AppSidebar() {
     }
 
     // Recorremos todos los módulos y screens del backend
-    for (const backendModule of companyModules.modules) {
+    for (const backendModule of companyModules.modules as Array<{ module_key?: string; module_name?: string; is_active?: boolean; screens?: any[]; name?: string; label?: string; title?: string }>) {
       for (const screen of backendModule.screens ?? []) {
-        const resolved = resolveScreenModule(screen, backendModule);
+        // Solo pasar las props esperadas por el helper
+        const parentModule = {
+          name: backendModule.name,
+          label: backendModule.label,
+          title: backendModule.title,
+        };
+        const resolved = resolveScreenModule(screen, parentModule);
         if (!resolved) continue;
         const key = resolved.key;
         if (!menuByModule[key]) {

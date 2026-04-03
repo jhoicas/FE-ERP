@@ -14,6 +14,7 @@ type ProtectedRouteProps = {
   allowedRoles?: string[];
 };
 
+export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const token = Cookies.get(AUTH_TOKEN_COOKIE_KEY);
   const location = useLocation();
   const { data: menu, isLoading, isFetching, isError, refetch } = useRbacMenu();
