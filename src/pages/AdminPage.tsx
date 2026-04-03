@@ -10,22 +10,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import type { Tenant } from "@/types/admin";
 import { getTenants, toggleTenantModule, updateRolePermissions } from "@/features/admin/services";
+import { resolveScreenModule } from "@/features/auth/permissions";
 import { getApiErrorMessage } from "@/lib/api/errors";
 
 const moduleList = ["Inventario", "Facturación", "CRM", "Analítica", "Compras"] as const;
 const roles = ["Admin", "Gerente", "Vendedor", "Bodeguero", "Contador"] as const;
+// Simulación de screens con posibles campos nuevos para compatibilidad
 const screens = [
-  { key: "Dashboard", module: "Analítica" },
-  { key: "Inventario", module: "Inventario" },
-  { key: "Facturación", module: "Facturación" },
-  { key: "CRM", module: "CRM" },
-  { key: "Analítica", module: "Analítica" },
-  { key: "Compras", module: "Compras" },
-  { key: "Ajustes", module: "Analítica" },
+  { key: "Dashboard", module: "Analítica", module_key: "analytics", module_name: "Analítica" },
+  { key: "Inventario", module: "Inventario", module_key: "inventory", module_name: "Inventario" },
+  { key: "Facturación", module: "Facturación", module_key: "billing", module_name: "Facturación" },
+  { key: "CRM", module: "CRM", module_key: "crm", module_name: "CRM" },
+  { key: "Analítica", module: "Analítica", module_key: "analytics", module_name: "Analítica" },
+  { key: "Compras", module: "Compras", module_key: "purchasing", module_name: "Compras" },
+  { key: "Ajustes", module: "Analítica", module_key: undefined, module_name: "Analítica" },
 ] as const;
 
 type Role = (typeof roles)[number];
 type ScreenKey = (typeof screens)[number]["key"];
+type ScreenType = typeof screens[number];
 type ModuleFilter = "Todos" | (typeof moduleList)[number];
 type PermissionsState = Record<Role, Record<ScreenKey, boolean>>;
 
@@ -74,6 +77,7 @@ export default function AdminPage() {
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [permissions, setPermissions] = useState<PermissionsState>(initialPermissions);
   const [moduleFilter, setModuleFilter] = useState<ModuleFilter>("Todos");
+  const [moduleSearch, setModuleSearch] = useState<string>("");
 
   useEffect(() => {
     let active = true;
@@ -259,6 +263,13 @@ export default function AdminPage() {
                     ))}
                   </SelectContent>
                 </Select>
+                <input
+                  type="text"
+                  placeholder="Buscar módulo..."
+                  value={moduleSearch}
+                  onChange={(e) => setModuleSearch(e.target.value)}
+                  className="input input-sm ml-2 w-32 border rounded px-2 py-1 text-xs"
+                />
               </div>
             </div>
 
@@ -267,13 +278,24 @@ export default function AdminPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="text-xs sticky left-0 bg-card z-10">Rol</TableHead>
+                    <TableHead className="text-xs text-center">Módulo</TableHead>
                     {screens
-                      .filter((s) => moduleFilter === "Todos" || s.module === moduleFilter)
+                      .filter((s) => {
+                        // Determinar el módulo usando resolveScreenModule
+                        const resolved = resolveScreenModule(s as any, { name: s.module });
+                        const moduleLabel = resolved?.name || s.module;
+                        const filterMatch = moduleFilter === "Todos" || moduleLabel === moduleFilter;
+                        const searchMatch = moduleSearch === "" || moduleLabel.toLowerCase().includes(moduleSearch.toLowerCase());
+                        return filterMatch && searchMatch;
+                      })
                       .map((s) => (
                         <TableHead key={s.key} className="text-xs text-center">
                           <div className="flex flex-col items-center gap-0.5">
                             <span>{s.key}</span>
-                            <span className="text-[10px] text-muted-foreground">{s.module}</span>
+                            <span className="text-[10px] text-muted-foreground">{(() => {
+                              const resolved = resolveScreenModule(s as any, { name: s.module });
+                              return resolved?.name || s.module;
+                            })()}</span>
                           </div>
                         </TableHead>
                       ))}
@@ -283,8 +305,33 @@ export default function AdminPage() {
                   {roles.map((role) => (
                     <TableRow key={role}>
                       <TableCell className="text-sm font-medium sticky left-0 bg-card z-10">{role}</TableCell>
+                      {/* Columna de módulo (solo una vez por fila, para visualización) */}
+                      <TableCell className="text-xs text-muted-foreground text-center font-semibold">
+                        {/* Muestra los módulos filtrados para este rol */}
+                        {(() => {
+                          const filtered = screens.filter((s) => {
+                            const resolved = resolveScreenModule(s as any, { name: s.module });
+                            const moduleLabel = resolved?.name || s.module;
+                            const filterMatch = moduleFilter === "Todos" || moduleLabel === moduleFilter;
+                            const searchMatch = moduleSearch === "" || moduleLabel.toLowerCase().includes(moduleSearch.toLowerCase());
+                            return filterMatch && searchMatch;
+                          });
+                          // Si hay más de un módulo, muestra "Varios"; si solo uno, muestra el nombre
+                          const uniqueModules = Array.from(new Set(filtered.map((s) => {
+                            const resolved = resolveScreenModule(s as any, { name: s.module });
+                            return resolved?.name || s.module;
+                          })));
+                          return uniqueModules.length === 1 ? uniqueModules[0] : uniqueModules.length > 1 ? "Varios" : "-";
+                        })()}
+                      </TableCell>
                       {screens
-                        .filter((s) => moduleFilter === "Todos" || s.module === moduleFilter)
+                        .filter((s) => {
+                          const resolved = resolveScreenModule(s as any, { name: s.module });
+                          const moduleLabel = resolved?.name || s.module;
+                          const filterMatch = moduleFilter === "Todos" || moduleLabel === moduleFilter;
+                          const searchMatch = moduleSearch === "" || moduleLabel.toLowerCase().includes(moduleSearch.toLowerCase());
+                          return filterMatch && searchMatch;
+                        })
                         .map((screen) => (
                           <TableCell key={screen.key} className="text-center">
                             <Checkbox

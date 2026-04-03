@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import Cookies from "js-cookie";
 import { AUTH_TOKEN_COOKIE_KEY } from "@/config/auth";
 import { useMemo, useState, type ComponentType } from "react";
+import { resolveScreenModule } from "@/features/auth/permissions";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthUser } from "@/features/auth/useAuthUser";
 import { Badge } from "@/components/ui/badge";
@@ -109,31 +110,61 @@ export default function AppSidebar() {
   const { data: companyModules, isLoading } = useCompanyModules(companyId);
 
   // --- 3. LÓGICA DE FILTRADO ESTRICTO ---
+  // Agrupación dinámica de módulos y screens usando resolveScreenModule
   const visibleModules = useMemo(() => {
-    // Si la API no ha respondido, mostramos solo Admin General cuando aplique
     if (!companyModules?.modules) {
       return isAdmin
         ? APP_MENU_CONFIG.filter((mod) => mod.module_key === "settings")
         : [];
     }
 
-    // Creamos un diccionario rápido de la respuesta para saber qué está activo
-    // Ejemplo: { analytics: true, billing: false, crm: true, ... }
+    // Diccionario de módulos activos
     const activeModulesMap = companyModules.modules.reduce((acc: any, curr: any) => {
-      acc[curr.module_name.toLowerCase()] = curr.is_active;
+      acc[(curr.module_key ?? curr.module_name ?? "").toLowerCase()] = curr.is_active;
       return acc;
     }, {});
 
-    // Filtramos la configuración maestra.
-    // settings: solo por rol admin. Otros módulos: por activación en API.
-    return APP_MENU_CONFIG.filter((mod) => {
-      if (mod.module_key === "settings") {
-        return isAdmin;
-      }
+    // Agrupamos screens por módulo usando resolveScreenModule
+    const menuByModule: Record<string, any> = {};
 
+    for (const mod of companyModules.modules) {
+      if (!mod.is_active && mod.module_key !== "settings") continue;
+      const key = (mod.module_key ?? mod.module_name ?? "").toLowerCase();
+      menuByModule[key] = {
+        ...mod,
+        screens: [],
+      };
+    }
+
+    // Recorremos todos los módulos y screens del backend
+    for (const backendModule of companyModules.modules) {
+      for (const screen of backendModule.screens ?? []) {
+        const resolved = resolveScreenModule(screen, backendModule);
+        if (!resolved) continue;
+        const key = resolved.key;
+        if (!menuByModule[key]) {
+          menuByModule[key] = {
+            module_key: key,
+            label: resolved.name ?? key,
+            frontend_route: undefined,
+            screens: [],
+          };
+        }
+        menuByModule[key].screens.push({ ...screen });
+      }
+    }
+
+    // settings: solo por rol admin
+    if (isAdmin && !menuByModule["settings"]) {
+      const settingsConfig = APP_MENU_CONFIG.find((m) => m.module_key === "settings");
+      if (settingsConfig) menuByModule["settings"] = settingsConfig;
+    }
+
+    // Filtramos solo los módulos activos
+    return Object.values(menuByModule).filter((mod: any) => {
+      if (mod.module_key === "settings") return isAdmin;
       return activeModulesMap[mod.module_key] === true;
     });
-    
   }, [companyModules, isAdmin]);
 
   const hasDashboardShortcut = useMemo(

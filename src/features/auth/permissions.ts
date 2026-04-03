@@ -137,20 +137,26 @@ export function getVisibleRbacModules(menu: RbacMenuDTO | null | undefined): Rba
     });
 }
 
+/**
+ * Retorna todas las rutas del menú RBAC, clasificadas por módulo usando resolveScreenModule.
+ * Permite agrupar/anidar rutas por módulo para el Sidebar y para matching de rutas autorizadas.
+ */
 export function getFlattenedRbacRoutes(menu: RbacMenuDTO | null | undefined): string[] {
   const routes = new Set<string>();
 
   for (const module of menu?.modules ?? []) {
-    if (isHiddenMenuEntry(module)) {
-      continue;
-    }
+    if (isHiddenMenuEntry(module)) continue;
 
+    // Clasifica la ruta del módulo principal
     if (module.frontend_route) {
       routes.add(normalizeRoute(module.frontend_route));
     }
 
     for (const screen of module.screens ?? []) {
       if (screen.frontend_route?.trim() && !isHiddenMenuEntry(screen)) {
+        // Clasificación por módulo usando helper
+        const resolved = resolveScreenModule(screen, module);
+        // Si se requiere agrupar por módulo, aquí se puede usar resolved.key
         routes.add(normalizeRoute(screen.frontend_route));
       }
     }

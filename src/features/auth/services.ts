@@ -25,9 +25,9 @@ const RbacRouteSchema = z
 
 export const RbacScreenSchema = RbacRouteSchema.extend({
   frontend_route: z.string().min(1),
-  module_key: z.string().optional(),
-  module_name: z.string().optional(),
-}).passthrough();
+  module_key: z.string().optional(), // Nuevo campo opcional para clasificación por módulo
+  module_name: z.string().optional(), // Nuevo campo opcional para clasificación por módulo
+}).passthrough(); // Mantener compatibilidad retroactiva
 
 export const RbacModuleSchema = RbacRouteSchema.extend({
   screens: z.array(RbacScreenSchema).default([]),
