@@ -1,3 +1,6 @@
+export async function deleteRole(companyId: string, roleId: string): Promise<void> {
+  await apiClient.delete(`/api/companies/${companyId}/roles/${roleId}`);
+}
 import apiClient from "@/lib/api/client";
 import { z } from "zod";
 

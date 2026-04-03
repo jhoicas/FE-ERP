@@ -1,6 +1,37 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getRoles, createRole, updateRole, RoleDTO } from "@/features/auth/roles.service";
+import React, { useState } from "react";
+import { useAuthUser } from "@/features/auth/useAuthUser";
+  const user = useAuthUser();
+  const queryClient = useQueryClient();
+// (Eliminado import duplicado de useQueryClient)
+import { Dialog } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import {
+  Table, TableHeader, TableRow, TableHead, TableBody, TableCell
+} from "@/components/ui/table";
+import { getRoles, createRole, updateRole, deleteRole, RoleDTO } from "@/features/auth/roles.service";
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogFooter } from "@/components/ui/alert-dialog";
+import { Trash2 } from "lucide-react";
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [roleToDelete, setRoleToDelete] = useState<RoleDTO | null>(null);
+  const deleteMutation = useMutation({
+    mutationFn: async (role: RoleDTO) => {
+      const companyId = user?.company_id;
+      if (!companyId) throw new Error("No hay empresa activa");
+      return deleteRole(companyId, role.id);
+    },
+    onSuccess: () => {
+      toast.success("Rol eliminado correctamente");
+      setDeleteDialogOpen(false);
+      setRoleToDelete(null);
+      const companyId = user?.company_id;
+      if (companyId) queryClient.invalidateQueries({ queryKey: ["roles", companyId] });
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || "Error al eliminar el rol");
+    },
+  });
 import { toast } from "@/components/ui/sonner";
 import RoleForm from "./RoleForm.tsx";
 
@@ -107,9 +138,28 @@ export default function RolesManagement() {
               <TableRow key={role.id}>
                 <TableCell>{role.name}</TableCell>
                 <TableCell>{role.screen_ids.length}</TableCell>
-                <TableCell>
+                <TableCell className="flex gap-2">
                   <Button size="sm" variant="outline" onClick={() => handleEdit(role)}>Editar</Button>
+                  <Button size="sm" variant="ghost" onClick={() => { setRoleToDelete(role); setDeleteDialogOpen(true); }} title="Eliminar" aria-label="Eliminar">
+                    <Trash2 className="w-4 h-4 text-destructive" />
+                  </Button>
                 </TableCell>
+                    <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>¿Eliminar rol?</AlertDialogTitle>
+                        </AlertDialogHeader>
+                        <div className="py-2 text-sm">
+                          ¿Estás seguro de que deseas eliminar el rol <b>{roleToDelete?.name}</b>? Esta acción no se puede deshacer.
+                        </div>
+                        <AlertDialogFooter>
+                          <Button variant="ghost" onClick={() => setDeleteDialogOpen(false)} disabled={deleteMutation.isPending}>Cancelar</Button>
+                          <Button variant="destructive" onClick={() => roleToDelete && deleteMutation.mutate(roleToDelete)} disabled={deleteMutation.isPending}>
+                            {deleteMutation.isPending ? "Eliminando..." : "Eliminar"}
+                          </Button>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
               </TableRow>
             ))
           )}
