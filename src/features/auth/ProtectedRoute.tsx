@@ -19,7 +19,7 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const location = useLocation();
   const { data: menu, isLoading, isFetching, isError, refetch } = useRbacMenu();
   const user = useAuthUser();
-  const isSuperAdmin = user?.isSuperAdmin ?? false;
+const isSuperAdmin = user?.roles?.includes("super_admin") ?? false;
 
   if (!token) {
     return <Navigate to="/login" replace />;
