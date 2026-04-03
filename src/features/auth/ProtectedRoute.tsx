@@ -1,12 +1,11 @@
 import { ReactNode } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import Cookies from "js-cookie";
 import { Button } from "@/components/ui/button";
 
 import { AUTH_TOKEN_COOKIE_KEY } from "@/config/auth";
 import { canAccessFrontendRoute, getDefaultRouteFromMenu } from "@/features/auth/permissions";
 import { useRbacMenu } from "@/features/auth/useRbacMenu";
-import { useLocation } from "react-router-dom";
 import { useAuthUser } from "./useAuthUser";
 
 type ProtectedRouteProps = {
@@ -19,15 +18,21 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const location = useLocation();
   const { data: menu, isLoading, isFetching, isError, refetch } = useRbacMenu();
   const user = useAuthUser();
-const isSuperAdmin = user?.roles?.includes("super_admin") ?? false;
+  
+  // Verificamos si es super_admin buscando en el array de roles del JWT
+  const isSuperAdmin = user?.roles?.includes("super_admin") ?? false;
 
   if (!token) {
     return <Navigate to="/login" replace />;
   }
 
-  // Protección de ruta Super Admin
-  if (location.pathname.startsWith("/admin") && !isSuperAdmin) {
-    return <Navigate to="/" replace />;
+  // --- SOLUCIÓN AQUÍ ---
+  // Si la ruta es de admin, manejamos el permiso inmediatamente
+  if (location.pathname.startsWith("/admin")) {
+    if (isSuperAdmin) {
+      return <>{children}</>; // Pasa directo, sin chequear el menú dinámico
+    }
+    return <Navigate to="/" replace />; // No es super admin, lo sacamos
   }
 
   if (isLoading || (isFetching && !menu)) {
@@ -63,5 +68,3 @@ const isSuperAdmin = user?.roles?.includes("super_admin") ?? false;
 
   return <>{children}</>;
 }
-
-
