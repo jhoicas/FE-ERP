@@ -61,7 +61,7 @@ const APP_MENU_CONFIG = [
       { id: "crm-tickets", label: "Tickets", frontend_route: "/crm/tickets" },
       { id: "crm.inbox", label: "Inbox", frontend_route: "/crm/inbox" },
       { id: "crm-fidelizacion", label: "Fidelización", frontend_route: "/crm/loyalty" },
-       { id: "settings-super-admin", label: "Super Admin", frontend_route: "/admin", icon: ShieldCheck, requiresSuperAdmin: true },
+       { id: "settings-super-admin", label: "Super Admin", frontend_route: "/admin", icon: ShieldCheck, requiresSuperAdmin: true }
     ]
   },
   {
@@ -105,7 +105,7 @@ export default function AppSidebar() {
   const { environment } = useDianEnvironment();
   const queryClient = useQueryClient();
   const isAdmin = user?.roles?.includes("admin") ?? false;
-  const isSuperAdmin = user?.isSuperAdmin ?? false;
+const isSuperAdmin = user?.roles?.includes("super_admin") ?? false;
   
   // Obtenemos los módulos de la API
   const companyId = typeof user?.company_id === "string" ? user.company_id : undefined;
