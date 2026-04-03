@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 
 // Servicios y tipos
 import { useCompanies, createCompany } from "./companies.service";
-import CompanyDetailsSheet from "./CompanyDetailsSheet";
+import { CompanyDetailsSheet } from "./CompanyDetailsSheet";
 
 export default function CompaniesListPage() {
   const { toast } = useToast();
