@@ -105,7 +105,7 @@ export default function AppSidebar() {
   const { environment } = useDianEnvironment();
   const queryClient = useQueryClient();
   const isAdmin = user?.roles?.includes("admin") ?? false;
-const isSuperAdmin = user?.roles?.includes("super_admin") ?? false;
+const isSuperAdmin = user?.roles?.includes("superadmin") || user?.roles?.includes("super_admin") || false;
   
   // Obtenemos los módulos de la API
   const companyId = typeof user?.company_id === "string" ? user.company_id : undefined;
@@ -114,6 +114,24 @@ const isSuperAdmin = user?.roles?.includes("super_admin") ?? false;
   // --- 3. LÓGICA DE FILTRADO ESTRICTO ---
   // Agrupación dinámica de módulos y screens usando resolveScreenModule
   const visibleModules = useMemo(() => {
+    if (isSuperAdmin) {
+      // Menú exclusivo para superadmin
+      return [
+        {
+          module_key: "superadmin",
+          label: "Administración Global",
+          frontend_route: "/superadmin",
+          screens: [
+            {
+              id: "superadmin-companies",
+              label: "Empresas",
+              frontend_route: "/superadmin/companies",
+            },
+          ],
+        },
+      ];
+    }
+
     if (!companyModules?.modules) {
       return isAdmin
         ? APP_MENU_CONFIG.filter((mod) => mod.module_key === "settings")
@@ -173,7 +191,7 @@ const isSuperAdmin = user?.roles?.includes("super_admin") ?? false;
       if (mod.module_key === "settings") return isAdmin;
       return activeModulesMap[mod.module_key] === true;
     });
-  }, [companyModules, isAdmin]);
+  }, [companyModules, isAdmin, isSuperAdmin]);
 
   const hasDashboardShortcut = useMemo(
     () =>

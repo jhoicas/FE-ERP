@@ -19,14 +19,18 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { data: menu, isLoading, isFetching, isError, refetch } = useRbacMenu();
   const user = useAuthUser();
   
-  // Verificamos si es super_admin buscando en el array de roles del JWT
-  const isSuperAdmin = user?.roles?.includes("super_admin") ?? false;
+  // Verificamos si es superadmin (acepta 'superadmin' o 'super_admin')
+  const isSuperAdmin = user?.roles?.includes("superadmin") || user?.roles?.includes("super_admin") || false;
 
   if (!token) {
     return <Navigate to="/login" replace />;
   }
 
-  // --- SOLUCIÓN AQUÍ ---
+  // Permitir acceso libre a /superadmin/* si es superadmin
+  if (isSuperAdmin && location.pathname.startsWith("/superadmin")) {
+    return <>{children}</>;
+  }
+
   // Si la ruta es de admin, manejamos el permiso inmediatamente
   if (location.pathname.startsWith("/admin")) {
     if (isSuperAdmin) {

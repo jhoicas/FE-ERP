@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import ExplainableAcronym from "@/components/shared/ExplainableAcronym";
 import ResolutionsManager from "@/features/auth/components/ResolutionsManager";
+import RolesManagement from "@/features/auth/components/RolesManagement";
 import { type DianEnvironment, useDianEnvironment } from "@/hooks/use-dian-environment";
 import { useToast } from "@/hooks/use-toast";
 import apiClient from "@/lib/api/client";
@@ -260,6 +261,7 @@ export default function SettingsPage() {
           <TabsList>
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="dian_resolutions">Resoluciones DIAN</TabsTrigger>
+            <TabsTrigger value="roles">Roles</TabsTrigger>
           </TabsList>
 
           <TabsContent value="general" className="space-y-6 max-w-4xl">
@@ -404,6 +406,9 @@ export default function SettingsPage() {
 
           <TabsContent value="dian_resolutions">
             <ResolutionsManager />
+          </TabsContent>
+          <TabsContent value="roles">
+            <RolesManagement />
           </TabsContent>
         </Tabs>
       </div>

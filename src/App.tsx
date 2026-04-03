@@ -31,6 +31,7 @@ import AiCampaignGenerator from "@/features/crm/components/AiCampaignGenerator";
 import SettingsPage from "@/pages/SettingsPage";
 import AdminPage from "@/pages/AdminPage";
 import LoginPage from "@/pages/LoginPage";
+
 import ProtectedRoute from "@/features/auth/ProtectedRoute";
 import UsersManagement from "@/features/auth/components/UsersManagement";
 import NotFound from "./pages/NotFound";
@@ -38,6 +39,9 @@ import LoyaltyPage from "@/pages/LoyaltyPage";
 import OpportunitiesPage from "@/pages/OpportunitiesPage";
 import { InboxPage } from "@/features/email/components/InboxPage";
 import { EmailSettings } from "@/features/email/components/EmailSettings";
+
+// Superadmin Companies Management
+import CompaniesListPage from "@/pages/superadmin/CompaniesListPage";
 
 const queryClient = new QueryClient();
 
@@ -49,6 +53,10 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+
+          {/* Superadmin global management: unrestricted access for superadmin */}
+          <Route path="/superadmin/companies" element={<CompaniesListPage />} />
+
           <Route
             element={
               <ProtectedRoute>

@@ -1,4 +1,5 @@
-// Tipos para RBAC Screens
+// Tipos para RBAC Screens y roles
+// Rol especial global: 'superadmin' (o 'super_admin' para compatibilidad)
 export interface ScreenResponse {
   id?: string;
   name?: string;
