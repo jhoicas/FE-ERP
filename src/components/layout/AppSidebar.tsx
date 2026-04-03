@@ -60,7 +60,8 @@ const APP_MENU_CONFIG = [
       { id: "crm-tareas", label: "Tareas", frontend_route: "/crm/tasks" },
       { id: "crm-tickets", label: "Tickets", frontend_route: "/crm/tickets" },
       { id: "crm.inbox", label: "Inbox", frontend_route: "/crm/inbox" },
-      { id: "crm-fidelizacion", label: "Fidelización", frontend_route: "/crm/loyalty" }
+      { id: "crm-fidelizacion", label: "Fidelización", frontend_route: "/crm/loyalty" },
+       { id: "settings-super-admin", label: "Super Admin", frontend_route: "/admin", icon: ShieldCheck, requiresSuperAdmin: true },
     ]
   },
   {
