@@ -104,6 +104,7 @@ export default function AppSidebar() {
   const { environment } = useDianEnvironment();
   const queryClient = useQueryClient();
   const isAdmin = user?.roles?.includes("admin") ?? false;
+  const isSuperAdmin = user?.isSuperAdmin ?? false;
   
   // Obtenemos los módulos de la API
   const companyId = typeof user?.company_id === "string" ? user.company_id : undefined;
@@ -317,12 +318,14 @@ export default function AppSidebar() {
               {/* RENDERIZADO DE SUBMENÚS */}
               {!collapsed && hasScreens && isSubmenuOpen && (
                 <div className="ml-9 mt-1 mb-1 space-y-1">
-                  {module.screens.map((screen) => {
-                    if (screen.requiresSuperAdmin && !user?.roles?.includes("super_admin")) {
-                      return null;
-                    }
-
-                    return (
+                  {module.screens
+                    .filter((screen) => {
+                      if (screen.requiresSuperAdmin) {
+                        return isSuperAdmin;
+                      }
+                      return true;
+                    })
+                    .map((screen) => (
                       <NavLink
                         key={screen.id}
                         to={screen.frontend_route}
@@ -338,8 +341,7 @@ export default function AppSidebar() {
                         <Circle className="h-3.5 w-3.5 shrink-0" />
                         <span>{screen.label}</span>
                       </NavLink>
-                    );
-                  })}
+                    ))}
                 </div>
               )}
             </div>

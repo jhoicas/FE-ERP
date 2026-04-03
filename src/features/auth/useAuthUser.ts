@@ -1,27 +1,21 @@
 import { useMemo } from "react";
+
+import type { AuthUser as AuthUserType } from "./schemas";
 import { AUTH_USER_STORAGE_KEY } from "@/config/auth";
 
-export interface AuthUser {
-  roles?: string[];
-  // Para compatibilidad con backend viejo que enviaba `role: string`
-  role?: string;
-  role_id?: string;
-  role_key?: string;
-  company_id?: string;
-  [key: string]: unknown;
-}
-
-export function useAuthUser(): AuthUser | null {
+export function useAuthUser(): (AuthUserType & { isSuperAdmin: boolean }) | null {
   return useMemo(() => {
     try {
       const raw = localStorage.getItem(AUTH_USER_STORAGE_KEY);
       if (!raw) return null;
-      const parsed = JSON.parse(raw) as AuthUser;
+      const parsed = JSON.parse(raw) as AuthUserType;
       // Normalizar: si solo viene `role`, convertirlo a `roles`
       if (!parsed.roles && parsed.role) {
         parsed.roles = [parsed.role];
       }
-      return parsed;
+      // Derivar isSuperAdmin
+      const isSuperAdmin = Array.isArray(parsed.roles) && parsed.roles.includes("super_admin");
+      return { ...parsed, isSuperAdmin };
     } catch {
       return null;
     }

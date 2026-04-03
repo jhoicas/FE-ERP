@@ -14,5 +14,14 @@ export const LoginResponseSchema = z.object({
   role_key: z.string().optional(),
 });
 
+export interface AuthUser {
+  roles: string[];
+  role?: string; // compatibilidad legacy
+  role_id?: string;
+  role_key?: string;
+  company_id?: string;
+  [key: string]: unknown;
+}
+
 export type LoginResponse = z.infer<typeof LoginResponseSchema>;
 

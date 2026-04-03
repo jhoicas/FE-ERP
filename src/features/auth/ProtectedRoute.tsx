@@ -7,19 +7,26 @@ import { AUTH_TOKEN_COOKIE_KEY } from "@/config/auth";
 import { canAccessFrontendRoute, getDefaultRouteFromMenu } from "@/features/auth/permissions";
 import { useRbacMenu } from "@/features/auth/useRbacMenu";
 import { useLocation } from "react-router-dom";
+import { useAuthUser } from "./useAuthUser";
 
 type ProtectedRouteProps = {
   children: ReactNode;
   allowedRoles?: string[];
 };
 
-export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const token = Cookies.get(AUTH_TOKEN_COOKIE_KEY);
   const location = useLocation();
   const { data: menu, isLoading, isFetching, isError, refetch } = useRbacMenu();
+  const user = useAuthUser();
+  const isSuperAdmin = user?.isSuperAdmin ?? false;
 
   if (!token) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Protección de ruta Super Admin
+  if (location.pathname.startsWith("/admin") && !isSuperAdmin) {
+    return <Navigate to="/" replace />;
   }
 
   if (isLoading || (isFetching && !menu)) {
