@@ -1,5 +1,5 @@
 import { matchPath } from "react-router-dom";
-import type { AuthUser } from "./useAuthUser";
+import type { AuthUser } from "./schemas";
 import type { RbacMenuDTO, RbacModuleDTO, RbacScreenDTO } from "./services";
 
 function normalizeRole(rawRole: string): string {
@@ -192,28 +192,8 @@ export function canAccessFrontendRoute(menu: RbacMenuDTO | null | undefined, pat
     return true;
   }
 
-  const crmCustomersBase = "/crm/customers";
-  if (routes.includes(crmCustomersBase) && normalizedPath.startsWith(`${crmCustomersBase}/`)) {
-    return true;
-  }
-
-  const crmCampaignsBase = "/crm/campaigns";
-  if (
-    routes.includes(crmCampaignsBase) &&
-    (normalizedPath === "/crm/campaigns/recipients-resolve" ||
-      normalizedPath.startsWith("/crm/campaigns/recipients-resolve/"))
-  ) {
-    return true;
-  }
-
-  const crmAnalyticsBase = "/crm/analytics";
-  const crmAnalyticsAllowed = [
-    "/crm/analytics/kpis",
-    "/crm/analytics/segmentation",
-    "/crm/analytics/monthly-evolution",
-  ];
-
-  if (routes.includes(crmAnalyticsBase) && crmAnalyticsAllowed.some((r) => normalizedPath.startsWith(r))) {
+  // Permite subrutas de cualquier ruta autorizada, evitando que '/' sea padre universal.
+  if (routes.some((route) => route !== "/" && normalizedPath.startsWith(`${route}/`))) {
     return true;
   }
 

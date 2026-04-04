@@ -4,7 +4,13 @@ import Cookies from "js-cookie";
 import { Button } from "@/components/ui/button";
 
 import { AUTH_TOKEN_COOKIE_KEY } from "@/config/auth";
-import { canAccessFrontendRoute, getDefaultRouteFromMenu } from "@/features/auth/permissions";
+import {
+  canAccessFrontendRoute,
+  getDefaultRouteFromMenu,
+  getUserRoles,
+  hasAccess,
+  isAdmin,
+} from "@/features/auth/permissions";
 import { useRbacMenu } from "@/features/auth/useRbacMenu";
 import { useAuthUser } from "./useAuthUser";
 
@@ -13,17 +19,23 @@ type ProtectedRouteProps = {
   allowedRoles?: string[];
 };
 
-export default function ProtectedRoute({ children }: ProtectedRouteProps) {
+export default function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
   const token = Cookies.get(AUTH_TOKEN_COOKIE_KEY);
   const location = useLocation();
   const { data: menu, isLoading, isFetching, isError, refetch } = useRbacMenu();
   const user = useAuthUser();
+  const userRoles = getUserRoles(user);
   
   // Verificamos si es superadmin (acepta 'superadmin' o 'super_admin')
   const isSuperAdmin = user?.roles?.includes("superadmin") || user?.roles?.includes("super_admin") || false;
 
   if (!token) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Validación explícita por roles permitidos en la ruta (si aplica).
+  if (allowedRoles?.length && !hasAccess(userRoles, allowedRoles)) {
+    return <Navigate to="/" replace />;
   }
 
   // Permitir acceso libre a /superadmin/* si es superadmin
@@ -33,7 +45,7 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   // Si la ruta es de admin, manejamos el permiso inmediatamente
   if (location.pathname.startsWith("/admin")) {
-    if (isSuperAdmin) {
+    if (isSuperAdmin || isAdmin(user)) {
       return <>{children}</>; // Pasa directo, sin chequear el menú dinámico
     }
     return <Navigate to="/" replace />; // No es super admin, lo sacamos
