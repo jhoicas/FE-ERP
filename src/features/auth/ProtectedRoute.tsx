@@ -9,7 +9,7 @@ import {
   getDefaultRouteFromMenu,
   getUserRoles,
   hasAccess,
-  isAdmin,
+  isSuperAdmin,
 } from "@/features/auth/permissions";
 import { useRbacMenu } from "@/features/auth/useRbacMenu";
 import { useAuthUser } from "./useAuthUser";
@@ -25,12 +25,14 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
   const { data: menu, isLoading, isFetching, isError, refetch } = useRbacMenu();
   const user = useAuthUser();
   const userRoles = getUserRoles(user);
-  
-  // Verificamos si es superadmin (acepta 'superadmin' o 'super_admin')
-  const isSuperAdmin = user?.roles?.includes("superadmin") || user?.roles?.includes("super_admin") || false;
+  const superAdmin = isSuperAdmin(user);
 
   if (!token) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (superAdmin && !location.pathname.startsWith("/admin")) {
+    return <Navigate to="/admin" replace />;
   }
 
   // Validación explícita por roles permitidos en la ruta (si aplica).
@@ -38,17 +40,12 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
     return <Navigate to="/" replace />;
   }
 
-  // Permitir acceso libre a /superadmin/* si es superadmin
-  if (isSuperAdmin && location.pathname.startsWith("/superadmin")) {
-    return <>{children}</>;
-  }
-
   // Si la ruta es de admin, manejamos el permiso inmediatamente
   if (location.pathname.startsWith("/admin")) {
-    if (isSuperAdmin || isAdmin(user)) {
-      return <>{children}</>; // Pasa directo, sin chequear el menú dinámico
+    if (superAdmin) {
+      return <>{children}</>;
     }
-    return <Navigate to="/" replace />; // No es super admin, lo sacamos
+    return <Navigate to="/" replace />;
   }
 
   if (isLoading || (isFetching && !menu)) {

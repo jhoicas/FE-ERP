@@ -1,25 +1,28 @@
-
-import { useEffect, useState } from "react";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
+import { useEffect, useMemo, useState } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Controller, useForm } from "react-hook-form";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import axios from "axios";
-
-// Interfaz para las pantallas de la empresa
-export interface CompanyScreen {
-  id: string;
-  name?: string;
-  label?: string;
-  title?: string;
-  frontend_route?: string;
-  module_id?: string;
-  module_name?: string;
-  module_key?: string;
-  is_active?: boolean;
-}
+import { getVisibleRbacModules, getMenuItemLabel } from "@/features/auth/permissions";
+import { getRbacMenu, type RbacMenuDTO } from "@/features/auth/services";
+import {
+  CompanyFormSchema,
+  type CompanyDTO,
+  type CompanyFormValues,
+  getCompany,
+  getCompanyScreens,
+  saveCompanyScreens,
+  updateCompany,
+  type CompanyScreenDTO,
+} from "./companies.service";
 
 interface Props {
   open: boolean;
@@ -28,115 +31,285 @@ interface Props {
   onUpdated: () => void;
 }
 
+function normalizeStatus(status?: string): "Activo" | "Inactivo" {
+  const value = (status ?? "").trim().toLowerCase();
+  return value === "inactivo" || value === "inactive" ? "Inactivo" : "Activo";
+}
+
+function toFormValues(company?: CompanyDTO | null): CompanyFormValues {
+  return {
+    name: company?.name ?? "",
+    nit: company?.nit ?? "",
+    email: company?.email ?? "",
+    address: company?.address ?? "",
+    phone: company?.phone ?? "",
+    status: normalizeStatus(company?.status),
+  };
+}
+
+function resolveScreenLabel(screen: CompanyScreenDTO): string {
+  return screen.label || screen.name || screen.title || screen.frontend_route || "Sin nombre";
+}
+
 export function CompanyDetailsSheet({ open, companyId, onOpenChange, onUpdated }: Props) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [tab, setTab] = useState("data");
-  const [company, setCompany] = useState<any>(null);
-  const [adminEmail, setAdminEmail] = useState("");
-  const [loadingAdmin, setLoadingAdmin] = useState(false);
-  const [screens, setScreens] = useState<CompanyScreen[]>([]);
-  const [activeScreens, setActiveScreens] = useState<string[]>([]);
-  const [savingPerms, setSavingPerms] = useState(false);
+  const [selectedScreenIds, setSelectedScreenIds] = useState<string[]>([]);
+
+  const companyQuery = useQuery({
+    queryKey: ["admin-company", companyId],
+    queryFn: () => getCompany(companyId!),
+    enabled: open && Boolean(companyId),
+  });
+
+  const screensQuery = useQuery({
+    queryKey: ["admin-company-screens", companyId],
+    queryFn: () => getCompanyScreens(companyId!),
+    enabled: open && Boolean(companyId),
+  });
+
+  const menuQuery = useQuery<RbacMenuDTO>({
+    queryKey: ["rbac-menu"],
+    queryFn: getRbacMenu,
+    enabled: open,
+  });
+
+  const companyForm = useForm<CompanyFormValues>({
+    resolver: zodResolver(CompanyFormSchema),
+    defaultValues: toFormValues(null),
+  });
+
+  const visibleModules = useMemo(() => getVisibleRbacModules(menuQuery.data), [menuQuery.data]);
 
   useEffect(() => {
-    if (open && companyId) {
-      axios.get(`/api/admin/companies/${companyId}`).then(r => setCompany(r.data));
-      axios.get(`/api/admin/companies/${companyId}/screens`).then(r => {
-        setScreens(r.data.screens || []);
-        setActiveScreens((r.data.active_screens || []).map((s: any) => s.id || s.screen_id));
-      });
+    if (companyQuery.data) {
+      companyForm.reset(toFormValues(companyQuery.data));
     }
-  }, [open, companyId]);
+  }, [companyForm, companyQuery.data]);
 
-  const handleResetAdmin = async () => {
-    setLoadingAdmin(true);
-    try {
-      await axios.post(`/api/admin/companies/${companyId}/reset-admin`, { email: adminEmail });
-      toast({ title: "Contraseña de admin creada/resetada" });
-    } catch {
-      toast({ title: "Error al crear/resetear admin", variant: "destructive" });
-    } finally {
-      setLoadingAdmin(false);
+  useEffect(() => {
+    if (screensQuery.data) {
+      setSelectedScreenIds(screensQuery.data.activeScreenIds);
     }
-  };
+  }, [screensQuery.data]);
 
-  const handlePermsSave = async () => {
-    setSavingPerms(true);
-    try {
-      await axios.post(`/api/admin/companies/${companyId}/screens`, { screen_ids: activeScreens });
-      toast({ title: "Permisos actualizados" });
+  useEffect(() => {
+    if (!open) {
+      setTab("data");
+    }
+  }, [open]);
+
+  const updateCompanyMutation = useMutation({
+    mutationFn: async (values: CompanyFormValues) => {
+      if (!companyId) throw new Error("No hay una empresa seleccionada");
+      return updateCompany(companyId, values);
+    },
+    onSuccess: async () => {
+      toast({ title: "Empresa actualizada" });
+      await queryClient.invalidateQueries({ queryKey: ["admin-companies"] });
+      await queryClient.invalidateQueries({ queryKey: ["admin-company", companyId] });
       onUpdated();
+    },
+    onError: () => {
+      toast({ title: "No se pudo actualizar la empresa", variant: "destructive" });
+    },
+  });
+
+  const saveScreensMutation = useMutation({
+    mutationFn: async (screenIds: string[]) => {
+      if (!companyId) throw new Error("No hay una empresa seleccionada");
+      await saveCompanyScreens(companyId, screenIds);
+    },
+  });
+
+  const handleSaveCompany = (values: CompanyFormValues) => {
+    updateCompanyMutation.mutate(values);
+  };
+
+  const handleToggleScreen = async (screenId: string, checked: boolean) => {
+    if (!companyId) return;
+
+    const previousIds = selectedScreenIds;
+    const nextIds = checked
+      ? Array.from(new Set([...previousIds, screenId]))
+      : previousIds.filter((id) => id !== screenId);
+
+    setSelectedScreenIds(nextIds);
+
+    try {
+      await saveScreensMutation.mutateAsync(nextIds);
+      await queryClient.invalidateQueries({ queryKey: ["admin-company-screens", companyId] });
     } catch {
-      toast({ title: "Error al guardar permisos", variant: "destructive" });
-    } finally {
-      setSavingPerms(false);
+      setSelectedScreenIds(previousIds);
+      toast({ title: "No se pudo actualizar el acceso", variant: "destructive" });
     }
   };
 
-  // Agrupar pantallas por módulo
-  const grouped = screens.reduce((acc: Record<string, CompanyScreen[]>, s) => {
-    const mod = s.module_name || s.module_key || "Otros";
-    if (!acc[mod]) acc[mod] = [];
-    acc[mod].push(s);
-    return acc;
-  }, {} as Record<string, CompanyScreen[]>);
+  const groupedScreens = useMemo(() => {
+    const grouped = new Map<string, CompanyScreenDTO[]>();
+
+    for (const module of visibleModules) {
+      const moduleLabel = getMenuItemLabel(module);
+      const items: CompanyScreenDTO[] = [];
+
+      if (module.frontend_route) {
+        items.push({
+          id: module.frontend_route,
+          label: module.label,
+          name: module.name,
+          title: module.title,
+          frontend_route: module.frontend_route,
+        });
+      }
+
+      for (const screen of module.screens ?? []) {
+        if (!screen.frontend_route?.trim()) continue;
+        items.push(screen as CompanyScreenDTO);
+      }
+
+      if (items.length > 0) {
+        grouped.set(moduleLabel, items);
+      }
+    }
+
+    return grouped;
+  }, [visibleModules]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="sm:max-w-lg w-full">
+      <SheetContent className="w-full sm:max-w-4xl overflow-y-auto">
+        <SheetHeader className="mb-4">
+          <SheetTitle>Empresa</SheetTitle>
+          <SheetDescription>Actualiza los datos de la empresa y sus accesos al sistema.</SheetDescription>
+        </SheetHeader>
+
         <Tabs value={tab} onValueChange={setTab} className="w-full">
-          <TabsList className="mb-4">
-            <TabsTrigger value="data">Datos & Admin</TabsTrigger>
-            <TabsTrigger value="perms">Módulos y Permisos</TabsTrigger>
+          <TabsList className="mb-4 grid w-full grid-cols-2">
+            <TabsTrigger value="data">Datos de la empresa</TabsTrigger>
+            <TabsTrigger value="screens">Accesos / Pantallas</TabsTrigger>
           </TabsList>
-          <TabsContent value="data">
-            {company && (
-              <div className="space-y-4">
-                <div>
-                  <div className="font-semibold">Nombre</div>
-                  <div>{company.name}</div>
+
+          <TabsContent value="data" className="space-y-4">
+            {companyQuery.isLoading ? (
+              <div className="text-sm text-muted-foreground">Cargando empresa...</div>
+            ) : (
+              <form className="grid gap-4 md:grid-cols-2" onSubmit={companyForm.handleSubmit(handleSaveCompany)}>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="edit-company-name">Nombre</Label>
+                  <Input id="edit-company-name" {...companyForm.register("name")} />
+                  {companyForm.formState.errors.name && (
+                    <p className="text-xs text-destructive">{companyForm.formState.errors.name.message}</p>
+                  )}
                 </div>
-                <div>
-                  <div className="font-semibold">NIT</div>
-                  <div>{company.nit}</div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-company-nit">NIT</Label>
+                  <Input id="edit-company-nit" {...companyForm.register("nit")} />
+                  {companyForm.formState.errors.nit && (
+                    <p className="text-xs text-destructive">{companyForm.formState.errors.nit.message}</p>
+                  )}
                 </div>
-                <div>
-                  <div className="font-semibold">Email</div>
-                  <div>{company.email}</div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-company-email">Email</Label>
+                  <Input id="edit-company-email" type="email" {...companyForm.register("email")} />
+                  {companyForm.formState.errors.email && (
+                    <p className="text-xs text-destructive">{companyForm.formState.errors.email.message}</p>
+                  )}
                 </div>
-                <div className="mt-4">
-                  <div className="font-semibold mb-1">Crear/Resetear Admin</div>
-                  <Input placeholder="Email del admin" value={adminEmail} onChange={e => setAdminEmail(e.target.value)} />
-                  <Button onClick={handleResetAdmin} disabled={loadingAdmin || !adminEmail} className={loadingAdmin ? "mt-2 opacity-50" : "mt-2"}>Crear/Resetear</Button>
+
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="edit-company-address">Dirección</Label>
+                  <Input id="edit-company-address" {...companyForm.register("address")} />
+                  {companyForm.formState.errors.address && (
+                    <p className="text-xs text-destructive">{companyForm.formState.errors.address.message}</p>
+                  )}
                 </div>
-              </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-company-phone">Teléfono</Label>
+                  <Input id="edit-company-phone" {...companyForm.register("phone")} />
+                  {companyForm.formState.errors.phone && (
+                    <p className="text-xs text-destructive">{companyForm.formState.errors.phone.message}</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Estado</Label>
+                  <Controller
+                    control={companyForm.control}
+                    name="status"
+                    render={({ field }) => (
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecciona un estado" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Activo">Activo</SelectItem>
+                          <SelectItem value="Inactivo">Inactivo</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  {companyForm.formState.errors.status && (
+                    <p className="text-xs text-destructive">{companyForm.formState.errors.status.message}</p>
+                  )}
+                </div>
+
+                <div className="md:col-span-2 flex items-center justify-end gap-2 pt-2">
+                  <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+                    Cerrar
+                  </Button>
+                  <Button type="submit" disabled={updateCompanyMutation.isPending}>
+                    {updateCompanyMutation.isPending ? "Guardando..." : "Guardar cambios"}
+                  </Button>
+                </div>
+              </form>
             )}
           </TabsContent>
-          <TabsContent value="perms">
-            <div className="space-y-4">
-              {Object.entries(grouped).map(([mod, screens]) => (
-                <div key={mod}>
-                  <div className="font-semibold mb-2">{mod}</div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {screens.map((s) => (
-                      <div key={s.id} className="flex items-center gap-2">
-                        <Switch
-                          checked={activeScreens.includes(s.id)}
-                          onCheckedChange={checked => {
-                            setActiveScreens(prev => checked
-                              ? [...prev, s.id]
-                              : prev.filter(id => id !== s.id)
-                            );
-                          }}
-                        />
-                        <span>{s.label || s.name || s.title || s.frontend_route}</span>
-                      </div>
-                    ))}
+
+          <TabsContent value="screens" className="space-y-4">
+            {screensQuery.isLoading ? (
+              <div className="text-sm text-muted-foreground">Cargando pantallas...</div>
+            ) : (
+              <div className="space-y-5">
+                {Array.from(groupedScreens.entries()).map(([moduleLabel, screens]) => (
+                  <div key={moduleLabel} className="space-y-2 rounded-lg border p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="text-sm font-semibold">{moduleLabel}</h3>
+                      <Badge variant="outline">{screens.length} opciones</Badge>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {screens.map((screen) => {
+                        const screenId = screen.id;
+                        const checked = selectedScreenIds.includes(screenId);
+
+                        return (
+                          <label
+                            key={screenId}
+                            className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm"
+                          >
+                            <span>{resolveScreenLabel(screen)}</span>
+                            <Switch
+                              checked={checked}
+                              onCheckedChange={(value) => {
+                                void handleToggleScreen(screenId, Boolean(value));
+                              }}
+                              disabled={saveScreensMutation.isPending}
+                            />
+                          </label>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))}
-              <Button onClick={handlePermsSave} disabled={savingPerms} className={savingPerms ? "opacity-50" : undefined}>Guardar Permisos</Button>
-            </div>
+                ))}
+
+                {groupedScreens.size === 0 && (
+                  <div className="text-sm text-muted-foreground">No hay pantallas disponibles para mostrar.</div>
+                )}
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </SheetContent>

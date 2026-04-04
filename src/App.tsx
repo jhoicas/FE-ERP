@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import AppLayout from "@/components/layout/AppLayout";
 import DashboardPage from "@/pages/DashboardPage";
 import InventoryPage from "@/pages/InventoryPage";
@@ -29,7 +29,6 @@ import CategoryBenefitsPage from "@/pages/CategoryBenefitsPage";
 import MarketingAIPage from "@/pages/MarketingAIPage";
 import AiCampaignGenerator from "@/features/crm/components/AiCampaignGenerator";
 import SettingsPage from "@/pages/SettingsPage";
-import AdminPage from "@/pages/AdminPage";
 import LoginPage from "@/pages/LoginPage";
 
 import ProtectedRoute from "@/features/auth/ProtectedRoute";
@@ -41,7 +40,7 @@ import { InboxPage } from "@/features/email/components/InboxPage";
 import { EmailSettings } from "@/features/email/components/EmailSettings";
 
 // Superadmin Companies Management
-import CompaniesListPage from "@/pages/superadmin/CompaniesListPage";
+import CompaniesListPage from "@/pages/superadmin/CompaniesListPage.tsx";
 
 const queryClient = new QueryClient();
 
@@ -54,8 +53,8 @@ const App = () => (
         <Routes>
           <Route path="/login" element={<LoginPage />} />
 
-          {/* Superadmin global management: unrestricted access for superadmin */}
-          <Route path="/superadmin/companies" element={<CompaniesListPage />} />
+          {/* Alias histórico: se redirige a la ruta canónica /admin */}
+          <Route path="/superadmin/companies" element={<Navigate to="/admin" replace />} />
 
           <Route
             element={
@@ -312,7 +311,7 @@ const App = () => (
               path="/admin"
               element={
                 <ProtectedRoute>
-                  <AdminPage />
+                  <CompaniesListPage />
                 </ProtectedRoute>
               }
             />

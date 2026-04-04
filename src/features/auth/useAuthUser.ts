@@ -14,7 +14,9 @@ export function useAuthUser(): (AuthUserType & { isSuperAdmin: boolean }) | null
         parsed.roles = [parsed.role];
       }
       // Derivar isSuperAdmin
-      const isSuperAdmin = Array.isArray(parsed.roles) && parsed.roles.includes("super_admin");
+      const isSuperAdmin =
+        Array.isArray(parsed.roles) &&
+        (parsed.roles.includes("super_admin") || parsed.roles.includes("superadmin"));
       return { ...parsed, isSuperAdmin };
     } catch {
       return null;

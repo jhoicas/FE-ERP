@@ -31,6 +31,7 @@ const moduleIconByKey: Record<string, ComponentType<{ className?: string }>> = {
   crm: Users,
   purchasing: Package,
   settings: Settings,
+  superadmin: ShieldCheck,
 };
 
 function getModuleIcon(key: string) {
@@ -104,8 +105,8 @@ export default function AppSidebar() {
   const user = useAuthUser();
   const { environment } = useDianEnvironment();
   const queryClient = useQueryClient();
-  const isAdmin = user?.roles?.includes("admin") ?? false;
-const isSuperAdmin = user?.roles?.includes("superadmin") || user?.roles?.includes("super_admin") || false;
+  const isAdminUser = user?.roles?.includes("admin") ?? false;
+  const isSuperAdminUser = user?.roles?.includes("superadmin") || user?.roles?.includes("super_admin") || false;
   
   // Obtenemos los módulos de la API
   const companyId = typeof user?.company_id === "string" ? user.company_id : undefined;
@@ -114,26 +115,20 @@ const isSuperAdmin = user?.roles?.includes("superadmin") || user?.roles?.include
   // --- 3. LÓGICA DE FILTRADO ESTRICTO ---
   // Agrupación dinámica de módulos y screens usando resolveScreenModule
   const visibleModules = useMemo(() => {
-    if (isSuperAdmin) {
+    if (isSuperAdminUser) {
       // Menú exclusivo para superadmin
       return [
         {
           module_key: "superadmin",
-          label: "Administración Global",
-          frontend_route: "/superadmin",
-          screens: [
-            {
-              id: "superadmin-companies",
-              label: "Empresas",
-              frontend_route: "/superadmin/companies",
-            },
-          ],
+          label: "Administración",
+          frontend_route: "/admin",
+          screens: [],
         },
       ];
     }
 
     if (!companyModules?.modules) {
-      return isAdmin
+      return isAdminUser
         ? APP_MENU_CONFIG.filter((mod) => mod.module_key === "settings")
         : [];
     }
@@ -181,17 +176,17 @@ const isSuperAdmin = user?.roles?.includes("superadmin") || user?.roles?.include
     }
 
     // settings: solo por rol admin
-    if (isAdmin && !menuByModule["settings"]) {
+    if (isAdminUser && !menuByModule["settings"]) {
       const settingsConfig = APP_MENU_CONFIG.find((m) => m.module_key === "settings");
       if (settingsConfig) menuByModule["settings"] = settingsConfig;
     }
 
     // Filtramos solo los módulos activos
     return Object.values(menuByModule).filter((mod: any) => {
-      if (mod.module_key === "settings") return isAdmin;
+      if (mod.module_key === "settings") return isAdminUser;
       return activeModulesMap[mod.module_key] === true;
     });
-  }, [companyModules, isAdmin, isSuperAdmin]);
+  }, [companyModules, isAdminUser, isSuperAdminUser]);
 
   const hasDashboardShortcut = useMemo(
     () =>
@@ -346,7 +341,7 @@ const isSuperAdmin = user?.roles?.includes("superadmin") || user?.roles?.include
                   {module.screens
                     .filter((screen) => {
                       if (screen.requiresSuperAdmin) {
-                        return isSuperAdmin;
+                        return isSuperAdminUser;
                       }
                       return true;
                     })

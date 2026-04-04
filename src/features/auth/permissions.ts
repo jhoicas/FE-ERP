@@ -26,6 +26,11 @@ export function isAdmin(user: AuthUser | null | undefined): boolean {
   return getUserRoles(user).includes("admin");
 }
 
+export function isSuperAdmin(user: AuthUser | null | undefined): boolean {
+  const roles = getUserRoles(user);
+  return roles.includes("superadmin") || roles.includes("super_admin");
+}
+
 /**
  * Comprueba si el usuario tiene al menos uno de los roles permitidos.
  * Admin tiene acceso a todo. Varios roles suman accesos (unión).
