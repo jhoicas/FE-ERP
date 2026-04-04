@@ -23,6 +23,7 @@ import {
   updateCompany,
   type CompanyScreenDTO,
 } from "./companies.service";
+import CompanyUsersTab from "./CompanyUsersTab.tsx";
 
 interface Props {
   open: boolean;
@@ -185,9 +186,10 @@ export function CompanyDetailsSheet({ open, companyId, onOpenChange, onUpdated }
         </SheetHeader>
 
         <Tabs value={tab} onValueChange={setTab} className="w-full">
-          <TabsList className="mb-4 grid w-full grid-cols-2">
+          <TabsList className="mb-4 grid w-full grid-cols-3">
             <TabsTrigger value="data">Datos de la empresa</TabsTrigger>
             <TabsTrigger value="screens">Accesos / Pantallas</TabsTrigger>
+            <TabsTrigger value="users">Usuarios Admin</TabsTrigger>
           </TabsList>
 
           <TabsContent value="data" className="space-y-4">
@@ -309,6 +311,14 @@ export function CompanyDetailsSheet({ open, companyId, onOpenChange, onUpdated }
                   <div className="text-sm text-muted-foreground">No hay pantallas disponibles para mostrar.</div>
                 )}
               </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="users" className="space-y-4">
+            {companyId ? (
+              <CompanyUsersTab companyId={companyId} />
+            ) : (
+              <div className="text-sm text-muted-foreground">Selecciona una empresa para ver sus usuarios.</div>
             )}
           </TabsContent>
         </Tabs>
