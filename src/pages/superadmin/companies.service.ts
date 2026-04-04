@@ -51,7 +51,13 @@ export type CompanyScreensDTO = {
 };
 
 function normalizeCompaniesResponse(data: unknown): CompanyDTO[] {
-  const candidates = Array.isArray(data) ? data : (data as { companies?: unknown }).companies;
+  const payload = data as { items?: unknown; companies?: unknown };
+
+  // Buscamos si es un array directo, si viene en "items" (del backend), o en "companies"
+  const candidates = Array.isArray(data)
+    ? data
+    : (payload?.items ?? payload?.companies);
+
   return z.array(CompanySchema).catch([]).parse(candidates ?? []);
 }
 
