@@ -74,6 +74,23 @@ function resolveScreenLabel(screen: CompanyScreenDTO): string {
   return screen.label || screen.name || screen.title || screen.frontend_route || "Sin nombre";
 }
 
+function routeToScreenKey(route?: string): string {
+  if (!route) return "";
+  return route.replace(/^\/+/, "").replace(/\//g, ".");
+}
+
+function getScreenCandidates(screen: CompanyScreenDTO): string[] {
+  const values = [
+    screen.id,
+    screen.screen_id,
+    screen.screen_key,
+    screen.frontend_route,
+    routeToScreenKey(screen.frontend_route),
+  ];
+
+  return values.map((value) => String(value ?? "")).filter(Boolean);
+}
+
 export function CompanyDetailsSheet({ open, companyId, onOpenChange, onUpdated }: Props) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -199,6 +216,20 @@ export function CompanyDetailsSheet({ open, companyId, onOpenChange, onUpdated }
     return grouped;
   }, [visibleModules]);
 
+  const activeScreenSet = useMemo(() => new Set(selectedScreenIds), [selectedScreenIds]);
+
+  const resolvePersistedScreenId = (screen: CompanyScreenDTO): string => {
+    const candidates = getScreenCandidates(screen);
+    const apiScreens = screensQuery.data?.screens ?? [];
+
+    const matched = apiScreens.find((apiScreen) => {
+      const apiCandidates = getScreenCandidates(apiScreen);
+      return candidates.some((candidate) => apiCandidates.includes(candidate));
+    });
+
+    return matched?.id ?? screen.id;
+  };
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-4xl overflow-y-auto">
@@ -307,19 +338,21 @@ export function CompanyDetailsSheet({ open, companyId, onOpenChange, onUpdated }
                     </div>
                     <div className="grid gap-3 md:grid-cols-2">
                       {screens.map((screen) => {
-                        const screenId = screen.id;
-                        const checked = selectedScreenIds.includes(screenId);
+                        const persistedScreenId = resolvePersistedScreenId(screen);
+                        const checked = getScreenCandidates(screen).some((candidate) =>
+                          activeScreenSet.has(candidate),
+                        );
 
                         return (
                           <label
-                            key={screenId}
+                            key={screen.id}
                             className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm"
                           >
                             <span>{resolveScreenLabel(screen)}</span>
                             <Switch
                               checked={checked}
                               onCheckedChange={(value) => {
-                                void handleToggleScreen(screenId, Boolean(value));
+                                void handleToggleScreen(persistedScreenId, Boolean(value));
                               }}
                               disabled={saveScreensMutation.isPending}
                             />

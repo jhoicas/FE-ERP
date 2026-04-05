@@ -31,7 +31,9 @@ export type CompanyDTO = z.infer<typeof CompanySchema>;
 
 const CompanyScreenSchema = z
   .object({
-    id: z.union([z.string(), z.number()]).transform(String),
+    id: z.union([z.string(), z.number()]).transform(String).optional(),
+    screen_id: z.union([z.string(), z.number()]).transform(String).optional(),
+    screen_key: z.string().optional(),
     name: z.string().optional(),
     label: z.string().optional(),
     title: z.string().optional(),
@@ -41,7 +43,25 @@ const CompanyScreenSchema = z
     module_key: z.string().optional(),
     is_active: z.boolean().optional(),
   })
-  .passthrough();
+  .transform((screen) => ({
+    ...screen,
+    id: String(screen.id ?? screen.screen_id ?? screen.screen_key ?? screen.frontend_route ?? ""),
+  }))
+  .pipe(
+    z.object({
+      id: z.string().min(1),
+      screen_id: z.string().optional(),
+      screen_key: z.string().optional(),
+      name: z.string().optional(),
+      label: z.string().optional(),
+      title: z.string().optional(),
+      frontend_route: z.string().optional(),
+      module_id: z.string().optional(),
+      module_name: z.string().optional(),
+      module_key: z.string().optional(),
+      is_active: z.boolean().optional(),
+    }).passthrough(),
+  );
 
 export type CompanyScreenDTO = z.infer<typeof CompanyScreenSchema>;
 
@@ -103,17 +123,29 @@ export async function getCompanyScreens(companyId: string): Promise<CompanyScree
         (data as { active_screens?: unknown }).active_screens ??
         []);
 
-  const activeScreenIds = Array.isArray(activeIdsFromResponse)
+  const parsedActiveIds = Array.isArray(activeIdsFromResponse)
     ? activeIdsFromResponse
         .map((item) => {
           if (item && typeof item === "object") {
-            const candidate = item as { id?: unknown; screen_id?: unknown };
-            return String(candidate.id ?? candidate.screen_id ?? "");
+            const candidate = item as {
+              id?: unknown;
+              screen_id?: unknown;
+              screen_key?: unknown;
+              frontend_route?: unknown;
+            };
+            return String(
+              candidate.id ?? candidate.screen_id ?? candidate.screen_key ?? candidate.frontend_route ?? "",
+            );
           }
           return String(item ?? "");
         })
         .filter(Boolean)
-    : screens.filter((screen) => screen.is_active).map((screen) => screen.id);
+    : [];
+
+  const activeScreenIds =
+    parsedActiveIds.length > 0
+      ? parsedActiveIds
+      : screens.filter((screen) => screen.is_active).map((screen) => screen.id);
 
   return { screens, activeScreenIds };
 }
