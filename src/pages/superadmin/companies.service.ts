@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import apiClient from "@/lib/api/client";
 
-const CompanyStatusSchema = z.enum(["Activo", "Inactivo"]);
+const CompanyStatusSchema = z.enum(["active", "inactive", "suspended"]);
 
 export const CompanyFormSchema = z.object({
   name: z.string().min(1, "El nombre es obligatorio"),
@@ -23,7 +23,7 @@ const CompanySchema = z
     email: z.string().email().or(z.string()).optional().default(""),
     address: z.string().optional().default(""),
     phone: z.string().optional().default(""),
-    status: z.string().default("Activo"),
+    status: z.string().default("active"),
   })
   .passthrough();
 

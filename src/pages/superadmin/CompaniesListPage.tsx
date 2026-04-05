@@ -32,7 +32,7 @@ const DEFAULT_VALUES: CompanyFormValues = {
   email: "",
   address: "",
   phone: "",
-  status: "Activo",
+  status: "active",
 };
 
 function CompanyCreateDialog({
@@ -124,8 +124,9 @@ function CompanyCreateDialog({
                 <SelectValue placeholder="Selecciona un estado" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Activo">Activo</SelectItem>
-                <SelectItem value="Inactivo">Inactivo</SelectItem>
+                <SelectItem value="active">Activo</SelectItem>
+                <SelectItem value="inactive">Inactivo</SelectItem>
+                <SelectItem value="suspended">Suspendido</SelectItem>
               </SelectContent>
             </Select>
             {form.formState.errors.status && (
@@ -150,13 +151,21 @@ function CompanyCreateDialog({
 function CompanyStatusBadge({ status }: { status: string }) {
   const normalized = status.trim().toLowerCase();
   const active = normalized === "activo" || normalized === "active";
+  const inactive = normalized === "inactivo" || normalized === "inactive";
+  const suspended = normalized === "suspendido" || normalized === "suspended";
 
   return (
     <Badge
       variant="outline"
-      className={active ? "border-success/30 bg-success/10 text-success" : "border-muted-foreground/30 text-muted-foreground"}
+      className={
+        active
+          ? "border-success/30 bg-success/10 text-success"
+          : suspended
+            ? "border-warning/30 bg-warning/10 text-warning"
+            : "border-muted-foreground/30 text-muted-foreground"
+      }
     >
-      {status || (active ? "Activo" : "Inactivo")}
+      {active ? "Activo" : inactive ? "Inactivo" : suspended ? "Suspendido" : status || "Activo"}
     </Badge>
   );
 }

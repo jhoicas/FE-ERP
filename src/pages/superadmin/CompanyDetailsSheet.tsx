@@ -32,9 +32,31 @@ interface Props {
   onUpdated: () => void;
 }
 
-function normalizeStatus(status?: string): "Activo" | "Inactivo" {
+function normalizeStatus(status?: string): "active" | "inactive" | "suspended" {
   const value = (status ?? "").trim().toLowerCase();
-  return value === "inactivo" || value === "inactive" ? "Inactivo" : "Activo";
+
+  if (value === "inactive" || value === "inactivo") {
+    return "inactive";
+  }
+
+  if (value === "suspended" || value === "suspendido") {
+    return "suspended";
+  }
+
+  return "active";
+}
+
+function formatStatusLabel(status: string): string {
+  switch (status) {
+    case "active":
+      return "Activo";
+    case "inactive":
+      return "Inactivo";
+    case "suspended":
+      return "Suspendido";
+    default:
+      return status;
+  }
 }
 
 function toFormValues(company?: CompanyDTO | null): CompanyFormValues {
@@ -248,8 +270,9 @@ export function CompanyDetailsSheet({ open, companyId, onOpenChange, onUpdated }
                           <SelectValue placeholder="Selecciona un estado" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="Activo">Activo</SelectItem>
-                          <SelectItem value="Inactivo">Inactivo</SelectItem>
+                          <SelectItem value="active">Activo</SelectItem>
+                          <SelectItem value="inactive">Inactivo</SelectItem>
+                          <SelectItem value="suspended">Suspendido</SelectItem>
                         </SelectContent>
                       </Select>
                     )}
