@@ -16,12 +16,11 @@ import { cn } from "@/lib/utils";
 import Cookies from "js-cookie";
 import { AUTH_TOKEN_COOKIE_KEY } from "@/config/auth";
 import { useMemo, useState, type ComponentType } from "react";
-import { resolveScreenModule } from "@/features/auth/permissions";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthUser } from "@/features/auth/useAuthUser";
 import { Badge } from "@/components/ui/badge";
 import { useDianEnvironment } from "@/hooks/use-dian-environment";
-import { useCompanyModules } from "@/features/auth/useCompanyModules";
+import { useCompanyScreens } from "@/features/auth/useCompanyScreens";
 
 // --- 1. DICCIONARIO DE ÍCONOS ---
 const moduleIconByKey: Record<string, ComponentType<{ className?: string }>> = {
@@ -107,13 +106,21 @@ export default function AppSidebar() {
   const queryClient = useQueryClient();
   const isAdminUser = user?.roles?.includes("admin") ?? false;
   const isSuperAdminUser = user?.roles?.includes("superadmin") || user?.roles?.includes("super_admin") || false;
-  
-  // Obtenemos los módulos de la API
-  const companyId = typeof user?.company_id === "string" ? user.company_id : undefined;
-  const { data: companyModules, isLoading } = useCompanyModules(companyId);
+  const { data: activeScreenRoutes = [], isLoading } = useCompanyScreens();
+
+  const activeRoutesSet = useMemo(
+    () => new Set(activeScreenRoutes.map((route) => route.trim().replace(/\/+$/, ""))),
+    [activeScreenRoutes],
+  );
+
+  const isRouteActive = (route?: string): boolean => {
+    if (!route) return false;
+    const normalized = route.trim().replace(/\/+$/, "");
+    return activeRoutesSet.has(normalized);
+  };
 
   // --- 3. LÓGICA DE FILTRADO ESTRICTO ---
-  // Agrupación dinámica de módulos y screens usando resolveScreenModule
+  // Filtrado dinámico usando activeScreenRoutes
   const visibleModules = useMemo(() => {
     if (isSuperAdminUser) {
       // Menú exclusivo para superadmin
@@ -127,66 +134,33 @@ export default function AppSidebar() {
       ];
     }
 
-    if (!companyModules?.modules) {
-      return isAdminUser
-        ? APP_MENU_CONFIG.filter((mod) => mod.module_key === "settings")
-        : [];
-    }
+    return APP_MENU_CONFIG.map((module) => {
+      const activeScreens = (module.screens ?? []).filter((screen) => {
+        if (screen.requiresSuperAdmin) {
+          return false;
+        }
+        return isRouteActive(screen.frontend_route);
+      });
 
-    // Diccionario de módulos activos
-    const activeModulesMap = companyModules.modules.reduce((acc: any, curr: any) => {
-      acc[(curr.module_key ?? curr.module_name ?? "").toLowerCase()] = curr.is_active;
-      return acc;
-    }, {});
+      const isModuleRouteActive = isRouteActive(module.frontend_route);
 
-    // Agrupamos screens por módulo usando resolveScreenModule
-    const menuByModule: Record<string, any> = {};
+      if (module.screens.length > 0) {
+        if (activeScreens.length === 0) return null;
 
-    for (const mod of companyModules.modules as Array<{ module_key?: string; module_name?: string; is_active?: boolean; screens?: any[] }>) {
-      if (!mod.is_active && mod.module_key !== "settings") continue;
-      const key = (mod.module_key ?? mod.module_name ?? "").toLowerCase();
-      menuByModule[key] = {
-        ...mod,
+        return {
+          ...module,
+          screens: activeScreens,
+        };
+      }
+
+      if (!isModuleRouteActive) return null;
+
+      return {
+        ...module,
         screens: [],
       };
-    }
-
-    // Recorremos todos los módulos y screens del backend
-    for (const backendModule of companyModules.modules as Array<{ module_key?: string; module_name?: string; is_active?: boolean; screens?: any[]; name?: string; label?: string; title?: string }>) {
-      for (const screen of backendModule.screens ?? []) {
-        // Solo pasar las props esperadas por el helper
-        const parentModule = {
-          name: backendModule.name,
-          label: backendModule.label,
-          title: backendModule.title,
-        };
-        const resolved = resolveScreenModule(screen, parentModule);
-        if (!resolved) continue;
-        const key = resolved.key;
-        if (!menuByModule[key]) {
-          menuByModule[key] = {
-            module_key: key,
-            label: resolved.name ?? key,
-            frontend_route: undefined,
-            screens: [],
-          };
-        }
-        menuByModule[key].screens.push({ ...screen });
-      }
-    }
-
-    // settings: solo por rol admin
-    if (isAdminUser && !menuByModule["settings"]) {
-      const settingsConfig = APP_MENU_CONFIG.find((m) => m.module_key === "settings");
-      if (settingsConfig) menuByModule["settings"] = settingsConfig;
-    }
-
-    // Filtramos solo los módulos activos
-    return Object.values(menuByModule).filter((mod: any) => {
-      if (mod.module_key === "settings") return isAdminUser;
-      return activeModulesMap[mod.module_key] === true;
-    });
-  }, [companyModules, isAdminUser, isSuperAdminUser]);
+    }).filter(Boolean) as typeof APP_MENU_CONFIG;
+  }, [activeRoutesSet, isRouteActive, isSuperAdminUser]);
 
   const hasDashboardShortcut = useMemo(
     () =>

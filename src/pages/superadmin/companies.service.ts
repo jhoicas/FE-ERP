@@ -150,6 +150,13 @@ export async function getCompanyScreens(companyId: string): Promise<CompanyScree
   return { screens, activeScreenIds };
 }
 
+export async function getCompanyActiveScreenRoutes(companyId: string): Promise<string[]> {
+  const { screens } = await getCompanyScreens(companyId);
+  return screens
+    .filter((screen) => screen.is_active && Boolean(screen.frontend_route?.trim()))
+    .map((screen) => screen.frontend_route!.trim());
+}
+
 export async function saveCompanyScreens(companyId: string, screenIds: string[]): Promise<void> {
   await apiClient.put(`/api/admin/companies/${companyId}/screens`, {
     screen_ids: screenIds,

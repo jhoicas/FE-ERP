@@ -1,11 +1,12 @@
 import { useEffect, useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useCompanyScreens } from "@/features/auth/useCompanyScreens";
 import { useAuthUser } from "@/features/auth/useAuthUser";
-import { RbacScreenDTO } from "@/features/auth/services";
+import { type RbacScreenDTO } from "@/features/auth/services";
+import { getCompanyScreens } from "@/pages/superadmin/companies.service";
 
 interface RoleFormProps {
   open: boolean;
@@ -21,7 +22,19 @@ export default function RoleForm({ open, onClose, onSubmit, initialRole, company
   const isSuperAdmin = user?.isSuperAdmin;
   const [name, setName] = useState(initialRole?.name || "");
   const [selectedScreens, setSelectedScreens] = useState<string[]>(initialRole?.screenIds || []);
-  const { data: screens, isLoading, isError } = useCompanyScreens(!isSuperAdmin ? companyId : undefined);
+  const { data: screensData, isLoading, isError } = useQuery({
+    queryKey: ["role-form-company-screens", companyId],
+    queryFn: async () => {
+      if (!companyId || isSuperAdmin) return [] as RbacScreenDTO[];
+      const response = await getCompanyScreens(companyId);
+      return response.screens as RbacScreenDTO[];
+    },
+    enabled: !isSuperAdmin && Boolean(companyId),
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  });
+
+  const screens = screensData ?? [];
 
   // Agrupar pantallas por módulo
   const groupedScreens = useMemo(() => {
