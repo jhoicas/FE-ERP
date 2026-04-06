@@ -95,9 +95,11 @@ export default function ScreenFormDialog({
               control={form.control}
               name="module_id"
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange} disabled={modulesLoading}>
+                <Select value={field.value} onValueChange={field.onChange} disabled={modulesLoading && !field.value}>
                   <SelectTrigger>
-                    <SelectValue placeholder={modulesLoading ? "Cargando módulos..." : "Selecciona un módulo"} />
+                    <SelectValue
+                      placeholder={modulesLoading ? "Cargando módulos..." : "Selecciona un módulo"}
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     {modules.map((module) => (
@@ -105,6 +107,11 @@ export default function ScreenFormDialog({
                         {module.name || module.key}
                       </SelectItem>
                     ))}
+                    {field.value && !modules.some((module) => module.id === field.value) && (
+                      <SelectItem key={`fallback-${field.value}`} value={field.value}>
+                        Módulo inactivo/desconocido ({field.value})
+                      </SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               )}
