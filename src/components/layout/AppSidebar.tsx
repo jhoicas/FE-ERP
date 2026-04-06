@@ -68,13 +68,29 @@ const APP_MENU_CONFIG = [
     module_key: "billing",
     label: "Facturación",
     frontend_route: "/facturacion",
-    screens: []
+    screens: [
+      { id: "billing-customers", label: "Clientes", frontend_route: "/billing/customers" },
+      { id: "billing-invoices", label: "Facturas", frontend_route: "/billing/invoices" },
+      { id: "billing-resolutions", label: "Resoluciones", frontend_route: "/billing/resolutions" },
+      { id: "billing-dian-settings", label: "Configuración DIAN", frontend_route: "/billing/settings/dian" },
+      { id: "billing-emails", label: "Correos", frontend_route: "/billing/emails" },
+      { id: "billing-dian-summary", label: "Resumen DIAN", frontend_route: "/billing/dian/summary" },
+    ]
   },
   {
     module_key: "inventory",
     label: "Inventario",
     frontend_route: "/inventario",
-    screens: []
+    screens: [
+      { id: "inventory-products", label: "Productos", frontend_route: "/inventory/products" },
+      { id: "inventory-warehouses", label: "Bodegas", frontend_route: "/inventory/warehouses" },
+      { id: "inventory-stock", label: "Stock", frontend_route: "/inventory/stock" },
+      { id: "inventory-movements", label: "Movimientos", frontend_route: "/inventory/movements" },
+      { id: "inventory-suppliers", label: "Proveedores", frontend_route: "/inventory/suppliers" },
+      { id: "inventory-purchase-orders", label: "Órdenes de compra", frontend_route: "/inventory/purchase-orders" },
+      { id: "inventory-replenishment", label: "Reposición", frontend_route: "/inventory/replenishment" },
+      { id: "inventory-stocktake", label: "Conteo físico", frontend_route: "/inventory/stocktake" },
+    ]
   },
   {
     module_key: "purchasing",
