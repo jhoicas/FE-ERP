@@ -119,6 +119,31 @@ export default function AppSidebar() {
     return activeRoutesSet.has(normalized);
   };
 
+  const MODULE_PREFIXES: Record<string, string[]> = {
+    analytics: ["/dashboard", "/analytics"],
+    crm: ["/crm"],
+    billing: ["/billing", "/facturacion"],
+    inventory: ["/inventory", "/inventario"],
+    purchasing: ["/purchasing", "/compras"],
+    settings: ["/settings", "/ajustes"],
+  };
+
+  const hasModulePrefixMatch = (moduleKey: string): boolean => {
+    const prefixes = MODULE_PREFIXES[moduleKey] ?? [];
+    if (prefixes.length === 0) return false;
+
+    return activeScreenRoutes.some((route) => {
+      const normalizedRoute = route.trim().replace(/\/+$/, "");
+      return prefixes.some((prefix) => {
+        const normalizedPrefix = prefix.trim().replace(/\/+$/, "");
+        return (
+          normalizedRoute === normalizedPrefix ||
+          normalizedRoute.startsWith(`${normalizedPrefix}/`)
+        );
+      });
+    });
+  };
+
   // --- 3. LÓGICA DE FILTRADO ESTRICTO ---
   // Filtrado dinámico usando activeScreenRoutes
   const visibleModules = useMemo(() => {
@@ -143,9 +168,11 @@ export default function AppSidebar() {
       });
 
       const isModuleRouteActive = isRouteActive(module.frontend_route);
+      const hasActiveChildren = activeScreens.length > 0;
+      const hasPrefixMatch = hasModulePrefixMatch(module.module_key);
 
       if (module.screens.length > 0) {
-        if (activeScreens.length === 0) return null;
+        if (!isModuleRouteActive && !hasActiveChildren && !hasPrefixMatch) return null;
 
         return {
           ...module,
@@ -153,7 +180,7 @@ export default function AppSidebar() {
         };
       }
 
-      if (!isModuleRouteActive) return null;
+      if (!isModuleRouteActive && !hasPrefixMatch) return null;
 
       return {
         ...module,
