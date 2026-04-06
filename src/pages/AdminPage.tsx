@@ -12,6 +12,7 @@ import type { Tenant } from "@/types/admin";
 import { getTenants, toggleTenantModule, updateRolePermissions } from "@/features/admin/services";
 import { resolveScreenModule } from "@/features/auth/permissions";
 import { getApiErrorMessage } from "@/lib/api/errors";
+import ScreensManagementTab from "@/features/admin/components/ScreensManagementTab";
 
 const moduleList = ["Inventario", "Facturación", "CRM", "Analítica", "Compras"] as const;
 const roles = ["Admin", "Gerente", "Vendedor", "Bodeguero", "Contador"] as const;
@@ -198,6 +199,7 @@ export default function AdminPage() {
         <TabsList>
           <TabsTrigger value="tenants">Empresas (Tenants)</TabsTrigger>
           <TabsTrigger value="permissions">Permisos de Roles</TabsTrigger>
+          <TabsTrigger value="screens">Pantallas</TabsTrigger>
         </TabsList>
 
         <TabsContent value="tenants" className="mt-4">
@@ -346,6 +348,10 @@ export default function AdminPage() {
               </Table>
             </div>
           </div>
+        </TabsContent>
+
+        <TabsContent value="screens" className="mt-4">
+          <ScreensManagementTab />
         </TabsContent>
       </Tabs>
 
