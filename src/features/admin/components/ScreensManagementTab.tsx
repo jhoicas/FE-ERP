@@ -1,8 +1,10 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import ScreenFormDialog from "./ScreenFormDialog";
@@ -32,6 +34,12 @@ export default function ScreensManagementTab() {
   const [open, setOpen] = useState(false);
   const [editingScreen, setEditingScreen] = useState<Screen | null>(null);
 
+  // Estados para filtros y paginación
+  const [searchTerm, setSearchTerm] = useState("");
+  const [moduleFilter, setModuleFilter] = useState<string>("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
   const { data: screens = [], isLoading, isError } = useQuery({
     queryKey: ["admin-screens"],
     queryFn: getScreens,
@@ -45,6 +53,33 @@ export default function ScreensManagementTab() {
   const modulesById = useMemo(
     () => new Map(modules.map((module) => [module.id, module] as const)),
     [modules],
+  );
+
+  // Lógica de filtrado
+  const filteredScreens = useMemo(() => {
+    return screens.filter((screen) => {
+      const searchLower = searchTerm.toLowerCase();
+      const matchesSearch =
+        screen.name.toLowerCase().includes(searchLower) ||
+        screen.key.toLowerCase().includes(searchLower) ||
+        screen.frontend_route.toLowerCase().includes(searchLower);
+      
+      const matchesModule = moduleFilter === "all" || screen.module_id === moduleFilter;
+      
+      return matchesSearch && matchesModule;
+    }).sort((a, b) => a.order - b.order); // Opcional: ordenar por el campo 'order'
+  }, [screens, searchTerm, moduleFilter]);
+
+  // Resetear a la primera página si cambian los filtros
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, moduleFilter]);
+
+  // Lógica de paginación
+  const totalPages = Math.ceil(filteredScreens.length / itemsPerPage);
+  const paginatedScreens = filteredScreens.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
   );
 
   const createMutation = useMutation({
@@ -81,7 +116,6 @@ export default function ScreensManagementTab() {
       updateMutation.mutate(values);
       return;
     }
-
     createMutation.mutate(values);
   };
 
@@ -103,6 +137,32 @@ export default function ScreensManagementTab() {
           <Plus className="mr-2 h-4 w-4" />
           Nueva Pantalla
         </Button>
+      </div>
+
+      {/* Controles de búsqueda y filtros */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por nombre, key o ruta..."
+            className="pl-8"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        <Select value={moduleFilter} onValueChange={setModuleFilter}>
+          <SelectTrigger className="w-full sm:w-[250px]">
+            <SelectValue placeholder="Filtrar por módulo" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los módulos</SelectItem>
+            {modules.map((m) => (
+              <SelectItem key={m.id} value={m.id}>
+                {m.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="erp-card p-0 overflow-hidden">
@@ -132,14 +192,14 @@ export default function ScreensManagementTab() {
                   No se pudieron cargar las pantallas.
                 </TableCell>
               </TableRow>
-            ) : screens.length === 0 ? (
+            ) : filteredScreens.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
-                  No hay pantallas registradas.
+                  No se encontraron pantallas con esos filtros.
                 </TableCell>
               </TableRow>
             ) : (
-              screens.map((screen) => (
+              paginatedScreens.map((screen) => (
                 <TableRow key={screen.id}>
                   <TableCell className="font-medium">{screen.name}</TableCell>
                   <TableCell>{screen.key}</TableCell>
@@ -172,6 +232,33 @@ export default function ScreensManagementTab() {
             )}
           </TableBody>
         </Table>
+
+        {/* Paginación */}
+        {totalPages > 0 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t bg-muted/20">
+            <span className="text-xs text-muted-foreground">
+              Mostrando {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredScreens.length)} de {filteredScreens.length}
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                Anterior
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+              >
+                Siguiente
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       <ScreenFormDialog
