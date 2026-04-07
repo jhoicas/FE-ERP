@@ -87,9 +87,17 @@ export default function AdminPage() {
       try {
         const data = await getTenants();
         if (!active) return;
-        setTenants(data);
+
+        if (Array.isArray(data)) {
+          setTenants(data);
+        } else if (data && Array.isArray((data as { data?: unknown }).data)) {
+          setTenants((data as { data: Tenant[] }).data);
+        } else {
+          setTenants([]);
+        }
       } catch (error) {
         if (!active) return;
+        setTenants([]);
         toast({
           title: "No se pudieron cargar los tenants",
           description: getApiErrorMessage(error, "Super Admin"),
@@ -111,17 +119,19 @@ export default function AdminPage() {
     const targetTenant = tenants.find((t) => t.id === tenantId);
     if (!targetTenant) return;
 
-    const nextValue = !targetTenant.modules[mod];
+    const targetModules = targetTenant.modules || {};
+
+    const nextValue = !targetModules[mod];
 
     setTenants((prev) =>
       prev.map((t) =>
-        t.id === tenantId ? { ...t, modules: { ...t.modules, [mod]: nextValue } } : t,
+        t.id === tenantId ? { ...t, modules: { ...(t.modules || {}), [mod]: nextValue } } : t,
       ),
     );
 
     if (selectedTenant?.id === tenantId) {
       setSelectedTenant((prev) =>
-        prev ? { ...prev, modules: { ...prev.modules, [mod]: nextValue } } : null,
+        prev ? { ...prev, modules: { ...(prev.modules || {}), [mod]: nextValue } } : null,
       );
     }
 
@@ -134,13 +144,13 @@ export default function AdminPage() {
     } catch (error) {
       setTenants((prev) =>
         prev.map((t) =>
-          t.id === tenantId ? { ...t, modules: { ...t.modules, [mod]: !nextValue } } : t,
+          t.id === tenantId ? { ...t, modules: { ...(t.modules || {}), [mod]: !nextValue } } : t,
         ),
       );
 
       if (selectedTenant?.id === tenantId) {
         setSelectedTenant((prev) =>
-          prev ? { ...prev, modules: { ...prev.modules, [mod]: !nextValue } } : null,
+          prev ? { ...prev, modules: { ...(prev.modules || {}), [mod]: !nextValue } } : null,
         );
       }
 
@@ -218,7 +228,7 @@ export default function AdminPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {tenants.map((t) => (
+                  {(Array.isArray(tenants) ? tenants : []).map((t) => (
                     <TableRow key={t.id} className="cursor-pointer" onClick={() => setSelectedTenant(t)}>
                       <TableCell>
                         <div className="flex items-center gap-2">
@@ -234,7 +244,7 @@ export default function AdminPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-sm text-right font-semibold">
-                        {Object.values(t.modules).filter(Boolean).length}/{moduleList.length}
+                        {Object.values(t.modules || {}).filter(Boolean).length}/{moduleList.length}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -385,7 +395,7 @@ export default function AdminPage() {
                       <div key={mod} className="flex items-center justify-between rounded-lg border p-3">
                         <span className="text-sm">{mod}</span>
                         <Switch
-                          checked={selectedTenant.modules[mod]}
+                          checked={(selectedTenant.modules || {})[mod]}
                           onCheckedChange={() => toggleModule(selectedTenant.id, mod)}
                         />
                       </div>

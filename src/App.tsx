@@ -30,6 +30,7 @@ import MarketingAIPage from "@/pages/MarketingAIPage";
 import AiCampaignGenerator from "@/features/crm/components/AiCampaignGenerator";
 import SettingsPage from "@/pages/SettingsPage";
 import LoginPage from "@/pages/LoginPage";
+import AdminPage from "@/pages/AdminPage";
 
 import ProtectedRoute from "@/features/auth/ProtectedRoute";
 import UsersManagement from "@/features/auth/components/UsersManagement";
@@ -38,9 +39,6 @@ import LoyaltyPage from "@/pages/LoyaltyPage";
 import OpportunitiesPage from "@/pages/OpportunitiesPage";
 import { InboxPage } from "@/features/email/components/InboxPage";
 import { EmailSettings } from "@/features/email/components/EmailSettings";
-
-// Superadmin Companies Management
-import CompaniesListPage from "@/pages/superadmin/CompaniesListPage.tsx";
 
 const queryClient = new QueryClient();
 
@@ -311,7 +309,7 @@ const App = () => (
               path="/admin"
               element={
                 <ProtectedRoute>
-                  <CompaniesListPage />
+                  <AdminPage />
                 </ProtectedRoute>
               }
             />
