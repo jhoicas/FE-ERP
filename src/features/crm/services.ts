@@ -91,6 +91,22 @@ export async function getCustomers(): Promise<CustomerDTO[]> {
   return parsed.items;
 }
 
+export async function importCustomersFile(file: File): Promise<unknown> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  try {
+    const { data } = await apiClient.post(`${CRM_BASE}/import`, formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+    return data;
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}
+
 export async function createCustomer(body: CreateCustomerRequest): Promise<CustomerDTO> {
   const payload = createCustomerSchema.parse(body);
   try {

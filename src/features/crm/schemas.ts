@@ -8,6 +8,10 @@ export const CustomerSchema = z.object({
   tax_id: z.string().optional(),
   category_name: z.string().optional(),
   ltv: z.number().optional(),
+  segment: z.string().optional(),
+  total_purchased: z.number().optional(),
+  main_category: z.string().optional(),
+  remarketing_action: z.string().optional(),
   created_at: z.string().optional(),
   updated_at: z.string().optional(),
 });

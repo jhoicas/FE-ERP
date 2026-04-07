@@ -19,6 +19,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Pagination,
@@ -46,11 +47,55 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import type { ReactNode } from "react";
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
 type CustomerFilter = "_all" | "with_tax_id" | "with_email" | "with_phone";
 
-export default function CustomersTable() {
+function getSegmentValue(customer: CustomerDTO): string {
+  const value = customer.segment?.trim().toUpperCase();
+  return value || "OCASIONAL";
+}
+
+function getSegmentClass(segment: string): string {
+  switch (segment) {
+    case "VIP":
+      return "border-amber-300 bg-amber-100 text-amber-800";
+    case "PREMIUM":
+      return "border-emerald-300 bg-emerald-100 text-emerald-800";
+    case "RECURRENTE":
+      return "border-blue-300 bg-blue-100 text-blue-800";
+    case "OCASIONAL":
+    default:
+      return "border-slate-300 bg-slate-100 text-slate-700";
+  }
+}
+
+function formatCurrency(value?: number): string {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return "$0";
+  }
+
+  return new Intl.NumberFormat("es-CO", {
+    style: "currency",
+    currency: "COP",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function getMainCategory(customer: CustomerDTO): string {
+  return customer.main_category?.trim() || customer.category_name?.trim() || "Sin categoría";
+}
+
+function getRemarketingAction(customer: CustomerDTO): string {
+  return customer.remarketing_action?.trim() || "Sin acción";
+}
+
+interface CustomersTableProps {
+  externalActions?: ReactNode;
+}
+
+export default function CustomersTable({ externalActions }: CustomersTableProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -179,12 +224,15 @@ export default function CustomersTable() {
             </SelectContent>
           </Select>
         </div>
-        {canEditCustomers && (
-          <div className="w-full sm:w-auto sm:ml-auto">
-            <Button size="sm" className="w-full sm:w-auto" onClick={() => setCreateOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Nuevo cliente
-            </Button>
+        {(canEditCustomers || externalActions) && (
+          <div className="w-full sm:w-auto sm:ml-auto flex items-center gap-2">
+            {externalActions}
+            {canEditCustomers && (
+              <Button size="sm" className="w-full sm:w-auto" onClick={() => setCreateOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Nuevo cliente
+              </Button>
+            )}
           </div>
         )}
       </div>
@@ -209,18 +257,17 @@ export default function CustomersTable() {
             <TableHeader>
               <TableRow className="bg-muted/50 hover:bg-muted/50">
                 <TableHead className="text-xs text-muted-foreground">Nombre</TableHead>
-                <TableHead className="text-xs text-muted-foreground">
-                  <ExplainableAcronym sigla="NIT" /> / Tax ID
-                </TableHead>
                 <TableHead className="text-xs text-muted-foreground">Email</TableHead>
-                <TableHead className="text-xs text-muted-foreground">Teléfono</TableHead>
-                <TableHead className="text-right text-xs text-muted-foreground">Acciones</TableHead>
+                <TableHead className="text-xs text-muted-foreground">Segmento</TableHead>
+                <TableHead className="text-xs text-muted-foreground">Total Comprado</TableHead>
+                <TableHead className="text-xs text-muted-foreground">Categoría Principal</TableHead>
+                <TableHead className="text-right text-xs text-muted-foreground">Acción Remarketing</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredItems.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
                     No hay clientes que coincidan con los filtros.
                   </TableCell>
                 </TableRow>
@@ -228,17 +275,25 @@ export default function CustomersTable() {
                 filteredItems.map((c) => (
                   <TableRow key={c.id} className="hover:bg-muted/40">
                     <TableCell className="font-medium">{c.name}</TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">
-                      {c.tax_id ?? "—"}
-                    </TableCell>
                     <TableCell className="text-muted-foreground">
                       {c.email ?? "—"}
                     </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={getSegmentClass(getSegmentValue(c))}>
+                        {getSegmentValue(c)}
+                      </Badge>
+                    </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {c.phone ?? "—"}
+                      {formatCurrency(c.total_purchased ?? c.ltv)}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {getMainCategory(c)}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
+                      <div className="flex justify-end gap-2 items-center">
+                        <Badge variant="outline" className="text-[11px]">
+                          {getRemarketingAction(c)}
+                        </Badge>
                         {canEditCustomers && (
                           <Button
                             variant="ghost"
