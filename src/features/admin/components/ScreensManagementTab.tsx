@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -6,8 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import ScreenFormDialog from "./ScreenFormDialog";
-import { createScreen, getScreens, updateScreen, type ScreenPayload } from "@/features/admin/screens.service";
-import type { Screen } from "@/types/admin";
+import { createScreen, getModules, getScreens, updateScreen, type ScreenPayload } from "@/features/admin/screens.service";
+import type { Module, Screen } from "@/types/admin";
 
 function statusLabel(isActive: boolean): string {
   return isActive ? "Activo" : "Inactivo";
@@ -17,6 +17,13 @@ function statusClass(isActive: boolean): string {
   return isActive
     ? "border-success/30 bg-success/10 text-success"
     : "border-muted-foreground/30 text-muted-foreground";
+}
+
+function formatModuleLabel(module?: Module | null): string {
+  if (!module) return "Módulo inactivo/desconocido";
+  const name = module.name?.trim() || "Módulo";
+  const key = module.key?.trim() || "sin-key";
+  return `${name} (${key})`;
 }
 
 export default function ScreensManagementTab() {
@@ -29,6 +36,16 @@ export default function ScreensManagementTab() {
     queryKey: ["admin-screens"],
     queryFn: getScreens,
   });
+
+  const { data: modules = [] } = useQuery({
+    queryKey: ["admin-modules"],
+    queryFn: getModules,
+  });
+
+  const modulesById = useMemo(
+    () => new Map(modules.map((module) => [module.id, module] as const)),
+    [modules],
+  );
 
   const createMutation = useMutation({
     mutationFn: async (values: ScreenPayload) => createScreen(values),
@@ -94,6 +111,7 @@ export default function ScreensManagementTab() {
             <TableRow>
               <TableHead>Nombre</TableHead>
               <TableHead>Key</TableHead>
+              <TableHead>Módulo</TableHead>
               <TableHead>Ruta Frontend</TableHead>
               <TableHead>Endpoint API</TableHead>
               <TableHead>Orden</TableHead>
@@ -104,19 +122,19 @@ export default function ScreensManagementTab() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={7} className="py-10 text-center text-muted-foreground">
+                <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
                   Cargando pantallas...
                 </TableCell>
               </TableRow>
             ) : isError ? (
               <TableRow>
-                <TableCell colSpan={7} className="py-10 text-center text-destructive">
+                <TableCell colSpan={8} className="py-10 text-center text-destructive">
                   No se pudieron cargar las pantallas.
                 </TableCell>
               </TableRow>
             ) : screens.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="py-10 text-center text-muted-foreground">
+                <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
                   No hay pantallas registradas.
                 </TableCell>
               </TableRow>
@@ -125,6 +143,9 @@ export default function ScreensManagementTab() {
                 <TableRow key={screen.id}>
                   <TableCell className="font-medium">{screen.name}</TableCell>
                   <TableCell>{screen.key}</TableCell>
+                  <TableCell>
+                    {formatModuleLabel(modulesById.get(screen.module_id))}
+                  </TableCell>
                   <TableCell>{screen.frontend_route}</TableCell>
                   <TableCell>{screen.api_endpoint || "—"}</TableCell>
                   <TableCell>{screen.order}</TableCell>

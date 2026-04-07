@@ -30,6 +30,12 @@ const DEFAULT_VALUES: ScreenFormValues = {
   is_active: true,
 };
 
+function formatModuleLabel(name?: string, key?: string): string {
+  const safeName = name?.trim() || "Módulo";
+  const safeKey = key?.trim() || "sin-key";
+  return `${safeName} (${safeKey})`;
+}
+
 export default function ScreenFormDialog({
   open,
   onOpenChange,
@@ -104,7 +110,7 @@ export default function ScreenFormDialog({
                   <SelectContent>
                     {modules.map((module) => (
                       <SelectItem key={module.id} value={module.id}>
-                        {module.name || module.key}
+                        {formatModuleLabel(module.name, module.key)}
                       </SelectItem>
                     ))}
                     {field.value && !modules.some((module) => module.id === field.value) && (
