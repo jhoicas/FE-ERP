@@ -10,6 +10,9 @@ export interface CustomerResponse {
   tax_id: string;
   email?: string;
   phone?: string;
+  categoryName?: string;
+  category_name?: string | null;
+  ltv?: number;
 }
 
 export interface BenefitResponse {
@@ -23,12 +26,12 @@ export interface BenefitResponse {
 }
 
 export interface ProfileMetadata {
-  orders_count?: number;
-  distinct_products?: number;
-  last_purchase_date?: string;
-  main_category?: string;
-  products_list?: string;
-  follow_up_strategy?: string;
+  ordersCount?: number;
+  mainCategory?: string;
+  productsList?: string;
+  distinctProducts?: number;
+  followUpStrategy?: string;
+  lastPurchaseDate?: string;
 }
 
 export interface CRMCustomerProfile extends CustomerResponse {

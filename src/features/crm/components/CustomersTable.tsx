@@ -78,9 +78,24 @@ function formatCurrency(value?: number): string {
 
   return new Intl.NumberFormat("es-CO", {
     style: "currency",
-    currency: "COP",
+    currency: "USD",
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function getCategoryName(customer: CustomerDTO): string {
+  return customer.category_name?.trim() || customer.categoryName?.trim() || "Sin categoría";
+}
+
+function getCategoryClass(category: string): string {
+  switch (category.toUpperCase()) {
+    case "VIP":
+      return "border-amber-300 bg-amber-100 text-amber-800";
+    case "PREMIUM":
+      return "border-slate-300 bg-slate-100 text-slate-700";
+    default:
+      return "";
+  }
 }
 
 function getMainCategory(customer: CustomerDTO): string {
@@ -258,6 +273,7 @@ export default function CustomersTable({ externalActions }: CustomersTableProps)
               <TableRow className="bg-muted/50 hover:bg-muted/50">
                 <TableHead className="text-xs text-muted-foreground">Nombre</TableHead>
                 <TableHead className="text-xs text-muted-foreground">Email</TableHead>
+                <TableHead className="text-xs text-muted-foreground">Categoría</TableHead>
                 <TableHead className="text-xs text-muted-foreground">Segmento</TableHead>
                 <TableHead className="text-xs text-muted-foreground">Total Comprado</TableHead>
                 <TableHead className="text-xs text-muted-foreground">Categoría Principal</TableHead>
@@ -267,7 +283,7 @@ export default function CustomersTable({ externalActions }: CustomersTableProps)
             <TableBody>
               {filteredItems.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={7} className="py-8 text-center text-sm text-muted-foreground">
                     No hay clientes que coincidan con los filtros.
                   </TableCell>
                 </TableRow>
@@ -279,12 +295,17 @@ export default function CustomersTable({ externalActions }: CustomersTableProps)
                       {c.email ?? "—"}
                     </TableCell>
                     <TableCell>
+                      <Badge variant="outline" className={getCategoryClass(getCategoryName(c))}>
+                        {getCategoryName(c)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
                       <Badge variant="outline" className={getSegmentClass(getSegmentValue(c))}>
                         {getSegmentValue(c)}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {formatCurrency(c.total_purchased ?? c.ltv)}
+                      {formatCurrency(Number(c.ltv ?? c.total_purchased ?? 0))}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {getMainCategory(c)}
