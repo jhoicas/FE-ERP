@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,22 +10,16 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { getVisibleRbacModules, getMenuItemLabel } from "@/features/auth/permissions";
-import { getRbacMenu, type RbacMenuDTO } from "@/features/auth/services";
+import { getModules, getScreens } from "@/features/admin/screens.service";
+import type { Module, Screen } from "@/types/admin";
 import {
   CompanyFormSchema,
   type CompanyDTO,
   type CompanyFormValues,
-  type ModuleDTO,
-  type CompanyModuleDTO,
   getCompany,
   getCompanyScreens,
-  saveCompanyScreens,
   updateCompany,
-  getGlobalModules,
-  getCompanyModules,
-  toggleCompanyModule,
-  type CompanyScreenDTO,
+  toggleCompanyScreen,
 } from "./companies.service";
 import CompanyUsersTab from "./CompanyUsersTab.tsx";
 
@@ -75,32 +68,10 @@ function toFormValues(company?: CompanyDTO | null): CompanyFormValues {
   };
 }
 
-function resolveScreenLabel(screen: CompanyScreenDTO): string {
-  return screen.label || screen.name || screen.title || screen.frontend_route || "Sin nombre";
-}
-
-function routeToScreenKey(route?: string): string {
-  if (!route) return "";
-  return route.replace(/^\/+/, "").replace(/\//g, ".");
-}
-
-function getScreenCandidates(screen: CompanyScreenDTO): string[] {
-  const values = [
-    screen.id,
-    screen.screen_id,
-    screen.screen_key,
-    screen.frontend_route,
-    routeToScreenKey(screen.frontend_route),
-  ];
-
-  return values.map((value) => String(value ?? "")).filter(Boolean);
-}
-
 export function CompanyDetailsSheet({ open, companyId, onOpenChange, onUpdated }: Props) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [tab, setTab] = useState("data");
-  const [selectedScreenIds, setSelectedScreenIds] = useState<string[]>([]);
 
   const companyQuery = useQuery({
     queryKey: ["admin-company", companyId],
@@ -114,22 +85,16 @@ export function CompanyDetailsSheet({ open, companyId, onOpenChange, onUpdated }
     enabled: open && Boolean(companyId),
   });
 
-  const menuQuery = useQuery<RbacMenuDTO>({
-    queryKey: ["rbac-menu"],
-    queryFn: getRbacMenu,
+  const globalScreensQuery = useQuery<Screen[]>({
+    queryKey: ["admin-screens"],
+    queryFn: getScreens,
     enabled: open,
   });
 
-  const modulesQuery = useQuery({
-    queryKey: ["admin-global-modules"],
-    queryFn: getGlobalModules,
+  const modulesQuery = useQuery<Module[]>({
+    queryKey: ["admin-modules"],
+    queryFn: getModules,
     enabled: open,
-  });
-
-  const companyModulesQuery = useQuery({
-    queryKey: ["admin-company-modules", companyId],
-    queryFn: () => getCompanyModules(companyId!),
-    enabled: open && Boolean(companyId),
   });
 
   const companyForm = useForm<CompanyFormValues>({
@@ -137,19 +102,11 @@ export function CompanyDetailsSheet({ open, companyId, onOpenChange, onUpdated }
     defaultValues: toFormValues(null),
   });
 
-  const visibleModules = useMemo(() => getVisibleRbacModules(menuQuery.data), [menuQuery.data]);
-
   useEffect(() => {
     if (companyQuery.data) {
       companyForm.reset(toFormValues(companyQuery.data));
     }
   }, [companyForm, companyQuery.data]);
-
-  useEffect(() => {
-    if (screensQuery.data) {
-      setSelectedScreenIds(screensQuery.data.activeScreenIds);
-    }
-  }, [screensQuery.data]);
 
   useEffect(() => {
     if (!open) {
@@ -173,30 +130,17 @@ export function CompanyDetailsSheet({ open, companyId, onOpenChange, onUpdated }
     },
   });
 
-  const saveScreensMutation = useMutation({
-    mutationFn: async (screenIds: string[]) => {
+  const toggleScreenMutation = useMutation({
+    mutationFn: async ({ screenId, isActive }: { screenId: string; isActive: boolean }) => {
       if (!companyId) throw new Error("No hay una empresa seleccionada");
-      await saveCompanyScreens(companyId, screenIds);
-    },
-  });
-
-  const toggleModuleMutation = useMutation({
-    mutationFn: async ({
-      moduleId,
-      isActive,
-    }: {
-      moduleId: string;
-      isActive: boolean;
-    }) => {
-      if (!companyId) throw new Error("No hay una empresa seleccionada");
-      return toggleCompanyModule(companyId, moduleId, isActive);
+      await toggleCompanyScreen(companyId, screenId, isActive);
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["admin-company-modules", companyId] });
-      toast({ title: "Módulo actualizado correctamente" });
+      toast({ title: "Acceso actualizado" });
+      await queryClient.invalidateQueries({ queryKey: ["admin-company-screens", companyId] });
     },
     onError: () => {
-      toast({ title: "No se pudo actualizar el módulo", variant: "destructive" });
+      toast({ title: "No se pudo actualizar el acceso", variant: "destructive" });
     },
   });
 
@@ -204,68 +148,38 @@ export function CompanyDetailsSheet({ open, companyId, onOpenChange, onUpdated }
     updateCompanyMutation.mutate(values);
   };
 
-  const handleToggleScreen = async (screenId: string, checked: boolean) => {
-    if (!companyId) return;
-
-    const previousIds = selectedScreenIds;
-    const nextIds = checked
-      ? Array.from(new Set([...previousIds, screenId]))
-      : previousIds.filter((id) => id !== screenId);
-
-    setSelectedScreenIds(nextIds);
-
-    try {
-      await saveScreensMutation.mutateAsync(nextIds);
-      await queryClient.invalidateQueries({ queryKey: ["admin-company-screens", companyId] });
-    } catch {
-      setSelectedScreenIds(previousIds);
-      toast({ title: "No se pudo actualizar el acceso", variant: "destructive" });
-    }
-  };
-
   const groupedScreens = useMemo(() => {
-    const grouped = new Map<string, CompanyScreenDTO[]>();
+    const grouped = new Map<string, Screen[]>();
+    const modulesById = new Map((modulesQuery.data ?? []).map((module) => [String(module.id), module]));
+    const sortedScreens = [...(globalScreensQuery.data ?? [])].sort((a, b) => a.order - b.order);
 
-    for (const module of visibleModules) {
-      const moduleLabel = getMenuItemLabel(module);
-      const items: CompanyScreenDTO[] = [];
+    for (const module of modulesQuery.data ?? []) {
+      grouped.set(module.name, []);
+    }
 
-      if (module.frontend_route) {
-        items.push({
-          id: module.frontend_route,
-          label: module.label,
-          name: module.name,
-          title: module.title,
-          frontend_route: module.frontend_route,
-        });
+    const ungroupedScreens: Screen[] = [];
+
+    for (const screen of sortedScreens) {
+      const module = modulesById.get(String(screen.module_id));
+
+      if (module) {
+        const current = grouped.get(module.name);
+        if (current) {
+          current.push(screen);
+        } else {
+          grouped.set(module.name, [screen]);
+        }
+      } else {
+        ungroupedScreens.push(screen);
       }
+    }
 
-      for (const screen of module.screens ?? []) {
-        if (!screen.frontend_route?.trim()) continue;
-        items.push(screen as CompanyScreenDTO);
-      }
-
-      if (items.length > 0) {
-        grouped.set(moduleLabel, items);
-      }
+    if (ungroupedScreens.length > 0) {
+      grouped.set("Sin módulo", ungroupedScreens);
     }
 
     return grouped;
-  }, [visibleModules]);
-
-  const activeScreenSet = useMemo(() => new Set(selectedScreenIds), [selectedScreenIds]);
-
-  const resolvePersistedScreenId = (screen: CompanyScreenDTO): string => {
-    const candidates = getScreenCandidates(screen);
-    const apiScreens = screensQuery.data?.screens ?? [];
-
-    const matched = apiScreens.find((apiScreen) => {
-      const apiCandidates = getScreenCandidates(apiScreen);
-      return candidates.some((candidate) => apiCandidates.includes(candidate));
-    });
-
-    return matched?.id ?? screen.id;
-  };
+  }, [globalScreensQuery.data, modulesQuery.data]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -276,9 +190,8 @@ export function CompanyDetailsSheet({ open, companyId, onOpenChange, onUpdated }
         </SheetHeader>
 
         <Tabs value={tab} onValueChange={setTab} className="w-full">
-          <TabsList className="mb-4 grid w-full grid-cols-4">
+          <TabsList className="mb-4 grid w-full grid-cols-3">
             <TabsTrigger value="data">Datos de la empresa</TabsTrigger>
-            <TabsTrigger value="modules">Módulos Activos</TabsTrigger>
             <TabsTrigger value="screens">Accesos / Pantallas</TabsTrigger>
             <TabsTrigger value="users">Usuarios Admin</TabsTrigger>
           </TabsList>
@@ -363,96 +276,58 @@ export function CompanyDetailsSheet({ open, companyId, onOpenChange, onUpdated }
             )}
           </TabsContent>
 
-          <TabsContent value="modules" className="space-y-4">
-            {modulesQuery.isLoading || companyModulesQuery.isLoading ? (
-              <div className="text-sm text-muted-foreground">Cargando módulos...</div>
-            ) : (
-              <div className="space-y-3">
-                {(modulesQuery.data ?? []).length === 0 ? (
-                  <div className="text-sm text-muted-foreground">No hay módulos disponibles.</div>
-                ) : (
-                  <>
-                    <p className="text-sm text-muted-foreground">
-                      Habilita o deshabilita los módulos que esta empresa puede utilizar en el sistema.
-                    </p>
-                    <div className="grid gap-3 md:grid-cols-2">
-                      {(modulesQuery.data ?? []).map((module) => {
-                        const companyModule = (companyModulesQuery.data ?? []).find(
-                          (cm) => cm.module_id === module.id,
-                        );
-                        const isActive = companyModule?.is_active ?? false;
-
-                        return (
-                          <div
-                            key={module.id}
-                            className="flex items-center justify-between gap-3 rounded-lg border p-4"
-                          >
-                            <div className="flex-1 space-y-1">
-                              <p className="text-sm font-medium">{module.name}</p>
-                              {module.description && (
-                                <p className="text-xs text-muted-foreground">{module.description}</p>
-                              )}
-                            </div>
-                            <Switch
-                              checked={isActive}
-                              disabled={toggleModuleMutation.isPending}
-                              onCheckedChange={(checked) => {
-                                void toggleModuleMutation.mutate({
-                                  moduleId: module.id,
-                                  isActive: checked,
-                                });
-                              }}
-                            />
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-          </TabsContent>
-
           <TabsContent value="screens" className="space-y-4">
-            {screensQuery.isLoading ? (
+            {globalScreensQuery.isLoading || modulesQuery.isLoading || screensQuery.isLoading ? (
               <div className="text-sm text-muted-foreground">Cargando pantallas...</div>
             ) : (
-              <div className="space-y-5">
-                {Array.from(groupedScreens.entries()).map(([moduleLabel, screens]) => (
-                  <div key={moduleLabel} className="space-y-2 rounded-lg border p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <h3 className="text-sm font-semibold">{moduleLabel}</h3>
-                      <Badge variant="outline">{screens.length} opciones</Badge>
-                    </div>
-                    <div className="grid gap-3 md:grid-cols-2">
-                      {screens.map((screen) => {
-                        const persistedScreenId = resolvePersistedScreenId(screen);
-                        const checked = getScreenCandidates(screen).some((candidate) =>
-                          activeScreenSet.has(candidate),
-                        );
+              <div className="space-y-4">
+                {Array.from(groupedScreens.entries()).map(([moduleName, screens]) => {
+                  if (screens.length === 0) return null;
 
-                        return (
-                          <label
-                            key={screen.id}
-                            className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm"
-                          >
-                            <span>{resolveScreenLabel(screen)}</span>
-                            <Switch
-                              checked={checked}
-                              onCheckedChange={(value) => {
-                                void handleToggleScreen(persistedScreenId, Boolean(value));
-                              }}
-                              disabled={saveScreensMutation.isPending}
-                            />
-                          </label>
-                        );
-                      })}
+                  return (
+                    <div key={moduleName} className="space-y-3 rounded-lg border p-4">
+                      <h3 className="text-sm font-semibold">{moduleName}</h3>
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        {screens.map((screen) => {
+                          const activeScreenIds =
+                            screensQuery.data?.activeScreenIds?.length
+                              ? screensQuery.data.activeScreenIds
+                              : (screensQuery.data?.screens ?? [])
+                                  .filter((item) => item.is_active)
+                                  .map((item) => item.id);
+                          const isAssigned = activeScreenIds.includes(String(screen.id));
+
+                          return (
+                            <div
+                              key={screen.id}
+                              className="flex items-start justify-between gap-4 rounded-lg border bg-background p-3"
+                            >
+                              <div className="min-w-0 space-y-1">
+                                <p className="text-sm font-medium leading-none">{screen.name}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {screen.key} · {screen.frontend_route}
+                                </p>
+                              </div>
+                              <Switch
+                                checked={isAssigned}
+                                disabled={toggleScreenMutation.isPending}
+                                onCheckedChange={(checked) => {
+                                  void toggleScreenMutation.mutate({
+                                    screenId: String(screen.id),
+                                    isActive: checked,
+                                  });
+                                }}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
 
                 {groupedScreens.size === 0 && (
-                  <div className="text-sm text-muted-foreground">No hay pantallas disponibles para mostrar.</div>
+                  <div className="text-sm text-muted-foreground">No hay pantallas disponibles.</div>
                 )}
               </div>
             )}

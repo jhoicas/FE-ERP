@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { DollarSign, Receipt, Star, Users } from "lucide-react";
 import {
   Area,
@@ -11,6 +12,7 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -19,58 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-const kpis = {
-  totalClientes: "2,888",
-  ventasTotales: "$671,779,293",
-  ticketPromedio: "$232,611",
-  clientesVip: 86,
-};
-
-const evolucionMensual = [
-  { mes: "02/2025", ventas: 43121800 },
-  { mes: "03/2025", ventas: 52625385 },
-  { mes: "04/2025", ventas: 48790220 },
-  { mes: "05/2025", ventas: 56911840 },
-  { mes: "06/2025", ventas: 61322400 },
-  { mes: "07/2025", ventas: 65803210 },
-  { mes: "08/2025", ventas: 70258630 },
-];
-
-const segmentacion = [
-  {
-    segmento: "VIP",
-    clientes: 86,
-    porcentaje: "3.0%",
-    ventasTotales: "$209,850,000",
-    ticketPromedio: "$2,440,116",
-    accion: "Fidelización + Exclusivos",
-  },
-  {
-    segmento: "PREMIUM",
-    clientes: 412,
-    porcentaje: "14.3%",
-    ventasTotales: "$231,340,000",
-    ticketPromedio: "$561,505",
-    accion: "Upsell + Recompra",
-  },
-  {
-    segmento: "RECURRENTE",
-    clientes: 1290,
-    porcentaje: "44.7%",
-    ventasTotales: "$172,120,000",
-    ticketPromedio: "$133,426",
-    accion: "Reactivar + Cross-sell",
-  },
-  {
-    segmento: "OCASIONAL",
-    clientes: 1100,
-    porcentaje: "38.1%",
-    ventasTotales: "$58,469,293",
-    ticketPromedio: "$53,154",
-    accion: "Captación / Winback",
-  },
-] as const;
+import { getCrmAnalytics } from "@/features/crm/services";
 
 const tooltipStyle = {
   backgroundColor: "hsl(var(--card))",
@@ -93,7 +44,75 @@ function segmentBadgeClass(segmento: string): string {
   }
 }
 
+function formatCopCurrency(value: number): string {
+  return new Intl.NumberFormat("es-CO", {
+    style: "currency",
+    currency: "COP",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function formatInteger(value: number): string {
+  return new Intl.NumberFormat("es-CO", {
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
 export default function CrmAnalyticsDashboard() {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["crm-analytics"],
+    queryFn: getCrmAnalytics,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <Card key={index}>
+              <CardHeader className="pb-2">
+                <Skeleton className="h-4 w-28" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-36" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-5 w-52" />
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-72 w-full" />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-5 w-56" />
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-64 w-full" />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (isError || !data) {
+    return (
+      <Card className="border-destructive/40">
+        <CardContent className="py-6">
+          <p className="text-sm text-destructive">
+            No se pudo cargar la analitica del CRM. Intenta nuevamente en unos segundos.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const hasSalesData = data.evolucionMensual.some((item) => Number(item.ventas) > 0);
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -102,7 +121,7 @@ export default function CrmAnalyticsDashboard() {
             <CardTitle className="text-xs text-muted-foreground">Total Clientes</CardTitle>
           </CardHeader>
           <CardContent className="flex items-center justify-between">
-            <p className="text-2xl font-bold tracking-tight">{kpis.totalClientes}</p>
+            <p className="text-2xl font-bold tracking-tight">{formatInteger(data.kpis.totalClientes)}</p>
             <Users className="h-5 w-5 text-primary" />
           </CardContent>
         </Card>
@@ -112,7 +131,7 @@ export default function CrmAnalyticsDashboard() {
             <CardTitle className="text-xs text-muted-foreground">Ventas Totales</CardTitle>
           </CardHeader>
           <CardContent className="flex items-center justify-between">
-            <p className="text-2xl font-bold tracking-tight">{kpis.ventasTotales}</p>
+            <p className="text-2xl font-bold tracking-tight">{formatCopCurrency(data.kpis.ventasTotales)}</p>
             <DollarSign className="h-5 w-5 text-primary" />
           </CardContent>
         </Card>
@@ -122,7 +141,7 @@ export default function CrmAnalyticsDashboard() {
             <CardTitle className="text-xs text-muted-foreground">Ticket Promedio</CardTitle>
           </CardHeader>
           <CardContent className="flex items-center justify-between">
-            <p className="text-2xl font-bold tracking-tight">{kpis.ticketPromedio}</p>
+            <p className="text-2xl font-bold tracking-tight">{formatCopCurrency(data.kpis.ticketPromedio)}</p>
             <Receipt className="h-5 w-5 text-primary" />
           </CardContent>
         </Card>
@@ -132,7 +151,7 @@ export default function CrmAnalyticsDashboard() {
             <CardTitle className="text-xs text-muted-foreground">Clientes VIP</CardTitle>
           </CardHeader>
           <CardContent className="flex items-center justify-between">
-            <p className="text-2xl font-bold tracking-tight">{kpis.clientesVip}</p>
+            <p className="text-2xl font-bold tracking-tight">{formatInteger(data.kpis.clientesVip)}</p>
             <Star className="h-5 w-5 text-primary" />
           </CardContent>
         </Card>
@@ -140,12 +159,17 @@ export default function CrmAnalyticsDashboard() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm">Evolución Mensual de Ventas</CardTitle>
+          <CardTitle className="text-sm">Evolucion Mensual de Ventas</CardTitle>
         </CardHeader>
         <CardContent>
+          {!hasSalesData && (
+            <p className="mb-3 text-xs text-muted-foreground">
+              Aun no hay ventas registradas en el periodo seleccionado.
+            </p>
+          )}
           <div className="h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={evolucionMensual}>
+              <AreaChart data={data.evolucionMensual}>
                 <defs>
                   <linearGradient id="crmSalesGradient" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="hsl(160, 84%, 24%)" stopOpacity={0.35} />
@@ -160,7 +184,7 @@ export default function CrmAnalyticsDashboard() {
                 />
                 <Tooltip
                   contentStyle={tooltipStyle}
-                  formatter={(value: number) => [`$${value.toLocaleString()}`, "Ventas"]}
+                  formatter={(value: number) => [formatCopCurrency(value), "Ventas"]}
                 />
                 <Area
                   type="monotone"
@@ -178,7 +202,7 @@ export default function CrmAnalyticsDashboard() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm">Segmentación de Clientes</CardTitle>
+          <CardTitle className="text-sm">Segmentacion de Clientes</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
@@ -189,24 +213,32 @@ export default function CrmAnalyticsDashboard() {
                 <TableHead className="text-right">%</TableHead>
                 <TableHead className="text-right">Ventas Totales</TableHead>
                 <TableHead className="text-right">Ticket Promedio</TableHead>
-                <TableHead>Acción</TableHead>
+                <TableHead>Accion</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {segmentacion.map((item) => (
-                <TableRow key={item.segmento}>
-                  <TableCell>
-                    <Badge variant="outline" className={segmentBadgeClass(item.segmento)}>
-                      {item.segmento}
-                    </Badge>
+              {data.segmentacion.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                    No hay datos de segmentacion para mostrar.
                   </TableCell>
-                  <TableCell className="text-right">{item.clientes}</TableCell>
-                  <TableCell className="text-right">{item.porcentaje}</TableCell>
-                  <TableCell className="text-right">{item.ventasTotales}</TableCell>
-                  <TableCell className="text-right">{item.ticketPromedio}</TableCell>
-                  <TableCell>{item.accion}</TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                data.segmentacion.map((item) => (
+                  <TableRow key={item.segmento}>
+                    <TableCell>
+                      <Badge variant="outline" className={segmentBadgeClass(item.segmento)}>
+                        {item.segmento}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">{formatInteger(item.clientes)}</TableCell>
+                    <TableCell className="text-right">{item.porcentaje}</TableCell>
+                    <TableCell className="text-right">{formatCopCurrency(item.ventasTotales)}</TableCell>
+                    <TableCell className="text-right">{formatCopCurrency(item.ticketPromedio)}</TableCell>
+                    <TableCell>{item.accion}</TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>

@@ -163,6 +163,17 @@ export async function saveCompanyScreens(companyId: string, screenIds: string[])
   });
 }
 
+export async function toggleCompanyScreen(
+  companyId: string,
+  screenId: string,
+  isActive: boolean,
+): Promise<unknown> {
+  const response = await apiClient.put(`/api/admin/companies/${companyId}/screens/${screenId}`, {
+    is_active: isActive,
+  });
+  return response.data;
+}
+
 // ============ Module Management ============
 
 const ModuleSchema = z.object({

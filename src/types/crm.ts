@@ -22,8 +22,21 @@ export interface BenefitResponse {
   updated_at: string;
 }
 
+export interface ProfileMetadata {
+  orders_count?: number;
+  distinct_products?: number;
+  last_purchase_date?: string;
+  main_category?: string;
+  products_list?: string;
+  follow_up_strategy?: string;
+}
+
+export interface CRMCustomerProfile extends CustomerResponse {
+  metadata?: ProfileMetadata;
+}
+
 export interface Profile360Response {
-  customer: CustomerResponse;
+  customer: CRMCustomerProfile;
   profile_id: string;
   category_id: string;
   category_name?: string;

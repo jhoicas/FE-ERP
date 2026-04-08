@@ -41,7 +41,16 @@ import {
   sendCampaignSchema,
 } from "@/lib/validations/crm";
 import { z } from "zod";
-import { CustomerSchema, CustomerListResponseSchema, type CustomerDTO, type CustomerListResponse } from "./schemas";
+import {
+  CustomerSchema,
+  CustomerListResponseSchema,
+  CrmAnalyticsSchema,
+  RemarketingProspectSchema,
+  type CustomerDTO,
+  type CustomerListResponse,
+  type CrmAnalyticsDTO,
+  type RemarketingProspectDTO,
+} from "./schemas";
 
 const CampaignTemplateSchema = z.object({
   id: z.string(),
@@ -498,6 +507,93 @@ export async function getCampaignTemplates(): Promise<CampaignTemplate[]> {
     }
 
     return [];
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}
+
+export async function getCrmAnalytics(): Promise<CrmAnalyticsDTO> {
+  try {
+    const { data } = await apiClient.get(`${CRM_BASE}/analytics`);
+    const payload = data as {
+      kpis?: unknown;
+      segmentacion?: unknown;
+      segmentation?: unknown;
+      evolucionMensual?: unknown;
+      evolucion_mensual?: unknown;
+      monthlyEvolution?: unknown;
+      monthly_evolution?: unknown;
+    };
+
+    const rawKpis = (payload?.kpis ?? {}) as {
+      totalClientes?: unknown;
+      total_clientes?: unknown;
+      ventasTotales?: unknown;
+      ventas_totales?: unknown;
+      ticketPromedio?: unknown;
+      ticket_promedio?: unknown;
+      clientesVip?: unknown;
+      clientes_vip?: unknown;
+    };
+
+    const rawSegmentation =
+      payload?.segmentacion ?? payload?.segmentation ?? [];
+
+    const normalizedSegmentation = Array.isArray(rawSegmentation)
+      ? rawSegmentation.map((item) => {
+          const row = item as {
+            segmento?: unknown;
+            clientes?: unknown;
+            porcentaje?: unknown;
+            ventasTotales?: unknown;
+            ventas_totales?: unknown;
+            ticketPromedio?: unknown;
+            ticket_promedio?: unknown;
+            accion?: unknown;
+          };
+
+          return {
+            segmento: row.segmento,
+            clientes: row.clientes,
+            porcentaje: row.porcentaje,
+            ventasTotales: row.ventasTotales ?? row.ventas_totales ?? 0,
+            ticketPromedio: row.ticketPromedio ?? row.ticket_promedio ?? 0,
+            accion: row.accion,
+          };
+        })
+      : [];
+
+    const normalized = {
+      kpis: {
+        totalClientes: rawKpis.totalClientes ?? rawKpis.total_clientes ?? 0,
+        ventasTotales: rawKpis.ventasTotales ?? rawKpis.ventas_totales ?? 0,
+        ticketPromedio: rawKpis.ticketPromedio ?? rawKpis.ticket_promedio ?? 0,
+        clientesVip: rawKpis.clientesVip ?? rawKpis.clientes_vip ?? 0,
+      },
+      segmentacion: normalizedSegmentation,
+      evolucionMensual:
+        payload?.evolucionMensual ??
+        payload?.evolucion_mensual ??
+        payload?.monthlyEvolution ??
+        payload?.monthly_evolution ??
+        [],
+    };
+
+    return CrmAnalyticsSchema.parse(normalized);
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}
+
+export async function getRemarketingProspects(): Promise<RemarketingProspectDTO[]> {
+  try {
+    const { data } = await apiClient.get(`${CRM_BASE}/remarketing`);
+    const payload = data as { items?: unknown; prospects?: unknown };
+    const candidates = Array.isArray(data)
+      ? data
+      : (payload?.items ?? payload?.prospects ?? []);
+
+    return z.array(RemarketingProspectSchema).catch([]).parse(candidates);
   } catch (error) {
     return throwOnApiError(error);
   }

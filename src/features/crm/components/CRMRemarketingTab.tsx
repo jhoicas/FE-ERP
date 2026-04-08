@@ -1,74 +1,19 @@
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Send } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
+import { getRemarketingProspects } from "@/features/crm/services";
+import type { CrmSegment, RemarketingProspectDTO } from "@/features/crm/schemas";
 
-type Segment = "VIP" | "PREMIUM" | "RECURRENTE" | "OCASIONAL";
-type SegmentFilter = "Todos" | Segment;
+type SegmentFilter = "Todos" | CrmSegment;
 
-type Prospect = {
-  id: string;
-  segmento: Segment;
-  nombre: string;
-  email: string;
-  totalComprado: number;
-  categoria: string;
-  mensajeSugerido: string;
-};
-
-const prospects: Prospect[] = [
-  {
-    id: "1",
-    segmento: "VIP",
-    nombre: "LONDONO HECTOR",
-    email: "hexalope@gmail.com",
-    totalComprado: 9325241,
-    categoria: "Suplementos / Otros",
-    mensajeSugerido: "Acceso exclusivo: nuevos productos de Suplementos / Otros. ¡Gracias por tu fidelidad!",
-  },
-  {
-    id: "2",
-    segmento: "PREMIUM",
-    nombre: "OCHOA MARIA",
-    email: "maria@example.com",
-    totalComprado: 1500000,
-    categoria: "Vitaminas",
-    mensajeSugerido: "¡Aprovecha tus beneficios Premium! Descubre lo nuevo en Vitaminas.",
-  },
-  {
-    id: "3",
-    segmento: "RECURRENTE",
-    nombre: "GOMEZ JUAN",
-    email: "juan@example.com",
-    totalComprado: 500000,
-    categoria: "Minerales",
-    mensajeSugerido: "Es hora de reabastecer tus Minerales favoritos con este descuento.",
-  },
-  {
-    id: "4",
-    segmento: "OCASIONAL",
-    nombre: "DANIA LOZADA",
-    email: "LOSADADANIA@HOTMAIL.ES",
-    totalComprado: 95700,
-    categoria: "Suplementos / Otros",
-    mensajeSugerido: "¡Te extrañamos! Vuelve y descubre novedades en Suplementos / Otros.",
-  },
-  {
-    id: "5",
-    segmento: "VIP",
-    nombre: "VALLEJO LONDONO JUAN CARLOS",
-    email: "JUANCARLOSVALLEJO1958@GMAIL.COM",
-    totalComprado: 6900637,
-    categoria: "Suplementos / Otros",
-    mensajeSugerido: "Acceso exclusivo: nuevos productos de Suplementos / Otros. ¡Gracias por tu fidelidad!",
-  },
-];
-
-function segmentBadgeClass(segmento: Segment): string {
+function segmentBadgeClass(segmento: CrmSegment): string {
   switch (segmento) {
     case "VIP":
       return "border-amber-300 bg-amber-100 text-amber-800";
@@ -94,13 +39,18 @@ export default function CRMRemarketingTab() {
   const { toast } = useToast();
   const [filter, setFilter] = useState<SegmentFilter>("Todos");
 
+  const { data: prospects = [], isLoading, isError } = useQuery<RemarketingProspectDTO[]>({
+    queryKey: ["crm-remarketing"],
+    queryFn: getRemarketingProspects,
+  });
+
   const filteredProspects = useMemo(() => {
     if (filter === "Todos") {
       return prospects;
     }
 
     return prospects.filter((prospect) => prospect.segmento === filter);
-  }, [filter]);
+  }, [filter, prospects]);
 
   const handleSendEmail = (email: string) => {
     toast({
@@ -113,7 +63,7 @@ export default function CRMRemarketingTab() {
     <div className="space-y-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <h2 className="text-base font-semibold">Campañas de Remarketing</h2>
+          <h2 className="text-base font-semibold">Campanas de Remarketing</h2>
           <p className="text-sm text-muted-foreground">
             Gestiona e impulsa recompras enviando mensajes sugeridos por segmento.
           </p>
@@ -135,7 +85,7 @@ export default function CRMRemarketingTab() {
         </div>
       </div>
 
-      <div className="erp-card p-0 overflow-hidden">
+      <div className="erp-card overflow-hidden p-0">
         <Table>
           <TableHeader>
             <TableRow>
@@ -143,36 +93,58 @@ export default function CRMRemarketingTab() {
               <TableHead>Nombre</TableHead>
               <TableHead>Email</TableHead>
               <TableHead className="text-right">Total Comprado</TableHead>
-              <TableHead>Categoría Principal</TableHead>
+              <TableHead>Categoria Principal</TableHead>
               <TableHead>Mensaje Sugerido</TableHead>
               <TableHead className="text-right">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredProspects.map((prospect) => (
-              <TableRow key={prospect.id}>
-                <TableCell>
-                  <Badge variant="outline" className={segmentBadgeClass(prospect.segmento)}>
-                    {prospect.segmento}
-                  </Badge>
-                </TableCell>
-                <TableCell className="font-medium">{prospect.nombre}</TableCell>
-                <TableCell className="text-muted-foreground">{prospect.email}</TableCell>
-                <TableCell className="text-right font-medium">
-                  {formatCopCurrency(prospect.totalComprado)}
-                </TableCell>
-                <TableCell>{prospect.categoria}</TableCell>
-                <TableCell>
-                  <p className="max-w-[360px] text-xs text-muted-foreground">{prospect.mensajeSugerido}</p>
-                </TableCell>
-                <TableCell className="text-right">
-                  <Button size="sm" onClick={() => handleSendEmail(prospect.email)}>
-                    <Send className="mr-2 h-4 w-4" />
-                    Enviar Email
-                  </Button>
+            {isLoading ? (
+              Array.from({ length: 5 }).map((_, index) => (
+                <TableRow key={`skeleton-${index}`}>
+                  <TableCell colSpan={7}>
+                    <Skeleton className="h-8 w-full" />
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : isError ? (
+              <TableRow>
+                <TableCell colSpan={7} className="py-8 text-center text-destructive">
+                  No se pudieron cargar los prospectos de remarketing.
                 </TableCell>
               </TableRow>
-            ))}
+            ) : filteredProspects.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                  No hay prospectos para el filtro seleccionado.
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredProspects.map((prospect) => (
+                <TableRow key={prospect.id}>
+                  <TableCell>
+                    <Badge variant="outline" className={segmentBadgeClass(prospect.segmento)}>
+                      {prospect.segmento}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="font-medium">{prospect.nombre}</TableCell>
+                  <TableCell className="text-muted-foreground">{prospect.email}</TableCell>
+                  <TableCell className="text-right font-medium">
+                    {formatCopCurrency(prospect.totalComprado)}
+                  </TableCell>
+                  <TableCell>{prospect.categoria}</TableCell>
+                  <TableCell>
+                    <p className="max-w-[360px] text-xs text-muted-foreground">{prospect.mensajeSugerido}</p>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button size="sm" onClick={() => handleSendEmail(prospect.email)}>
+                      <Send className="mr-2 h-4 w-4" />
+                      Enviar Email
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </div>

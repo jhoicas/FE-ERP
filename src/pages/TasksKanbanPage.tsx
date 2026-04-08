@@ -129,7 +129,7 @@ function TaskCard({
         </CardHeader>
         <CardContent className="space-y-2">
           {task.description ? (
-            <p className="text-xs text-muted-foreground line-clamp-3">
+            <p className="text-xs text-muted-foreground line-clamp-3 break-words" title={task.description}>
               {task.description}
             </p>
           ) : (
