@@ -17,10 +17,15 @@ import {
   CompanyFormSchema,
   type CompanyDTO,
   type CompanyFormValues,
+  type ModuleDTO,
+  type CompanyModuleDTO,
   getCompany,
   getCompanyScreens,
   saveCompanyScreens,
   updateCompany,
+  getGlobalModules,
+  getCompanyModules,
+  toggleCompanyModule,
   type CompanyScreenDTO,
 } from "./companies.service";
 import CompanyUsersTab from "./CompanyUsersTab.tsx";
@@ -115,6 +120,18 @@ export function CompanyDetailsSheet({ open, companyId, onOpenChange, onUpdated }
     enabled: open,
   });
 
+  const modulesQuery = useQuery({
+    queryKey: ["admin-global-modules"],
+    queryFn: getGlobalModules,
+    enabled: open,
+  });
+
+  const companyModulesQuery = useQuery({
+    queryKey: ["admin-company-modules", companyId],
+    queryFn: () => getCompanyModules(companyId!),
+    enabled: open && Boolean(companyId),
+  });
+
   const companyForm = useForm<CompanyFormValues>({
     resolver: zodResolver(CompanyFormSchema),
     defaultValues: toFormValues(null),
@@ -160,6 +177,26 @@ export function CompanyDetailsSheet({ open, companyId, onOpenChange, onUpdated }
     mutationFn: async (screenIds: string[]) => {
       if (!companyId) throw new Error("No hay una empresa seleccionada");
       await saveCompanyScreens(companyId, screenIds);
+    },
+  });
+
+  const toggleModuleMutation = useMutation({
+    mutationFn: async ({
+      moduleId,
+      isActive,
+    }: {
+      moduleId: string;
+      isActive: boolean;
+    }) => {
+      if (!companyId) throw new Error("No hay una empresa seleccionada");
+      return toggleCompanyModule(companyId, moduleId, isActive);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["admin-company-modules", companyId] });
+      toast({ title: "Módulo actualizado correctamente" });
+    },
+    onError: () => {
+      toast({ title: "No se pudo actualizar el módulo", variant: "destructive" });
     },
   });
 
@@ -239,8 +276,9 @@ export function CompanyDetailsSheet({ open, companyId, onOpenChange, onUpdated }
         </SheetHeader>
 
         <Tabs value={tab} onValueChange={setTab} className="w-full">
-          <TabsList className="mb-4 grid w-full grid-cols-3">
+          <TabsList className="mb-4 grid w-full grid-cols-4">
             <TabsTrigger value="data">Datos de la empresa</TabsTrigger>
+            <TabsTrigger value="modules">Módulos Activos</TabsTrigger>
             <TabsTrigger value="screens">Accesos / Pantallas</TabsTrigger>
             <TabsTrigger value="users">Usuarios Admin</TabsTrigger>
           </TabsList>
@@ -322,6 +360,56 @@ export function CompanyDetailsSheet({ open, companyId, onOpenChange, onUpdated }
                   </Button>
                 </div>
               </form>
+            )}
+          </TabsContent>
+
+          <TabsContent value="modules" className="space-y-4">
+            {modulesQuery.isLoading || companyModulesQuery.isLoading ? (
+              <div className="text-sm text-muted-foreground">Cargando módulos...</div>
+            ) : (
+              <div className="space-y-3">
+                {(modulesQuery.data ?? []).length === 0 ? (
+                  <div className="text-sm text-muted-foreground">No hay módulos disponibles.</div>
+                ) : (
+                  <>
+                    <p className="text-sm text-muted-foreground">
+                      Habilita o deshabilita los módulos que esta empresa puede utilizar en el sistema.
+                    </p>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {(modulesQuery.data ?? []).map((module) => {
+                        const companyModule = (companyModulesQuery.data ?? []).find(
+                          (cm) => cm.module_id === module.id,
+                        );
+                        const isActive = companyModule?.is_active ?? false;
+
+                        return (
+                          <div
+                            key={module.id}
+                            className="flex items-center justify-between gap-3 rounded-lg border p-4"
+                          >
+                            <div className="flex-1 space-y-1">
+                              <p className="text-sm font-medium">{module.name}</p>
+                              {module.description && (
+                                <p className="text-xs text-muted-foreground">{module.description}</p>
+                              )}
+                            </div>
+                            <Switch
+                              checked={isActive}
+                              disabled={toggleModuleMutation.isPending}
+                              onCheckedChange={(checked) => {
+                                void toggleModuleMutation.mutate({
+                                  moduleId: module.id,
+                                  isActive: checked,
+                                });
+                              }}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
             )}
           </TabsContent>
 
