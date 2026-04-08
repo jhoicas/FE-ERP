@@ -79,6 +79,7 @@ function formatCurrency(value?: number): string {
   return new Intl.NumberFormat("es-CO", {
     style: "currency",
     currency: "USD",
+    currencyDisplay: "symbol",
     maximumFractionDigits: 0,
   }).format(value);
 }
@@ -103,7 +104,7 @@ function getMainCategory(customer: CustomerDTO): string {
 }
 
 function getRemarketingAction(customer: CustomerDTO): string {
-  return customer.remarketing_action?.trim() || "Sin acción";
+  return customer.metadata?.followUpStrategy?.trim() || customer.remarketing_action?.trim() || "Pendiente";
 }
 
 interface CustomersTableProps {

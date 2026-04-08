@@ -367,6 +367,10 @@ function PurchaseHabitsCard({
 }: {
   metadata?: ProfileMetadata;
 }) {
+  const ordersCount = metadata?.ordersCount ?? null;
+  const lastPurchaseDate = metadata?.lastPurchaseDate?.trim() || null;
+  const mainCategory = metadata?.mainCategory?.trim() || null;
+  const followUpStrategy = metadata?.followUpStrategy?.trim() || null;
   const products = useMemo(
     () =>
       (metadata?.productsList ?? "")
@@ -388,19 +392,32 @@ function PurchaseHabitsCard({
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="rounded-lg border bg-muted/30 p-3">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Cantidad de pedidos</p>
-            <p className="mt-1 text-sm font-semibold">{metadata?.ordersCount ?? "—"}</p>
+            <p className="mt-1 text-sm font-semibold">{ordersCount ?? "-"}</p>
           </div>
           <div className="rounded-lg border bg-muted/30 p-3">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Fecha de Última Compra</p>
-            <p className="mt-1 text-sm font-semibold">{formatMonthYear(metadata?.lastPurchaseDate)}</p>
+            <p className="mt-1 text-sm font-semibold">{lastPurchaseDate ?? "-"}</p>
           </div>
           <div className="rounded-lg border bg-muted/30 p-3">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Categoría Principal</p>
-            <p className="mt-1 text-sm font-semibold">{metadata?.mainCategory ?? "—"}</p>
+            <p className="mt-1 text-sm font-semibold">{mainCategory ?? "-"}</p>
           </div>
           <div className="rounded-lg border bg-muted/30 p-3 sm:col-span-3">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Productos Distintos</p>
-            <p className="mt-1 text-sm font-semibold">{metadata?.distinctProducts ?? "—"}</p>
+            {products.length > 0 ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {products.map((product) => (
+                  <Badge key={product} variant="secondary" className="rounded-full px-3 py-1 text-xs">
+                    {product}
+                  </Badge>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-1 text-sm font-semibold">-</p>
+            )}
+            <p className="mt-2 text-xs text-muted-foreground">
+              {metadata?.distinctProducts != null ? `${metadata.distinctProducts} productos distintos` : ""}
+            </p>
           </div>
         </div>
 
@@ -422,7 +439,7 @@ function PurchaseHabitsCard({
         <div className="rounded-lg border bg-background/60 p-3">
           <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Estrategia de seguimiento</p>
           <p className="mt-1 text-sm text-foreground">
-            {metadata?.followUpStrategy ?? "Sin estrategia definida"}
+            {followUpStrategy ?? "-"}
           </p>
         </div>
       </CardContent>
