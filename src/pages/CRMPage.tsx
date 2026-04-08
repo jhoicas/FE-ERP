@@ -138,13 +138,14 @@ export default function CRMPage() {
       <Dialog
         open={importOpen}
         onOpenChange={(nextOpen) => {
-          if (isImporting && !nextOpen) return;
           setImportOpen(nextOpen);
           if (!nextOpen) {
-            setFile(null);
-            setProgress(0);
-            setJobId(null);
-            setIsImporting(false);
+            if (!isImporting) {
+              setFile(null);
+              setProgress(0);
+              setJobId(null);
+              setIsImporting(false);
+            }
           }
         }}
       >
@@ -183,11 +184,12 @@ export default function CRMPage() {
               variant="ghost"
               onClick={() => {
                 setImportOpen(false);
-                setFile(null);
+                if (!isImporting) {
+                  setFile(null);
+                }
               }}
-              disabled={isImporting}
             >
-              Cancelar
+              {isImporting ? "Ocultar en segundo plano" : "Cancelar"}
             </Button>
             {!isImporting && (
               <Button type="button" onClick={handleImport} disabled={!file}>
