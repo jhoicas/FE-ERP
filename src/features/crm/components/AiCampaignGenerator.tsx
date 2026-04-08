@@ -180,9 +180,9 @@ function suggestSubjectFromGeneratedText(generatedText: string, fallbackPrompt: 
 
 const SEGMENT_OPTIONS: CrmSegment[] = ["VIP", "PREMIUM", "RECURRENTE", "OCASIONAL"];
 
-function buildAutomationPrompt(segment: CrmSegment, customers: Array<{ metadata?: { follow_up_strategy?: string } }>) {
+function buildAutomationPrompt(segment: CrmSegment, customers: Array<{ metadata?: { followUpStrategy?: string } }>) {
   const strategies = customers
-    .map((customer) => customer.metadata?.follow_up_strategy?.trim())
+    .map((customer) => customer.metadata?.followUpStrategy?.trim())
     .filter((strategy): strategy is string => Boolean(strategy));
 
   const uniqueStrategies = Array.from(new Set(strategies));

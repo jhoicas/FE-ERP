@@ -35,7 +35,7 @@ import { isAdmin } from "@/features/auth/permissions";
 import EditCustomerDialog from "@/features/crm/components/EditCustomerDialog";
 import RegisterInteractionDialog from "@/features/crm/components/RegisterInteractionDialog";
 import { assignCategorySchema, type AssignCategoryRequest } from "@/lib/validations/crm";
-import type { InteractionResponse, TicketResponse, TaskResponse } from "@/types/crm";
+import type { InteractionResponse, ProfileMetadata, TicketResponse, TaskResponse } from "@/types/crm";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -365,22 +365,19 @@ function BenefitsList({
 function PurchaseHabitsCard({
   metadata,
 }: {
-  metadata?: {
-    orders_count?: number;
-    distinct_products?: number;
-    last_purchase_date?: string;
-    main_category?: string;
-    products_list?: string;
-    follow_up_strategy?: string;
-  };
+  metadata?: ProfileMetadata;
 }) {
+  const ordersCount = metadata?.ordersCount ?? null;
+  const lastPurchaseDate = metadata?.lastPurchaseDate?.trim() || null;
+  const mainCategory = metadata?.mainCategory?.trim() || null;
+  const followUpStrategy = metadata?.followUpStrategy?.trim() || null;
   const products = useMemo(
     () =>
-      (metadata?.products_list ?? "")
+      (metadata?.productsList ?? "")
         .split("|")
         .map((product) => product.trim())
         .filter(Boolean),
-    [metadata?.products_list],
+    [metadata?.productsList],
   );
 
   return (
@@ -395,19 +392,32 @@ function PurchaseHabitsCard({
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="rounded-lg border bg-muted/30 p-3">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Cantidad de pedidos</p>
-            <p className="mt-1 text-sm font-semibold">{metadata?.orders_count ?? "—"}</p>
+            <p className="mt-1 text-sm font-semibold">{ordersCount ?? "-"}</p>
           </div>
           <div className="rounded-lg border bg-muted/30 p-3">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Fecha de Última Compra</p>
-            <p className="mt-1 text-sm font-semibold">{formatMonthYear(metadata?.last_purchase_date)}</p>
+            <p className="mt-1 text-sm font-semibold">{lastPurchaseDate ?? "-"}</p>
           </div>
           <div className="rounded-lg border bg-muted/30 p-3">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Categoría Principal</p>
-            <p className="mt-1 text-sm font-semibold">{metadata?.main_category ?? "—"}</p>
+            <p className="mt-1 text-sm font-semibold">{mainCategory ?? "-"}</p>
           </div>
           <div className="rounded-lg border bg-muted/30 p-3 sm:col-span-3">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Productos Distintos</p>
-            <p className="mt-1 text-sm font-semibold">{metadata?.distinct_products ?? "—"}</p>
+            {products.length > 0 ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {products.map((product) => (
+                  <Badge key={product} variant="secondary" className="rounded-full px-3 py-1 text-xs">
+                    {product}
+                  </Badge>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-1 text-sm font-semibold">-</p>
+            )}
+            <p className="mt-2 text-xs text-muted-foreground">
+              {metadata?.distinctProducts != null ? `${metadata.distinctProducts} productos distintos` : ""}
+            </p>
           </div>
         </div>
 
@@ -429,7 +439,7 @@ function PurchaseHabitsCard({
         <div className="rounded-lg border bg-background/60 p-3">
           <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Estrategia de seguimiento</p>
           <p className="mt-1 text-sm text-foreground">
-            {metadata?.follow_up_strategy ?? "Sin estrategia definida"}
+            {followUpStrategy ?? "-"}
           </p>
         </div>
       </CardContent>

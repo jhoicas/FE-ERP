@@ -43,7 +43,6 @@ import {
 import { z } from "zod";
 import {
   CustomerSchema,
-  CustomerListResponseSchema,
   CrmAnalyticsSchema,
   RemarketingProspectSchema,
   type CustomerDTO,
@@ -62,6 +61,41 @@ const CampaignTemplateSchema = z.object({
 
 const CRM_BASE = "/api/crm";
 const CUSTOMERS_BASE = "/api/crm/customers";
+
+function normalizeCustomerListResponse(data: unknown): CustomerListResponse {
+  if (Array.isArray(data)) {
+    const items = z.array(CustomerSchema).parse(data);
+    return { items, total: items.length };
+  }
+
+  const payload = z
+    .object({
+      items: z.array(CustomerSchema).optional(),
+      data: z.array(CustomerSchema).optional(),
+      customers: z.array(CustomerSchema).optional(),
+      results: z.array(CustomerSchema).optional(),
+      rows: z.array(CustomerSchema).optional(),
+      total: z.number().optional(),
+      count: z.number().optional(),
+      totalCount: z.number().optional(),
+      total_count: z.number().optional(),
+    })
+    .passthrough()
+    .parse(data);
+
+  const items =
+    payload.items ??
+    payload.data ??
+    payload.customers ??
+    payload.results ??
+    payload.rows ??
+    [];
+
+  const parsedItems = z.array(CustomerSchema).parse(items);
+  const total = payload.total ?? payload.count ?? payload.totalCount ?? payload.total_count ?? parsedItems.length;
+
+  return { items: parsedItems, total };
+}
 
 function throwOnApiError(error: unknown): never {
   if (axios.isAxiosError(error) && error.response?.data && isApiError(error.response.data)) {
@@ -84,20 +118,12 @@ export async function listCustomers(params?: {
       search: params?.search,
     },
   });
-  if (Array.isArray(data)) {
-    const items = z.array(CustomerSchema).parse(data);
-    return { items, total: items.length };
-  }
-  return CustomerListResponseSchema.parse(data);
+  return normalizeCustomerListResponse(data);
 }
 
 export async function getCustomers(): Promise<CustomerDTO[]> {
   const response = await apiClient.get(CUSTOMERS_BASE);
-  if (Array.isArray(response.data)) {
-    return z.array(CustomerSchema).parse(response.data);
-  }
-  const parsed = CustomerListResponseSchema.parse(response.data);
-  return parsed.items;
+  return normalizeCustomerListResponse(response.data).items;
 }
 
 export interface ImportCustomersResponse {
