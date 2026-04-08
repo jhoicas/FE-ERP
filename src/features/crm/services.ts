@@ -100,7 +100,17 @@ export async function getCustomers(): Promise<CustomerDTO[]> {
   return parsed.items;
 }
 
-export async function importCustomersFile(file: File): Promise<unknown> {
+export interface ImportCustomersResponse {
+  jobID: string;
+}
+
+export interface ImportStatusResponse {
+  TotalRows: number;
+  ProcessedRows: number;
+  Status: string;
+}
+
+export async function importCustomersFile(file: File): Promise<ImportCustomersResponse> {
   const formData = new FormData();
   formData.append("file", file);
 
@@ -110,7 +120,33 @@ export async function importCustomersFile(file: File): Promise<unknown> {
         "Content-Type": "multipart/form-data",
       },
     });
-    return data;
+    const payload = data as { jobID?: unknown; jobId?: unknown };
+    const resolvedJobId = String(payload?.jobID ?? payload?.jobId ?? "").trim();
+
+    if (!resolvedJobId) {
+      throw new Error("La respuesta de importación no incluyó un jobID válido.");
+    }
+
+    return { jobID: resolvedJobId };
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}
+
+export async function getImportStatus(jobId: string): Promise<ImportStatusResponse> {
+  try {
+    const { data } = await apiClient.get(`${CRM_BASE}/import/status/${jobId}`);
+    const payload = data as {
+      TotalRows?: unknown;
+      ProcessedRows?: unknown;
+      Status?: unknown;
+    };
+
+    return {
+      TotalRows: Number(payload?.TotalRows ?? 0),
+      ProcessedRows: Number(payload?.ProcessedRows ?? 0),
+      Status: String(payload?.Status ?? "pending"),
+    };
   } catch (error) {
     return throwOnApiError(error);
   }
