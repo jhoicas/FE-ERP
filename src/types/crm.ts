@@ -26,12 +26,12 @@ export interface BenefitResponse {
 }
 
 export interface ProfileMetadata {
-  ordersCount?: number;
-  mainCategory?: string;
-  productsList?: string;
-  distinctProducts?: number;
-  followUpStrategy?: string;
-  lastPurchaseDate?: string;
+  ordersCount: number;
+  distinctProducts: number;
+  lastPurchaseDate: string;
+  mainCategory: string;
+  productsList: string;
+  followUpStrategy: string;
 }
 
 export interface CRMCustomerProfile extends CustomerResponse {

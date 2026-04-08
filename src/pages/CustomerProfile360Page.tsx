@@ -421,21 +421,6 @@ function PurchaseHabitsCard({
           </div>
         </div>
 
-        <div className="space-y-2">
-          <p className="text-xs font-medium text-muted-foreground">Productos comprados</p>
-          {products.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
-              {products.map((product) => (
-                <Badge key={product} variant="secondary" className="rounded-full px-3 py-1 text-xs">
-                  {product}
-                </Badge>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">No hay productos registrados.</p>
-          )}
-        </div>
-
         <div className="rounded-lg border bg-background/60 p-3">
           <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Estrategia de seguimiento</p>
           <p className="mt-1 text-sm text-foreground">
