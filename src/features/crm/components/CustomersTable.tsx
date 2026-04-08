@@ -78,7 +78,7 @@ function formatCurrency(value?: number): string {
 
   return new Intl.NumberFormat("es-CO", {
     style: "currency",
-    currency: "USD",
+    currency: "COP",
     currencyDisplay: "symbol",
     maximumFractionDigits: 0,
   }).format(value);
