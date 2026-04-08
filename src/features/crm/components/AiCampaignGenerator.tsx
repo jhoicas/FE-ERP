@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -23,6 +23,7 @@ import {
   sendCampaignTest,
 } from "@/features/crm/services";
 import type { CampaignTemplate } from "@/types/crm";
+import type { CrmSegment } from "@/features/crm/schemas";
 import {
   Select,
   SelectContent,
@@ -177,8 +178,30 @@ function suggestSubjectFromGeneratedText(generatedText: string, fallbackPrompt: 
   return `Campaña: ${fallbackPrompt}`.slice(0, 120);
 }
 
+const SEGMENT_OPTIONS: CrmSegment[] = ["VIP", "PREMIUM", "RECURRENTE", "OCASIONAL"];
+
+function buildAutomationPrompt(segment: CrmSegment, customers: Array<{ metadata?: { follow_up_strategy?: string } }>) {
+  const strategies = customers
+    .map((customer) => customer.metadata?.follow_up_strategy?.trim())
+    .filter((strategy): strategy is string => Boolean(strategy));
+
+  const uniqueStrategies = Array.from(new Set(strategies));
+  const strategyText =
+    uniqueStrategies.length > 0
+      ? uniqueStrategies.join(" | ")
+      : `Segmento ${segment} sin estrategia específica registrada.`;
+
+  return [
+    `Genera una campaña automática de remarketing para el segmento ${segment}.`,
+    `Usa como referencia la siguiente estrategia de seguimiento: ${strategyText}.`,
+    `Devuelve el contenido en español, con un asunto breve y persuasivo, y un cuerpo listo para borrador.`,
+    `Incluye un saludo personalizado con [Nombre] y evita enlaces innecesarios.`,
+  ].join(" ");
+}
+
 export default function AiCampaignGenerator() {
   const queryClient = useQueryClient();
+  const [autoCampaignSegment, setAutoCampaignSegment] = useState<CrmSegment | "">("");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
   const [resolvedRecipients, setResolvedRecipients] = useState<RecipientDTO[]>([]);
   const [lastPreviewStrategies, setLastPreviewStrategies] = useState<RecipientStrategy[]>([]);
@@ -298,6 +321,49 @@ export default function AiCampaignGenerator() {
       toast({
         title: "No se pudo generar el copy",
         description: error.message ?? "Intenta nuevamente en unos minutos.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const autoCampaignMutation = useMutation<
+    { prompt: string; subject: string; body: string; segment: CrmSegment },
+    Error,
+    CrmSegment
+  >({
+    mutationFn: async (segment) => {
+      const allCustomers = await queryClient.fetchQuery({
+        queryKey: ["crm", "customers", "campaign-automation"],
+        queryFn: () => getCustomers(),
+      });
+
+      const segmentCustomers = allCustomers.filter(
+        (customer) => (customer.segment ?? customer.category_name ?? "").toUpperCase() === segment,
+      );
+
+      const prompt = buildAutomationPrompt(segment, segmentCustomers.length > 0 ? segmentCustomers : allCustomers);
+      const { text } = await generateCampaignCopy({ prompt });
+      const subject = suggestSubjectFromGeneratedText(text, `Campaña ${segment}`);
+
+      return { prompt, subject, body: text, segment };
+    },
+    onSuccess: ({ prompt, subject, body, segment }) => {
+      setGeneratedText(body);
+      form.setValue("prompt", prompt, { shouldDirty: true, shouldValidate: true });
+      form.setValue("subject", subject, { shouldDirty: true, shouldValidate: true });
+      createCampaignForm.setValue("name", `Campaña ${segment}`, { shouldDirty: true, shouldValidate: true });
+      createCampaignForm.setValue("segment", segment, { shouldDirty: true, shouldValidate: true });
+      createCampaignForm.setValue("subject", subject, { shouldDirty: true, shouldValidate: true });
+      createCampaignForm.setValue("body", body, { shouldDirty: true, shouldValidate: true });
+      toast({
+        title: "Campaña automática lista",
+        description: `Se generó un borrador para ${segment}.`,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "No se pudo generar la campaña automática",
+        description: error.message ?? "Intenta nuevamente.",
         variant: "destructive",
       });
     },
@@ -645,6 +711,19 @@ export default function AiCampaignGenerator() {
     previewRecipientsMutation.mutate(strategies);
   };
 
+  const handleGenerateAutomaticCampaign = () => {
+    if (!autoCampaignSegment) {
+      toast({
+        title: "Selecciona un segmento",
+        description: "Elige VIP, PREMIUM, RECURRENTE u OCASIONAL.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    autoCampaignMutation.mutate(autoCampaignSegment);
+  };
+
   return (
     <div className="animate-fade-in space-y-4">
       {/* Sin botón "Volver a CRM" */}
@@ -661,6 +740,32 @@ export default function AiCampaignGenerator() {
         <Button type="button" variant="outline" onClick={() => setTemplatesOpen(true)}>
           <FolderOpen className="h-4 w-4 mr-2" />
           Mis Plantillas
+        </Button>
+      </div>
+      <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 md:flex-row md:items-end md:justify-between">
+        <div className="w-full md:max-w-xs">
+          <FormLabel>Segmento a impactar</FormLabel>
+          <Select value={autoCampaignSegment} onValueChange={(value) => setAutoCampaignSegment(value as CrmSegment)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Selecciona un segmento" />
+            </SelectTrigger>
+            <SelectContent>
+              {SEGMENT_OPTIONS.map((segment) => (
+                <SelectItem key={segment} value={segment}>
+                  {segment}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <Button
+          type="button"
+          onClick={handleGenerateAutomaticCampaign}
+          disabled={autoCampaignMutation.isPending}
+          className="md:self-end"
+        >
+          {autoCampaignMutation.isPending ? "Generando…" : "Generar Campaña Automática"}
         </Button>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

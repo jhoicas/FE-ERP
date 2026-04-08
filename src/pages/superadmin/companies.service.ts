@@ -163,6 +163,80 @@ export async function saveCompanyScreens(companyId: string, screenIds: string[])
   });
 }
 
+export async function toggleCompanyScreen(
+  companyId: string,
+  screenId: string,
+  isActive: boolean,
+): Promise<unknown> {
+  const response = await apiClient.put(`/api/admin/companies/${companyId}/screens/${screenId}`, {
+    is_active: isActive,
+  });
+  return response.data;
+}
+
+// ============ Module Management ============
+
+const ModuleSchema = z.object({
+  id: z.union([z.string(), z.number()]).transform(String),
+  key: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+  is_active: z.boolean().optional().default(true),
+  icon: z.string().optional(),
+});
+
+export type ModuleDTO = z.infer<typeof ModuleSchema>;
+
+const CompanyModuleSchema = z.object({
+  id: z.union([z.string(), z.number()]).transform(String),
+  company_id: z.union([z.string(), z.number()]).transform(String),
+  module_id: z.union([z.string(), z.number()]).transform(String),
+  is_active: z.boolean().default(true),
+});
+
+export type CompanyModuleDTO = z.infer<typeof CompanyModuleSchema>;
+
+export async function getGlobalModules(): Promise<ModuleDTO[]> {
+  const response = await apiClient.get("/api/admin/modules");
+  const data = response.data as
+    | { items?: unknown; modules?: unknown }
+    | unknown[];
+
+  const candidates = Array.isArray(data)
+    ? data
+    : ((data as { items?: unknown }).items ?? (data as { modules?: unknown }).modules ?? []);
+
+  return z.array(ModuleSchema).catch([]).parse(candidates);
+}
+
+export async function getCompanyModules(companyId: string): Promise<CompanyModuleDTO[]> {
+  const response = await apiClient.get(`/api/admin/companies/${companyId}/modules`);
+  const data = response.data as
+    | { items?: unknown; modules?: unknown; company_modules?: unknown }
+    | unknown[];
+
+  const candidates = Array.isArray(data)
+    ? data
+    : ((data as { items?: unknown }).items ??
+        (data as { modules?: unknown }).modules ??
+        (data as { company_modules?: unknown }).company_modules ??
+        []);
+
+  return z.array(CompanyModuleSchema).catch([]).parse(candidates);
+}
+
+export async function toggleCompanyModule(
+  companyId: string,
+  moduleId: string,
+  isActive: boolean,
+): Promise<CompanyModuleDTO> {
+  const response = await apiClient.put(
+    `/api/admin/companies/${companyId}/modules/${moduleId}`,
+    { is_active: isActive },
+  );
+  return CompanyModuleSchema.parse(response.data);
+}
+
 export function useCompanies() {
   const query = useQuery({
     queryKey: ["admin-companies"],

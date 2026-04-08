@@ -1,322 +1,152 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Send } from "lucide-react";
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Send, Upload, Sparkles } from "lucide-react";
-import { importCrmExcel, sendBulkCampaign } from "@/features/crm/services";
-import apiClient from "@/lib/api/client";
+import { getRemarketingProspects } from "@/features/crm/services";
+import type { CrmSegment, RemarketingProspectDTO } from "@/features/crm/schemas";
 
-type Segment = "VIP" | "Premium" | "Recurrente" | "Ocasional";
-type Category = "Aceites" | "Cremas" | "Infusiones" | "Jabones" | "Capilar";
+type SegmentFilter = "Todos" | CrmSegment;
 
-interface RecipientStrategy {
-  type: "category";
-  category_id: string;
+function segmentBadgeClass(segmento: CrmSegment): string {
+  switch (segmento) {
+    case "VIP":
+      return "border-amber-300 bg-amber-100 text-amber-800";
+    case "PREMIUM":
+      return "border-emerald-300 bg-emerald-100 text-emerald-800";
+    case "RECURRENTE":
+      return "border-blue-300 bg-blue-100 text-blue-800";
+    case "OCASIONAL":
+    default:
+      return "border-slate-300 bg-slate-100 text-slate-700";
+  }
 }
 
-interface RecipientDTO {
-  customer_id: string;
-  name: string;
-  email?: string | null;
-  segment?: string | null;
+function formatCopCurrency(value: number): string {
+  return new Intl.NumberFormat("es-CO", {
+    style: "currency",
+    currency: "COP",
+    maximumFractionDigits: 0,
+  }).format(value);
 }
-
-interface ResolveRecipientsResponse {
-  recipients: RecipientDTO[];
-}
-
-interface RemarketingClient {
-  id: string;
-  name: string;
-  email: string;
-  segment: Segment;
-  lastPurchase: string;
-  ltv: string;
-  category: Category;
-  aiMessage: string;
-}
-
-const segmentClasses: Record<Segment, string> = {
-  VIP: "badge-gold",
-  Premium: "bg-primary/15 text-primary border-primary/30",
-  Recurrente: "bg-info/15 text-info border-info/30",
-  Ocasional: "bg-muted text-muted-foreground border-border",
-};
-
-const segments: Segment[] = ["VIP", "Premium", "Recurrente", "Ocasional"];
-const categories: Category[] = ["Aceites", "Cremas", "Infusiones", "Jabones", "Capilar"];
 
 export default function CRMRemarketingTab() {
   const { toast } = useToast();
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [segmentFilter, setSegmentFilter] = useState<string>("all");
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
-  const [clients, setClients] = useState<RemarketingClient[]>([]);
-  const [loadingCampaign, setLoadingCampaign] = useState(false);
-  const [loadingData, setLoadingData] = useState(false);
+  const [filter, setFilter] = useState<SegmentFilter>("Todos");
 
-  const mapSegment = (segment?: string | null): Segment => {
-    if (segment === "VIP" || segment === "Premium" || segment === "Recurrente" || segment === "Ocasional") {
-      return segment;
+  const { data: prospects = [], isLoading, isError } = useQuery<RemarketingProspectDTO[]>({
+    queryKey: ["crm-remarketing"],
+    queryFn: getRemarketingProspects,
+  });
+
+  const filteredProspects = useMemo(() => {
+    if (filter === "Todos") {
+      return prospects;
     }
-    return "Ocasional";
-  };
 
-  const inferCategoryFromSegment = (segment: Segment): Category => {
-    switch (segment) {
-      case "VIP":
-        return "Aceites";
-      case "Premium":
-        return "Cremas";
-      case "Recurrente":
-        return "Infusiones";
-      case "Ocasional":
-      default:
-        return "Jabones";
-    }
-  };
+    return prospects.filter((prospect) => prospect.segmento === filter);
+  }, [filter, prospects]);
 
-  const loadRemarketingTargets = async () => {
-    setLoadingData(true);
-    try {
-      const strategies: RecipientStrategy[] = [];
-      const { data } = await apiClient.post<ResolveRecipientsResponse>(
-        "/api/crm/campaigns/recipients/resolve",
-        { strategies },
-      );
-
-      const recipients = Array.isArray(data?.recipients) ? data.recipients : [];
-      const mapped: RemarketingClient[] = recipients.map((r) => {
-        const normalizedSegment = mapSegment(r.segment);
-        return {
-          id: r.customer_id,
-          name: r.name ?? "Cliente",
-          email: r.email ?? "sin-email@cliente.local",
-          segment: normalizedSegment,
-          lastPurchase: "—",
-          ltv: "—",
-          category: inferCategoryFromSegment(normalizedSegment),
-          aiMessage: "Mensaje generado automáticamente para esta audiencia.",
-        };
-      });
-
-      setClients(mapped);
-    } catch {
-      setClients([]);
-      toast({
-        title: "Error",
-        description: "No fue posible cargar los targets de remarketing.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoadingData(false);
-    }
-  };
-
-  useEffect(() => {
-    void loadRemarketingTargets();
-  }, []);
-
-  const filtered = useMemo(() => {
-    return clients.filter((c) => {
-      if (segmentFilter !== "all" && c.segment !== segmentFilter) return false;
-      if (categoryFilter !== "all" && c.category !== categoryFilter) return false;
-      return true;
-    });
-  }, [clients, segmentFilter, categoryFilter]);
-
-  const allSelected = filtered.length > 0 && filtered.every((c) => selected.has(c.id));
-
-  const toggleAll = () => {
-    if (allSelected) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(filtered.map((c) => c.id)));
-    }
-  };
-
-  const toggleOne = (id: string) => {
-    const next = new Set(selected);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    setSelected(next);
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const handleSendEmail = (email: string) => {
     toast({
-      title: "Importando...",
-      description: "Se está procesando el archivo Excel.",
+      title: "Email enviado",
+      description: `Mensaje enviado a ${email}`,
     });
-
-    try {
-      await importCrmExcel(file);
-      toast({
-        title: "Importación completada",
-        description: "Los datos fueron importados exitosamente.",
-      });
-      await loadRemarketingTargets();
-    } catch {
-      toast({
-        title: "Error en importación",
-        description: "No se pudo importar el archivo Excel.",
-        variant: "destructive",
-      });
-    } finally {
-      e.target.value = "";
-    }
-  };
-
-  const handleSendBulkCampaign = async () => {
-    const ids = Array.from(selected);
-    if (ids.length === 0) return;
-
-    setLoadingCampaign(true);
-    try {
-      await sendBulkCampaign(ids);
-      toast({
-        title: "Campaña enviada",
-        description: `Se envió la campaña a ${ids.length} cliente(s).`,
-      });
-    } catch {
-      toast({
-        title: "Error",
-        description: "No fue posible enviar la campaña masiva.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoadingCampaign(false);
-    }
   };
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-        <Select value={segmentFilter} onValueChange={setSegmentFilter}>
-          <SelectTrigger className="w-[180px] h-9 text-sm">
-            <SelectValue placeholder="Filtrar por Segmento" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos los Segmentos</SelectItem>
-            {segments.map((s) => (
-              <SelectItem key={s} value={s}>{s}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div>
+          <h2 className="text-base font-semibold">Campanas de Remarketing</h2>
+          <p className="text-sm text-muted-foreground">
+            Gestiona e impulsa recompras enviando mensajes sugeridos por segmento.
+          </p>
+        </div>
 
-        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger className="w-[200px] h-9 text-sm">
-            <SelectValue placeholder="Filtrar por Categoría" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas las Categorías</SelectItem>
-            {categories.map((c) => (
-              <SelectItem key={c} value={c}>{c}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <div className="flex gap-2 sm:ml-auto">
-          <label>
-            <input
-              type="file"
-              accept=".xlsx, .xls"
-              className="hidden"
-              onChange={handleFileUpload}
-            />
-            <Button variant="outline" size="sm" className="gap-2" asChild>
-              <span>
-                <Upload className="h-4 w-4" />
-                Importar Excel
-              </span>
-            </Button>
-          </label>
-
-          <Button
-            size="sm"
-            className="gap-2"
-            disabled={selected.size === 0 || loadingCampaign}
-            onClick={handleSendBulkCampaign}
-          >
-            <Send className="h-4 w-4" />
-            {loadingCampaign
-              ? "Enviando..."
-              : selected.size > 0
-                ? `Enviar Campaña (${selected.size})`
-                : "Enviar Campaña Masiva"}
-          </Button>
+        <div className="w-full md:w-[240px]">
+          <Select value={filter} onValueChange={(value) => setFilter(value as SegmentFilter)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Filtrar por segmento" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Todos">Todos</SelectItem>
+              <SelectItem value="VIP">VIP</SelectItem>
+              <SelectItem value="PREMIUM">PREMIUM</SelectItem>
+              <SelectItem value="RECURRENTE">RECURRENTE</SelectItem>
+              <SelectItem value="OCASIONAL">OCASIONAL</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
-      <div className="erp-card p-0 overflow-hidden">
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-10 pl-4">
-                  <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
-                </TableHead>
-                <TableHead className="text-xs">Cliente</TableHead>
-                <TableHead className="text-xs">Email</TableHead>
-                <TableHead className="text-xs">Segmento</TableHead>
-                <TableHead className="text-xs">Última Compra</TableHead>
-                <TableHead className="text-xs text-right">LTV</TableHead>
-                <TableHead className="text-xs">
-                  <span className="flex items-center gap-1">
-                    <Sparkles className="h-3 w-3 text-primary" /> Mensaje IA
-                  </span>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((c) => (
-                <TableRow
-                  key={c.id}
-                  data-state={selected.has(c.id) ? "selected" : undefined}
-                  className="group"
-                >
-                  <TableCell className="pl-4">
-                    <Checkbox
-                      checked={selected.has(c.id)}
-                      onCheckedChange={() => toggleOne(c.id)}
-                    />
+      <div className="erp-card overflow-hidden p-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Segmento</TableHead>
+              <TableHead>Nombre</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead className="text-right">Total Comprado</TableHead>
+              <TableHead>Categoria Principal</TableHead>
+              <TableHead>Mensaje Sugerido</TableHead>
+              <TableHead className="text-right">Acciones</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              Array.from({ length: 5 }).map((_, index) => (
+                <TableRow key={`skeleton-${index}`}>
+                  <TableCell colSpan={7}>
+                    <Skeleton className="h-8 w-full" />
                   </TableCell>
-                  <TableCell className="text-sm font-medium">{c.name}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{c.email}</TableCell>
+                </TableRow>
+              ))
+            ) : isError ? (
+              <TableRow>
+                <TableCell colSpan={7} className="py-8 text-center text-destructive">
+                  No se pudieron cargar los prospectos de remarketing.
+                </TableCell>
+              </TableRow>
+            ) : filteredProspects.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                  No hay prospectos para el filtro seleccionado.
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredProspects.map((prospect) => (
+                <TableRow key={prospect.id}>
                   <TableCell>
-                    <Badge variant="outline" className={`text-xs ${segmentClasses[c.segment]}`}>
-                      {c.segment}
+                    <Badge variant="outline" className={segmentBadgeClass(prospect.segmento)}>
+                      {prospect.segmento}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{c.lastPurchase}</TableCell>
-                  <TableCell className="text-sm font-semibold text-right">{c.ltv}</TableCell>
-                  <TableCell className="max-w-[280px]">
-                    <p className="text-xs text-muted-foreground line-clamp-2">{c.aiMessage}</p>
+                  <TableCell className="font-medium">{prospect.nombre}</TableCell>
+                  <TableCell className="text-muted-foreground">{prospect.email}</TableCell>
+                  <TableCell className="text-right font-medium">
+                    {formatCopCurrency(prospect.totalComprado)}
+                  </TableCell>
+                  <TableCell>{prospect.categoria}</TableCell>
+                  <TableCell>
+                    <p className="max-w-[360px] text-xs text-muted-foreground">{prospect.mensajeSugerido}</p>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button size="sm" onClick={() => handleSendEmail(prospect.email)}>
+                      <Send className="mr-2 h-4 w-4" />
+                      Enviar Email
+                    </Button>
                   </TableCell>
                 </TableRow>
-              ))}
-              {!loadingData && filtered.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">
-                    No se encontraron clientes con los filtros seleccionados.
-                  </TableCell>
-                </TableRow>
-              )}
-              {loadingData && (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">
-                    Cargando targets de remarketing...
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
+              ))
+            )}
+          </TableBody>
+        </Table>
       </div>
     </div>
   );

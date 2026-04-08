@@ -89,6 +89,7 @@ export default function ScreensManagementTab() {
       setOpen(false);
       setEditingScreen(null);
       await queryClient.invalidateQueries({ queryKey: ["admin-screens"] });
+      await queryClient.invalidateQueries({ queryKey: ["rbac-menu"] });
     },
     onError: () => {
       toast({ title: "No se pudo crear la pantalla", variant: "destructive" });
@@ -105,6 +106,7 @@ export default function ScreensManagementTab() {
       setOpen(false);
       setEditingScreen(null);
       await queryClient.invalidateQueries({ queryKey: ["admin-screens"] });
+      await queryClient.invalidateQueries({ queryKey: ["rbac-menu"] });
     },
     onError: () => {
       toast({ title: "No se pudo actualizar la pantalla", variant: "destructive" });

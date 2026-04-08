@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ArrowLeft,
+  Crown,
   Mail,
   Phone,
   FileText,
@@ -138,6 +139,25 @@ function formatCurrency(value: string | number | null | undefined) {
   });
 }
 
+function formatMonthYear(value?: string | null) {
+  if (!value) return "—";
+  return value;
+}
+
+function getCustomerTierBadge(categoryId?: string, categoryName?: string) {
+  const raw = `${categoryId ?? ""} ${categoryName ?? ""}`.toUpperCase();
+
+  if (raw.includes("VIP")) {
+    return { label: "VIP", icon: Crown, className: "border-amber-300 bg-gradient-to-r from-amber-200 via-yellow-100 to-amber-300 text-amber-950 shadow-sm shadow-amber-500/25" };
+  }
+
+  if (raw.includes("PREMIUM")) {
+    return { label: "PREMIUM", icon: Star, className: "border-slate-300 bg-gradient-to-r from-slate-200 via-slate-50 to-slate-300 text-slate-900 shadow-sm shadow-slate-400/25" };
+  }
+
+  return null;
+}
+
 function CategoryBadge({ name }: { name?: string }) {
   if (!name) {
     return <Badge variant="secondary">Sin categoría</Badge>;
@@ -239,11 +259,13 @@ function ProfileHeader({
   email,
   categoryName,
   ltv,
+  tierBadge,
 }: {
   name: string;
   email?: string | null;
   categoryName?: string;
   ltv: string;
+  tierBadge?: ReturnType<typeof getCustomerTierBadge>;
 }) {
   const initials = useMemo(
     () =>
@@ -265,6 +287,15 @@ function ProfileHeader({
         <div className="space-y-1">
           <CardTitle className="text-base flex items-center gap-2">
             {name}
+            {tierBadge && (
+              <Badge variant="outline" className={`gap-1.5 border px-2 py-0.5 text-[11px] font-semibold ${tierBadge.className}`}>
+                {(() => {
+                  const TierIcon = tierBadge.icon;
+                  return <TierIcon className="h-3.5 w-3.5" />;
+                })()}
+                {tierBadge.label}
+              </Badge>
+            )}
           </CardTitle>
           <p className="text-xs text-muted-foreground">{email ?? "Sin email"}</p>
           <div className="flex flex-wrap items-center gap-2 text-xs mt-1">
@@ -326,6 +357,81 @@ function BenefitsList({
             <p className="text-xs text-muted-foreground">{b.description}</p>
           </div>
         ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function PurchaseHabitsCard({
+  metadata,
+}: {
+  metadata?: {
+    orders_count?: number;
+    distinct_products?: number;
+    last_purchase_date?: string;
+    main_category?: string;
+    products_list?: string;
+    follow_up_strategy?: string;
+  };
+}) {
+  const products = useMemo(
+    () =>
+      (metadata?.products_list ?? "")
+        .split("|")
+        .map((product) => product.trim())
+        .filter(Boolean),
+    [metadata?.products_list],
+  );
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm flex items-center gap-2">
+          <Sparkles className="h-4 w-4" />
+          Hábitos de Compra
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="rounded-lg border bg-muted/30 p-3">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Cantidad de pedidos</p>
+            <p className="mt-1 text-sm font-semibold">{metadata?.orders_count ?? "—"}</p>
+          </div>
+          <div className="rounded-lg border bg-muted/30 p-3">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Fecha de Última Compra</p>
+            <p className="mt-1 text-sm font-semibold">{formatMonthYear(metadata?.last_purchase_date)}</p>
+          </div>
+          <div className="rounded-lg border bg-muted/30 p-3">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Categoría Principal</p>
+            <p className="mt-1 text-sm font-semibold">{metadata?.main_category ?? "—"}</p>
+          </div>
+          <div className="rounded-lg border bg-muted/30 p-3 sm:col-span-3">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Productos Distintos</p>
+            <p className="mt-1 text-sm font-semibold">{metadata?.distinct_products ?? "—"}</p>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground">Productos comprados</p>
+          {products.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {products.map((product) => (
+                <Badge key={product} variant="secondary" className="rounded-full px-3 py-1 text-xs">
+                  {product}
+                </Badge>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No hay productos registrados.</p>
+          )}
+        </div>
+
+        <div className="rounded-lg border bg-background/60 p-3">
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Estrategia de seguimiento</p>
+          <p className="mt-1 text-sm text-foreground">
+            {metadata?.follow_up_strategy ?? "Sin estrategia definida"}
+          </p>
+        </div>
       </CardContent>
     </Card>
   );
@@ -838,6 +944,7 @@ export default function CustomerProfile360Page() {
 
   const profile = profileQuery.data!;
   const { customer, category_name, ltv, benefits } = profile;
+  const tierBadge = getCustomerTierBadge(profile.category_id, category_name);
   const activeTickets: TicketResponse[] =
     ticketsQuery.data?.items.filter(
       (t) =>
@@ -886,7 +993,10 @@ export default function CustomerProfile360Page() {
             email={customer.email}
             categoryName={category_name}
             ltv={ltv}
+            tierBadge={tierBadge}
           />
+
+          <PurchaseHabitsCard metadata={customer.metadata} />
 
           <Card>
             <CardHeader className="pb-2 flex flex-row items-center justify-between">
