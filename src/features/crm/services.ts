@@ -209,7 +209,15 @@ export async function getProfile360(customerId: string): Promise<Profile360Respo
     const { data } = await apiClient.get<Profile360Response>(
       `${CRM_BASE}/customers/${customerId}/profile360`
     );
-    return data;
+    const resolvedMetadata = data.metadata ?? data.customer?.metadata;
+    return {
+      ...data,
+      customer: {
+        ...data.customer,
+        metadata: resolvedMetadata,
+      },
+      metadata: resolvedMetadata,
+    };
   } catch (error) {
     return throwOnApiError(error);
   }

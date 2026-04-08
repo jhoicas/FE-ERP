@@ -44,6 +44,7 @@ export interface Profile360Response {
   category_id: string;
   category_name?: string;
   ltv: string;
+  metadata?: ProfileMetadata;
   benefits?: BenefitResponse[];
 }
 

@@ -954,6 +954,7 @@ export default function CustomerProfile360Page() {
 
   const profile = profileQuery.data!;
   const { customer, category_name, ltv, benefits } = profile;
+  const profileMetadata = profile.metadata ?? customer.metadata;
   const tierBadge = getCustomerTierBadge(profile.category_id, category_name);
   const activeTickets: TicketResponse[] =
     ticketsQuery.data?.items.filter(
@@ -1006,7 +1007,7 @@ export default function CustomerProfile360Page() {
             tierBadge={tierBadge}
           />
 
-          <PurchaseHabitsCard metadata={customer.metadata} />
+          <PurchaseHabitsCard metadata={profileMetadata} />
 
           <Card>
             <CardHeader className="pb-2 flex flex-row items-center justify-between">
