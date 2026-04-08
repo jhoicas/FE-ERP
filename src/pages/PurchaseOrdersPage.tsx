@@ -263,8 +263,10 @@ export default function PurchaseOrdersPage() {
 	});
 
 	const orders = ordersQuery.data?.items ?? [];
-	const total = ordersQuery.data?.total ?? orders.length;
-	const hasMore = offset + orders.length < total || orders.length === pageSize;
+	const total =
+		typeof ordersQuery.data?.total === "number" ? ordersQuery.data.total : undefined;
+	const hasMore =
+		typeof total === "number" ? offset + orders.length < total : orders.length === pageSize;
 	const hasPrev = offset > 0;
 
 	const newOrderValid =

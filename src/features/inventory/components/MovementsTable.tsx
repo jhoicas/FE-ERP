@@ -170,8 +170,9 @@ export default function MovementsTable() {
   });
 
   const items = data?.items ?? [];
-  const total = data?.total ?? items.length;
-  const hasMore = offset + items.length < total || items.length === pageSize;
+  const total = typeof data?.total === "number" ? data.total : undefined;
+  const hasMore =
+    typeof total === "number" ? offset + items.length < total : items.length === pageSize;
   const hasPrev = offset > 0;
 
   // ── Reset offset when filters change ──────────────────────────────────────

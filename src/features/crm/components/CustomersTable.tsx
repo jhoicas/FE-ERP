@@ -50,26 +50,10 @@ import {
 import type { ReactNode } from "react";
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
-type CustomerFilter = "_all" | "with_tax_id" | "with_email" | "with_phone";
+type CustomerFilter = string;
 
-function getSegmentValue(customer: CustomerDTO): string {
-  const value = customer.segment?.trim().toUpperCase();
-  return value || "OCASIONAL";
-}
-
-function getSegmentClass(segment: string): string {
-  switch (segment) {
-    case "VIP":
-      return "border-amber-300 bg-amber-100 text-amber-800";
-    case "PREMIUM":
-      return "border-emerald-300 bg-emerald-100 text-emerald-800";
-    case "RECURRENTE":
-      return "border-blue-300 bg-blue-100 text-blue-800";
-    case "OCASIONAL":
-    default:
-      return "border-slate-300 bg-slate-100 text-slate-700";
-  }
-}
+const ALL_CATEGORIES_FILTER = "_all";
+const WITHOUT_CATEGORY_FILTER = "_without_category";
 
 function formatCurrency(value?: number): string {
   if (typeof value !== "number" || Number.isNaN(value)) {
@@ -86,6 +70,10 @@ function formatCurrency(value?: number): string {
 
 function getCategoryName(customer: CustomerDTO): string {
   return customer.category_name?.trim() || customer.categoryName?.trim() || "Sin categoría";
+}
+
+function getCategoryValue(customer: CustomerDTO): string {
+  return customer.category_name?.trim() || customer.categoryName?.trim() || "";
 }
 
 function getCategoryClass(category: string): string {
@@ -119,7 +107,7 @@ export default function CustomersTable({ externalActions }: CustomersTableProps)
   const initialPageSize = Number(searchParams.get("pageSize")) || 5;
   const initialOffset = Number(searchParams.get("offset")) || 0;
   const initialSearch = searchParams.get("search") ?? "";
-  const initialFilter = (searchParams.get("filter") as CustomerFilter) ?? "_all";
+  const initialFilter = searchParams.get("filter") ?? ALL_CATEGORIES_FILTER;
   const [pageSize, setPageSize] = useState(initialPageSize);
   const [offset, setOffset] = useState(initialOffset);
   const [createOpen, setCreateOpen] = useState(false);
@@ -172,15 +160,21 @@ export default function CustomersTable({ externalActions }: CustomersTableProps)
   });
 
   const items = data?.items ?? [];
+  const categoryOptions = Array.from(
+    new Set(items.map((customer) => getCategoryValue(customer)).filter(Boolean)),
+  ).sort((a, b) => a.localeCompare(b, "es"));
+
   const filteredItems = items.filter((c) => {
-    if (filter === "_all") return true;
-    if (filter === "with_tax_id") return Boolean(c.tax_id);
-    if (filter === "with_email") return Boolean(c.email);
-    if (filter === "with_phone") return Boolean(c.phone);
+    if (filter === ALL_CATEGORIES_FILTER) return true;
+    if (filter === WITHOUT_CATEGORY_FILTER) return !getCategoryValue(c);
+    if (filter.startsWith("category:")) {
+      return getCategoryValue(c) === filter.replace("category:", "");
+    }
     return true;
   });
-  const total = data?.total ?? items.length;
-  const hasMore = offset + items.length < total || items.length === pageSize;
+  const total = typeof data?.total === "number" ? data.total : undefined;
+  const hasMore =
+    typeof total === "number" ? offset + items.length < total : items.length === pageSize;
   const hasPrev = offset > 0;
 
   const deactivateMutation = useMutation({
@@ -230,13 +224,16 @@ export default function CustomersTable({ externalActions }: CustomersTableProps)
             }}
           >
             <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder="Filtrar" />
+              <SelectValue placeholder="Filtrar por categoría" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="_all">Todos</SelectItem>
-              <SelectItem value="with_tax_id">Con NIT</SelectItem>
-              <SelectItem value="with_email">Con email</SelectItem>
-              <SelectItem value="with_phone">Con teléfono</SelectItem>
+              <SelectItem value={ALL_CATEGORIES_FILTER}>Todas las categorías</SelectItem>
+              <SelectItem value={WITHOUT_CATEGORY_FILTER}>Sin categoría</SelectItem>
+              {categoryOptions.map((category) => (
+                <SelectItem key={category} value={`category:${category}`}>
+                  {category}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -275,10 +272,10 @@ export default function CustomersTable({ externalActions }: CustomersTableProps)
                 <TableHead className="text-xs text-muted-foreground">Nombre</TableHead>
                 <TableHead className="text-xs text-muted-foreground">Email</TableHead>
                 <TableHead className="text-xs text-muted-foreground">Categoría</TableHead>
-                <TableHead className="text-xs text-muted-foreground">Segmento</TableHead>
                 <TableHead className="text-xs text-muted-foreground">Total Comprado</TableHead>
                 <TableHead className="text-xs text-muted-foreground">Categoría Principal</TableHead>
-                <TableHead className="text-right text-xs text-muted-foreground">Acción Remarketing</TableHead>
+                <TableHead className="text-xs text-muted-foreground">Acción Remarketing</TableHead>
+                <TableHead className="text-right text-xs text-muted-foreground">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -300,22 +297,19 @@ export default function CustomersTable({ externalActions }: CustomersTableProps)
                         {getCategoryName(c)}
                       </Badge>
                     </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={getSegmentClass(getSegmentValue(c))}>
-                        {getSegmentValue(c)}
-                      </Badge>
-                    </TableCell>
                     <TableCell className="text-muted-foreground">
                       {formatCurrency(Number(c.ltv ?? c.total_purchased ?? 0))}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {getMainCategory(c)}
                     </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="text-[11px]">
+                        {getRemarketingAction(c)}
+                      </Badge>
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2 items-center">
-                        <Badge variant="outline" className="text-[11px]">
-                          {getRemarketingAction(c)}
-                        </Badge>
                         {canEditCustomers && (
                           <Button
                             variant="ghost"

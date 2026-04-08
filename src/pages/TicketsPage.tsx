@@ -243,7 +243,10 @@ export default function TicketsPage() {
   );
 
   const items = ticketsQuery.data?.items ?? [];
-  const hasMore = items.length === pageSize;
+  const total =
+    typeof ticketsQuery.data?.total === "number" ? ticketsQuery.data.total : undefined;
+  const hasMore =
+    typeof total === "number" ? offset + items.length < total : items.length === pageSize;
   const hasPrev = offset > 0;
 
   const openCreate = () => {
@@ -451,6 +454,7 @@ export default function TicketsPage() {
             <div className="flex items-center justify-between border-t px-4 py-3 gap-4">
               <p className="text-xs text-muted-foreground">
                 Mostrando {offset + 1}–{offset + items.length}
+                {typeof total === "number" && total > 0 ? ` de ${total}` : ""}
               </p>
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">

@@ -83,6 +83,7 @@ export interface TaskResponseList {
   items: TaskResponse[];
   limit: number;
   offset: number;
+  total?: number;
 }
 
 export interface InteractionResponse {
@@ -113,6 +114,7 @@ export interface TicketResponseList {
   items: TicketResponse[];
   limit: number;
   offset: number;
+  total?: number;
 }
 
 export interface ApiError {
