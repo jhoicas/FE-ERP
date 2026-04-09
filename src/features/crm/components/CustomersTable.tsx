@@ -6,6 +6,7 @@ import { UserCircle, Pencil, Plus, Trash2 } from "lucide-react";
 import { deactivateCustomer, listCustomers } from "@/features/crm/services";
 import { useAuthUser } from "@/features/auth/useAuthUser";
 import { isAdmin } from "@/features/auth/permissions";
+import { useTableSearch } from "@/hooks/use-debounce";
 import CreateCustomerDialog from "@/features/crm/components/CreateCustomerDialog";
 import EditCustomerDialog from "@/features/crm/components/EditCustomerDialog";
 import type { CustomerDTO } from "@/features/crm/schemas";
@@ -115,17 +116,12 @@ export default function CustomersTable({ externalActions }: CustomersTableProps)
   const [deactivatingCustomer, setDeactivatingCustomer] = useState<CustomerDTO | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const canEditCustomers = isAdmin(user);
-   const [search, setSearch] = useState(initialSearch);
-  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch.trim());
+  const { searchTerm: search, setSearchTerm: setSearch, debouncedSearchTerm: debouncedSearch } = useTableSearch(initialSearch, 400);
   const [filter, setFilter] = useState<CustomerFilter>(initialFilter);
 
   useEffect(() => {
-    const handle = setTimeout(() => {
-      setDebouncedSearch(search.trim());
-      setOffset(0);
-    }, 400);
-    return () => clearTimeout(handle);
-  }, [search]);
+    setOffset(0);
+  }, [debouncedSearch, filter]);
 
   useEffect(() => {
     const nextParams = new URLSearchParams();

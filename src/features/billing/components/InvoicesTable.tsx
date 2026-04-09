@@ -7,6 +7,7 @@ import { useSearchParams } from "react-router-dom";
 
 import { getInvoices, sendInvoiceEmail, retryDian } from "@/features/billing/services";
 import { useToast } from "@/hooks/use-toast";
+import { useTableSearch } from "@/hooks/use-debounce";
 import { getApiErrorMessage } from "@/lib/api/errors";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -245,10 +246,8 @@ export default function InvoicesTable() {
 
   const [pageSize, setPageSize] = useState(initialPageSize);
   const [offset, setOffset] = useState(initialOffset);
-  const [customerFilter, setCustomerFilter] = useState(initialCustomer);
-  const [prefixFilter, setPrefixFilter] = useState(initialPrefix);
-  const [debouncedCustomerFilter, setDebouncedCustomerFilter] = useState(initialCustomer.toLowerCase());
-  const [debouncedPrefixFilter, setDebouncedPrefixFilter] = useState(initialPrefix.toLowerCase());
+  const { searchTerm: customerFilter, setSearchTerm: setCustomerFilter, debouncedSearchTerm: debouncedCustomerFilter } = useTableSearch(initialCustomer, 400);
+  const { searchTerm: prefixFilter, setSearchTerm: setPrefixFilter, debouncedSearchTerm: debouncedPrefixFilter } = useTableSearch(initialPrefix, 400);
   const [statusFilter, setStatusFilter] = useState(initialStatus);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(
     initialFrom || initialTo
@@ -264,23 +263,19 @@ export default function InvoicesTable() {
     queryFn: getInvoices,
   });
 
+  // Validar y actualizar filtro de cliente solo si tiene >= 3 caracteres o está vacío
   useEffect(() => {
-    const handle = setTimeout(() => {
-      setDebouncedCustomerFilter(customerFilter.trim().toLowerCase());
+    if (debouncedCustomerFilter.trim().length >= 3 || debouncedCustomerFilter.trim().length === 0) {
       setOffset(0);
-    }, 400);
+    }
+  }, [debouncedCustomerFilter]);
 
-    return () => clearTimeout(handle);
-  }, [customerFilter]);
-
+  // Validar y actualizar filtro de prefijo solo si tiene >= 3 caracteres o está vacío
   useEffect(() => {
-    const handle = setTimeout(() => {
-      setDebouncedPrefixFilter(prefixFilter.trim().toLowerCase());
+    if (debouncedPrefixFilter.trim().length >= 3 || debouncedPrefixFilter.trim().length === 0) {
       setOffset(0);
-    }, 400);
-
-    return () => clearTimeout(handle);
-  }, [prefixFilter]);
+    }
+  }, [debouncedPrefixFilter]);
 
   useEffect(() => {
     setOffset(0);
@@ -322,14 +317,18 @@ export default function InvoicesTable() {
 
   const filteredInvoices = useMemo(() => {
     const items = data ?? [];
+    const customerFilterTrimmed = debouncedCustomerFilter.trim().toLowerCase();
+    const prefixFilterTrimmed = debouncedPrefixFilter.trim().toLowerCase();
 
     return items.filter((invoice) => {
-      const matchesCustomer = debouncedCustomerFilter
-        ? invoice.customer_name?.toLowerCase().includes(debouncedCustomerFilter)
-        : true;
-      const matchesPrefix = debouncedPrefixFilter
-        ? invoice.prefix?.toLowerCase().includes(debouncedPrefixFilter)
-        : true;
+      const matchesCustomer = 
+        customerFilterTrimmed.length === 0 || customerFilterTrimmed.length >= 3
+          ? invoice.customer_name?.toLowerCase().includes(customerFilterTrimmed) ?? true
+          : true;
+      const matchesPrefix = 
+        prefixFilterTrimmed.length === 0 || prefixFilterTrimmed.length >= 3
+          ? invoice.prefix?.toLowerCase().includes(prefixFilterTrimmed) ?? true
+          : true;
       const matchesStatus = statusFilter === "all" ? true : invoice.dian_status === statusFilter;
 
       const invoiceDate = new Date(invoice.date);

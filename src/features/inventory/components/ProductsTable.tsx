@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MoreHorizontal } from "lucide-react";
 
 import { getProducts } from "@/features/inventory/services";
 import { useWarehouses } from "@/features/inventory/api";
+import { useTableSearch } from "@/hooks/use-debounce";
 import type { ProductDTO } from "@/features/inventory/schemas";
 import apiClient from "@/lib/api/client";
 import { getApiErrorMessage } from "@/lib/api/errors";
@@ -45,6 +46,7 @@ export default function ProductsTable() {
   const [minStock, setMinStock] = useState("");
   const [maxStock, setMaxStock] = useState("");
   const [supplyDays, setSupplyDays] = useState("");
+  const { searchTerm, setSearchTerm, debouncedSearchTerm } = useTableSearch("", 400);
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["inventory", "products"],
@@ -52,6 +54,21 @@ export default function ProductsTable() {
   });
 
   const warehousesQuery = useWarehouses({ limit: 100, offset: 0 });
+
+  // Filtrar productos basado en búsqueda (solo si >= 3 caracteres o está vacío)
+  const filteredProducts = useMemo(() => {
+    const searchTrimmed = debouncedSearchTerm.trim().toLowerCase();
+    
+    if (searchTrimmed.length === 0 || searchTrimmed.length >= 3) {
+      return (data ?? []).filter((p) => 
+        p.name.toLowerCase().includes(searchTrimmed) || 
+        p.sku.toLowerCase().includes(searchTrimmed)
+      );
+    }
+    
+    // Si hay búsqueda pero menos de 3 caracteres, mostrar todos
+    return data ?? [];
+  }, [data, debouncedSearchTerm]);
 
   const parsedReorderPoint = Number(reorderPoint);
   const parsedMinStock = Number(minStock);
@@ -108,6 +125,15 @@ export default function ProductsTable() {
 
   return (
     <div className="space-y-4">
+      <div className="w-full sm:w-80">
+        <Input
+          placeholder="Buscar por nombre o SKU…"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="h-8 text-xs"
+        />
+      </div>
+
       {isLoading && (
         <div className="space-y-2">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -136,7 +162,7 @@ export default function ProductsTable() {
               </tr>
             </thead>
             <tbody>
-              {data?.map((p) => (
+              {filteredProducts.map((p) => (
                 <tr key={p.id} className="border-b last:border-0 hover:bg-muted/40 transition-colors">
                   <td className="py-3 px-4 font-medium">{p.name}</td>
                   <td className="py-3 px-4 font-mono text-xs text-muted-foreground">{p.sku}</td>

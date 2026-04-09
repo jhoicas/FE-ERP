@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Shield, Plus, AlertCircle } from "lucide-react";
 
 import { getUsers, createUser, updateUser, type UserDTO } from "@/features/auth/services";
+import { useTableSearch } from "@/hooks/use-debounce";
 import { getApiErrorMessage } from "@/lib/api/errors";
 import {
   Table,
@@ -63,11 +64,27 @@ export default function UsersManagement() {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserDTO | null>(null);
+  const { searchTerm, setSearchTerm, debouncedSearchTerm } = useTableSearch("", 400);
 
   const usersQuery = useQuery({
     queryKey: ["users"],
     queryFn: getUsers,
   });
+
+  // Filtrar usuarios basado en búsqueda (solo si >= 3 caracteres o está vacío)
+  const filteredUsers = useMemo(() => {
+    const searchTrimmed = debouncedSearchTerm.trim().toLowerCase();
+    
+    if (searchTrimmed.length === 0 || searchTrimmed.length >= 3) {
+      return (usersQuery.data ?? []).filter((u) => 
+        u.name.toLowerCase().includes(searchTrimmed) || 
+        u.email.toLowerCase().includes(searchTrimmed)
+      );
+    }
+    
+    // Si hay búsqueda pero menos de 3 caracteres, mostrar todos
+    return usersQuery.data ?? [];
+  }, [usersQuery.data, debouncedSearchTerm]);
 
   const form = useForm<UserFormValues>({
     resolver: zodResolver(baseUserSchema),
@@ -195,6 +212,15 @@ export default function UsersManagement() {
         </Button>
       </div>
 
+      <div className="w-full sm:w-80">
+        <Input
+          placeholder="Buscar por nombre o email…"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="h-8 text-xs"
+        />
+      </div>
+
       {usersQuery.isLoading && (
         <div className="erp-card p-4 space-y-2">
           {Array.from({ length: 5 }).map((_, i) => (
@@ -224,7 +250,7 @@ export default function UsersManagement() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(usersQuery.data ?? []).length === 0 ? (
+              {filteredUsers.length === 0 ? (
                 <TableRow>
                   <TableCell
                     colSpan={4}
@@ -234,7 +260,7 @@ export default function UsersManagement() {
                   </TableCell>
                 </TableRow>
               ) : (
-                usersQuery.data!.map((u) => (
+                filteredUsers.map((u) => (
                   <TableRow key={u.id} className="hover:bg-muted/40">
                     <TableCell className="font-medium">{u.name}</TableCell>
                     <TableCell className="text-muted-foreground">{u.email}</TableCell>
