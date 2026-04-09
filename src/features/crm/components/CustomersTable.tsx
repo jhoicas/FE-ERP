@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { UserCircle, Pencil, Plus, Trash2 } from "lucide-react";
 
-import { deactivateCustomer, listCustomers } from "@/features/crm/services";
+import { deactivateCustomer, listCategories, listCustomers } from "@/features/crm/services";
 import { useAuthUser } from "@/features/auth/useAuthUser";
 import { isAdmin } from "@/features/auth/permissions";
 import { useTableSearch } from "@/hooks/use-debounce";
@@ -151,9 +151,23 @@ export default function CustomersTable({ externalActions }: CustomersTableProps)
       }),
   });
 
+  const { data: categoriesCatalog } = useQuery({
+    queryKey: ["crm", "categories", "filter-options"],
+    queryFn: () =>
+      listCategories({
+        limit: 200,
+        offset: 0,
+        status: "active",
+      }),
+    staleTime: 60_000,
+  });
+
   const items = data?.items ?? [];
   const categoryOptions = Array.from(
-    new Set(items.map((customer) => getCategoryValue(customer)).filter(Boolean)),
+    new Set([
+      ...(categoriesCatalog ?? []).map((category) => category.name?.trim()).filter(Boolean),
+      ...items.map((customer) => getCategoryValue(customer)).filter(Boolean),
+    ]),
   ).sort((a, b) => a.localeCompare(b, "es"));
 
   const filteredItems = items.filter((c) => {
