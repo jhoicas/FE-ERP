@@ -130,11 +130,46 @@ export interface ImportCustomersResponse {
   jobID: string;
 }
 
-export interface ImportStatusResponse {
+export interface ImportRowDetail {
+  row?: number;
+  email?: string;
+  action: "inserted" | "updated" | "skipped" | "failed" | "invalid" | "warning" | "processed";
+  errors: string[];
+  warnings: string[];
+}
+
+export interface ImportReportResponse {
   TotalRows: number;
+  ValidRows: number;
+  InvalidRows: number;
+  DuplicateRows: number;
+  InsertedRows: number;
+  UpdatedRows: number;
+  SkippedRows: number;
+  FailedRows: number;
   ProcessedRows: number;
   Status: string;
+  SuccessRows: number;
+  MissingEmailRows: number;
+  WarningRows: number;
+  Rows: ImportRowDetail[];
+  FailedRecords: Array<{
+    row?: number;
+    identifier?: string;
+    reason: string;
+  }>;
+  ProcessedRecords: Array<{
+    row?: number;
+    identifier?: string;
+    status: "uploaded" | "failed" | "processed";
+    reason?: string;
+  }>;
+  RawPayload?: Record<string, unknown>;
 }
+
+export type ImportStatusResponse = ImportReportResponse;
+
+export interface ImportPreviewResponse extends ImportReportResponse {}
 
 export async function importCustomersFile(file: File): Promise<ImportCustomersResponse> {
   const formData = new FormData();
@@ -159,20 +194,237 @@ export async function importCustomersFile(file: File): Promise<ImportCustomersRe
   }
 }
 
-export async function getImportStatus(jobId: string): Promise<ImportStatusResponse> {
+function normalizeStringList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean);
+  }
+
+  if (typeof value === "string") {
+    return value.split(/[;,|]/g).map((item) => item.trim()).filter(Boolean);
+  }
+
+  return [];
+}
+
+function normalizeImportRowDetail(item: unknown): ImportRowDetail | null {
+  if (!item || typeof item !== "object") {
+    return null;
+  }
+
+  const record = item as Record<string, unknown>;
+  const row = Number(record.row ?? record.rowNumber ?? record.line ?? record.index ?? NaN);
+  const email = String(
+    record.email ??
+    record.identifier ??
+    record.nit ??
+    record.name ??
+    record.customer ??
+    "",
+  ).trim();
+  const rawAction = String(record.action ?? record.status ?? record.result ?? record.state ?? "processed").toLowerCase();
+  const action: ImportRowDetail["action"] =
+    rawAction === "inserted" || rawAction === "created" || rawAction === "new" || rawAction === "success"
+      ? "inserted"
+      : rawAction === "updated" || rawAction === "reused"
+        ? "updated"
+        : rawAction === "skipped" || rawAction === "ignored" || rawAction === "duplicate"
+          ? "skipped"
+          : rawAction === "failed" || rawAction === "error" || rawAction === "invalid"
+            ? "failed"
+            : rawAction === "warning"
+              ? "warning"
+              : "processed";
+
+  const errors = normalizeStringList(record.errors ?? record.errorMessages ?? record.error ?? record.message);
+  const warnings = normalizeStringList(record.warnings ?? record.warningMessages ?? record.warning);
+
+  return {
+    row: Number.isFinite(row) ? row : undefined,
+    email: email || undefined,
+    action,
+    errors,
+    warnings,
+  };
+}
+
+function normalizeImportReport(data: unknown): ImportReportResponse {
+  const rawPayload =
+    data && typeof data === "object" && !Array.isArray(data)
+      ? (data as Record<string, unknown>)
+      : undefined;
+
+  const payload = data as {
+    TotalRows?: unknown;
+    totalRows?: unknown;
+    total_rows?: unknown;
+    ValidRows?: unknown;
+    validRows?: unknown;
+    valid_rows?: unknown;
+    InvalidRows?: unknown;
+    invalidRows?: unknown;
+    invalid_rows?: unknown;
+    invalidRowsCount?: unknown;
+    DuplicateRows?: unknown;
+    duplicateRows?: unknown;
+    duplicate_rows?: unknown;
+    InsertedRows?: unknown;
+    insertedRows?: unknown;
+    inserted_rows?: unknown;
+    UpdatedRows?: unknown;
+    updatedRows?: unknown;
+    updated_rows?: unknown;
+    SkippedRows?: unknown;
+    skippedRows?: unknown;
+    skipped_rows?: unknown;
+    FailedRows?: unknown;
+    failedRows?: unknown;
+    failed_rows?: unknown;
+    ProcessedRows?: unknown;
+    processedRows?: unknown;
+    processed_rows?: unknown;
+    WarningRows?: unknown;
+    warningRows?: unknown;
+    warning_rows?: unknown;
+    MissingEmailRows?: unknown;
+    missingEmailRows?: unknown;
+    missing_email_rows?: unknown;
+    Status?: unknown;
+    status?: unknown;
+    rows?: unknown;
+    Rows?: unknown;
+    FailedRecords?: unknown;
+    failedRecords?: unknown;
+    ProcessedRecords?: unknown;
+    processedRecords?: unknown;
+  };
+
+  const toOptionalNumber = (value: unknown): number | undefined => {
+    if (value === undefined || value === null || value === "") {
+      return undefined;
+    }
+
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  };
+
+  const totalRows = Number(payload?.TotalRows ?? payload?.totalRows ?? payload?.total_rows ?? 0);
+  const validRowsRaw = toOptionalNumber(payload?.ValidRows ?? payload?.validRows ?? payload?.valid_rows);
+  const invalidRowsRaw = toOptionalNumber(payload?.InvalidRows ?? payload?.invalidRows ?? payload?.invalid_rows ?? payload?.invalidRowsCount);
+  const duplicateRows = Math.max(toOptionalNumber(payload?.DuplicateRows ?? payload?.duplicateRows ?? payload?.duplicate_rows) ?? 0, 0);
+  const insertedRowsRaw = toOptionalNumber(payload?.InsertedRows ?? payload?.insertedRows ?? payload?.inserted_rows);
+  const updatedRowsRaw = toOptionalNumber(payload?.UpdatedRows ?? payload?.updatedRows ?? payload?.updated_rows);
+  const skippedRowsRaw = toOptionalNumber(payload?.SkippedRows ?? payload?.skippedRows ?? payload?.skipped_rows);
+  const failedRowsRaw = toOptionalNumber(payload?.FailedRows ?? payload?.failedRows ?? payload?.failed_rows);
+  const processedRows = Number(payload?.ProcessedRows ?? payload?.processedRows ?? payload?.processed_rows ?? 0);
+  const warningRows = Math.max(toOptionalNumber(payload?.WarningRows ?? payload?.warningRows ?? payload?.warning_rows) ?? 0, 0);
+  const missingEmailRows = Math.max(toOptionalNumber(payload?.MissingEmailRows ?? payload?.missingEmailRows ?? payload?.missing_email_rows) ?? 0, 0);
+
+  const rawRows = payload?.rows ?? payload?.Rows ?? [];
+  const Rows = Array.isArray(rawRows) ? rawRows.map(normalizeImportRowDetail).filter((item): item is ImportRowDetail => Boolean(item)) : [];
+
+  const rawFailedRecords = payload?.FailedRecords ?? payload?.failedRecords ?? [];
+  const FailedRecords = Array.isArray(rawFailedRecords)
+    ? rawFailedRecords
+        .map((item): { row?: number; identifier?: string; reason: string } | null => {
+          if (typeof item === "string") {
+            return { reason: item };
+          }
+
+          const normalized = normalizeImportRowDetail(item);
+          if (!normalized) {
+            return null;
+          }
+
+          return {
+            row: normalized.row,
+            identifier: normalized.email,
+            reason: normalized.errors[0] ?? normalized.warnings[0] ?? "Error de validacion",
+          };
+        })
+        .filter((item): item is { row?: number; identifier?: string; reason: string } => Boolean(item))
+    : [];
+
+  const rawProcessedRecords = payload?.ProcessedRecords ?? payload?.processedRecords ?? Rows;
+  const ProcessedRecords = Array.isArray(rawProcessedRecords)
+    ? rawProcessedRecords
+        .map((item): { row?: number; identifier?: string; status: "uploaded" | "failed" | "processed"; reason?: string } | null => {
+          const normalized = normalizeImportRowDetail(item);
+          if (!normalized) {
+            return null;
+          }
+
+          const status = normalized.action === "inserted" || normalized.action === "updated"
+            ? "uploaded"
+            : normalized.action === "failed"
+              ? "failed"
+              : "processed";
+
+          return {
+            row: normalized.row,
+            identifier: normalized.email,
+            status,
+            reason: normalized.errors[0] ?? normalized.warnings[0],
+          };
+        })
+        .filter((item): item is { row?: number; identifier?: string; status: "uploaded" | "failed" | "processed"; reason?: string } => Boolean(item))
+    : [];
+
+  const hasValidRows = typeof validRowsRaw === "number";
+  const hasInvalidRows = typeof invalidRowsRaw === "number";
+  const hasInsertedRows = typeof insertedRowsRaw === "number";
+  const hasUpdatedRows = typeof updatedRowsRaw === "number";
+  const hasSkippedRows = typeof skippedRowsRaw === "number";
+  const hasFailedRows = typeof failedRowsRaw === "number";
+
+  const validRows = hasValidRows ? Math.max(validRowsRaw ?? 0, 0) : Math.max(processedRows - (failedRowsRaw ?? 0), 0);
+  const invalidRows = hasInvalidRows ? Math.max(invalidRowsRaw ?? 0, 0) : Math.max(totalRows - validRows, 0);
+  const insertedRows = hasInsertedRows ? Math.max(insertedRowsRaw ?? 0, 0) : Math.max(Rows.filter((row) => row.action === "inserted").length, 0);
+  const updatedRows = hasUpdatedRows ? Math.max(updatedRowsRaw ?? 0, 0) : Math.max(Rows.filter((row) => row.action === "updated").length, 0);
+  const skippedRows = hasSkippedRows ? Math.max(skippedRowsRaw ?? 0, 0) : Math.max(Rows.filter((row) => row.action === "skipped").length, 0);
+  const failedRows = hasFailedRows ? Math.max(failedRowsRaw ?? 0, 0) : Math.max(invalidRows, Rows.filter((row) => row.action === "failed").length, 0);
+
+  return {
+    TotalRows: totalRows,
+    ValidRows: validRows,
+    InvalidRows: invalidRows,
+    DuplicateRows: duplicateRows,
+    InsertedRows: insertedRows,
+    UpdatedRows: updatedRows,
+    SkippedRows: skippedRows,
+    FailedRows: failedRows,
+    ProcessedRows: processedRows,
+    Status: String(payload?.Status ?? payload?.status ?? "pending"),
+    SuccessRows: validRows,
+    MissingEmailRows: missingEmailRows,
+    WarningRows: warningRows,
+    Rows,
+    FailedRecords,
+    ProcessedRecords,
+    RawPayload: rawPayload,
+  };
+}
+
+export async function previewImportCustomersFile(file: File): Promise<ImportPreviewResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  try {
+    const { data } = await apiClient.post(`${CRM_BASE}/import/preview`, formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+
+    return normalizeImportReport(data);
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}
+
+export async function getImportStatus(jobId: string): Promise<ImportReportResponse> {
   try {
     const { data } = await apiClient.get(`${CRM_BASE}/import/status/${jobId}`);
-    const payload = data as {
-      TotalRows?: unknown;
-      ProcessedRows?: unknown;
-      Status?: unknown;
-    };
-
-    return {
-      TotalRows: Number(payload?.TotalRows ?? 0),
-      ProcessedRows: Number(payload?.ProcessedRows ?? 0),
-      Status: String(payload?.Status ?? "pending"),
-    };
+    return normalizeImportReport(data);
   } catch (error) {
     return throwOnApiError(error);
   }

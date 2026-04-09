@@ -88,10 +88,6 @@ function getCategoryClass(category: string): string {
   }
 }
 
-function getMainCategory(customer: CustomerDTO): string {
-  return customer.main_category?.trim() || customer.category_name?.trim() || "Sin categoría";
-}
-
 function getRemarketingAction(customer: CustomerDTO): string {
   return customer.metadata?.followUpStrategy?.trim() || customer.remarketing_action?.trim() || "Pendiente";
 }
@@ -268,8 +264,7 @@ export default function CustomersTable({ externalActions }: CustomersTableProps)
                 <TableHead className="text-xs text-muted-foreground">Nombre</TableHead>
                 <TableHead className="text-xs text-muted-foreground">Email</TableHead>
                 <TableHead className="text-xs text-muted-foreground">Categoría</TableHead>
-                <TableHead className="text-xs text-muted-foreground">Total Comprado</TableHead>
-                <TableHead className="text-xs text-muted-foreground">Categoría Principal</TableHead>
+                <TableHead className="text-xs text-muted-foreground">Total Comprado Principal</TableHead>
                 <TableHead className="text-xs text-muted-foreground">Acción Remarketing</TableHead>
                 <TableHead className="text-right text-xs text-muted-foreground">Acciones</TableHead>
               </TableRow>
@@ -277,7 +272,7 @@ export default function CustomersTable({ externalActions }: CustomersTableProps)
             <TableBody>
               {filteredItems.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-8 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
                     No hay clientes que coincidan con los filtros.
                   </TableCell>
                 </TableRow>
@@ -295,9 +290,6 @@ export default function CustomersTable({ externalActions }: CustomersTableProps)
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {formatCurrency(Number(c.ltv ?? c.total_purchased ?? 0))}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {getMainCategory(c)}
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="text-[11px]">
