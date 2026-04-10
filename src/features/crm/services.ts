@@ -110,12 +110,23 @@ export async function listCustomers(params?: {
   limit?: number;
   offset?: number;
   search?: string;
+  filter?: string;
+  categoryId?: string;
+  category?: string;
+  withoutCategory?: boolean;
 }): Promise<CustomerListResponse> {
   const { data } = await apiClient.get(CUSTOMERS_BASE, {
     params: {
       limit: params?.limit ?? 10,
       offset: params?.offset ?? 0,
       search: params?.search,
+      filter: params?.filter,
+      category_id: params?.categoryId,
+      categoryId: params?.categoryId,
+      category: params?.category,
+      category_name: params?.category,
+      without_category: params?.withoutCategory,
+      withoutCategory: params?.withoutCategory,
     },
   });
   return normalizeCustomerListResponse(data);
@@ -577,7 +588,18 @@ export async function listCategories(params?: {
         status: params?.status,
       },
     });
-    return Array.isArray(data) ? data : [];
+    if (Array.isArray(data)) {
+      return data;
+    }
+
+    const payload = data as {
+      items?: unknown;
+      data?: unknown;
+      rows?: unknown;
+    };
+
+    const candidates = payload?.items ?? payload?.data ?? payload?.rows ?? [];
+    return Array.isArray(candidates) ? (candidates as CategoryResponse[]) : [];
   } catch (error) {
     return throwOnApiError(error);
   }

@@ -114,6 +114,38 @@ export default function CustomersTable({ externalActions }: CustomersTableProps)
   const canEditCustomers = isAdmin(user);
   const { searchTerm: search, setSearchTerm: setSearch, debouncedSearchTerm: debouncedSearch } = useTableSearch(initialSearch, 400);
   const [filter, setFilter] = useState<CustomerFilter>(initialFilter);
+  const withoutCategoryFilter = filter === WITHOUT_CATEGORY_FILTER;
+
+  const { data: categoriesCatalog } = useQuery({
+    queryKey: ["crm", "categories", "filter-options"],
+    queryFn: () =>
+      listCategories({
+        limit: 200,
+        offset: 0,
+        status: "active",
+      }),
+    staleTime: 60_000,
+  });
+
+  const categoryFilterId = filter.startsWith("category_id:") ? filter.replace("category_id:", "") : undefined;
+  const legacyCategoryFilterName = filter.startsWith("category:") ? filter.replace("category:", "") : undefined;
+  const mappedLegacyCategoryId = legacyCategoryFilterName
+    ? (categoriesCatalog ?? []).find(
+        (category) => category.name?.trim().toLowerCase() === legacyCategoryFilterName.toLowerCase(),
+      )?.id
+    : undefined;
+  const resolvedCategoryId = categoryFilterId ?? mappedLegacyCategoryId;
+
+  useEffect(() => {
+    if (!legacyCategoryFilterName || !mappedLegacyCategoryId) {
+      return;
+    }
+
+    const nextFilter = `category_id:${mappedLegacyCategoryId}`;
+    if (filter !== nextFilter) {
+      setFilter(nextFilter);
+    }
+  }, [legacyCategoryFilterName, mappedLegacyCategoryId, filter]);
 
   useEffect(() => {
     setOffset(0);
@@ -142,42 +174,24 @@ export default function CustomersTable({ externalActions }: CustomersTableProps)
   }, [search, filter, offset, pageSize, setSearchParams]);
 
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["customers", pageSize, offset, debouncedSearch],
+    queryKey: ["customers", pageSize, offset, debouncedSearch, filter],
     queryFn: () =>
       listCustomers({
         limit: pageSize,
         offset,
         search: debouncedSearch || undefined,
+        filter: resolvedCategoryId ? `category_id:${resolvedCategoryId}` : filter !== ALL_CATEGORIES_FILTER ? filter : undefined,
+        categoryId: resolvedCategoryId,
+        withoutCategory: withoutCategoryFilter || undefined,
       }),
-  });
-
-  const { data: categoriesCatalog } = useQuery({
-    queryKey: ["crm", "categories", "filter-options"],
-    queryFn: () =>
-      listCategories({
-        limit: 200,
-        offset: 0,
-        status: "active",
-      }),
-    staleTime: 60_000,
   });
 
   const items = data?.items ?? [];
-  const categoryOptions = Array.from(
-    new Set([
-      ...(categoriesCatalog ?? []).map((category) => category.name?.trim()).filter(Boolean),
-      ...items.map((customer) => getCategoryValue(customer)).filter(Boolean),
-    ]),
-  ).sort((a, b) => a.localeCompare(b, "es"));
+  const categoryOptions = (categoriesCatalog ?? [])
+    .map((category) => ({ id: category.id, name: category.name?.trim() ?? "" }))
+    .filter((category) => category.id && category.name)
+    .sort((a, b) => a.name.localeCompare(b.name, "es"));
 
-  const filteredItems = items.filter((c) => {
-    if (filter === ALL_CATEGORIES_FILTER) return true;
-    if (filter === WITHOUT_CATEGORY_FILTER) return !getCategoryValue(c);
-    if (filter.startsWith("category:")) {
-      return getCategoryValue(c) === filter.replace("category:", "");
-    }
-    return true;
-  });
   const total = typeof data?.total === "number" ? data.total : undefined;
   const hasMore =
     typeof total === "number" ? offset + items.length < total : items.length === pageSize;
@@ -236,8 +250,8 @@ export default function CustomersTable({ externalActions }: CustomersTableProps)
               <SelectItem value={ALL_CATEGORIES_FILTER}>Todas las categorías</SelectItem>
               <SelectItem value={WITHOUT_CATEGORY_FILTER}>Sin categoría</SelectItem>
               {categoryOptions.map((category) => (
-                <SelectItem key={category} value={`category:${category}`}>
-                  {category}
+                <SelectItem key={category.id} value={`category_id:${category.id}`}>
+                  {category.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -284,14 +298,14 @@ export default function CustomersTable({ externalActions }: CustomersTableProps)
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredItems.length === 0 ? (
+              {items.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
                     No hay clientes que coincidan con los filtros.
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredItems.map((c) => (
+                items.map((c) => (
                   <TableRow key={c.id} className="hover:bg-muted/40">
                     <TableCell className="font-medium">{c.name}</TableCell>
                     <TableCell className="text-muted-foreground">
