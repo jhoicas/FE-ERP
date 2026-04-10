@@ -7,7 +7,7 @@ import AppLayout from "@/components/layout/AppLayout";
 import DashboardPage from "@/pages/DashboardPage";
 import InventoryPage from "@/pages/InventoryPage";
 import BillingPage from "@/pages/BillingPage";
-import CRMPage from "@/pages/CRMPage";
+import CRMPage from "./pages/CRMPage";
 import CRMAnalyticsPage from "@/pages/CRMAnalyticsPage";
 import CRMRemarketingPage from "@/pages/CRMRemarketingPage";
 import ClientDetailPage from "@/pages/ClientDetailPage";
@@ -61,7 +61,7 @@ const App = () => (
               </ProtectedRoute>
             }
           >
-            <Route path="/" element={<DashboardPage />} />
+            <Route path="/" element={<Navigate to="/crm/analytics" replace />} />
             <Route path="/dashboard" element={<DashboardPage />} />
             {/* Inventario y facturación: solo admin */}
             <Route

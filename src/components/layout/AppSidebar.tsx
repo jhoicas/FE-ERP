@@ -42,12 +42,6 @@ function getModuleIcon(key: string) {
 // El "module_key" debe coincidir EXACTAMENTE con el "module_name" que devuelve tu API.
 const APP_MENU_CONFIG = [
   {
-    module_key: "analytics",
-    label: "Dashboard",
-    frontend_route: "/dashboard",
-    screens: []
-  },
-  {
     module_key: "crm",
     label: "CRM",
     frontend_route: "/crm",
@@ -205,14 +199,6 @@ export default function AppSidebar() {
     }).filter(Boolean) as typeof APP_MENU_CONFIG;
   }, [activeRoutesSet, isRouteActive, isSuperAdminUser]);
 
-  const hasDashboardShortcut = useMemo(
-    () =>
-      visibleModules.some((module) => {
-        return module.frontend_route === "/" || module.frontend_route === "/dashboard";
-      }),
-    [visibleModules]
-  );
-
   const handleLogout = () => {
     Cookies.remove(AUTH_TOKEN_COOKIE_KEY);
     localStorage.clear();
@@ -279,24 +265,6 @@ export default function AppSidebar() {
 
         {!isLoading && visibleModules.length === 0 && (
           <p className="px-3 py-2 text-xs text-sidebar-fg">Sin opciones disponibles.</p>
-        )}
-
-        {!hasDashboardShortcut && !isLoading && visibleModules.length > 0 && (
-          <NavLink
-            to="/dashboard"
-            end
-            className={({ isActive }) =>
-              cn(
-                "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
-                isActive
-                  ? "bg-sidebar-accent text-sidebar-fg-active"
-                  : "text-sidebar-fg hover:text-sidebar-fg-active hover:bg-sidebar-border/50",
-              )
-            }
-          >
-            <LayoutDashboard className="h-4 w-4 shrink-0" />
-            {!collapsed && <span>Dashboard</span>}
-          </NavLink>
         )}
 
         {visibleModules.map((module) => {
