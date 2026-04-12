@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -744,7 +745,7 @@ export default function AiCampaignGenerator() {
       </div>
       <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 md:flex-row md:items-end md:justify-between">
         <div className="w-full md:max-w-xs">
-          <FormLabel>Segmento a impactar</FormLabel>
+          <Label>Segmento a impactar</Label>
           <Select value={autoCampaignSegment} onValueChange={(value) => setAutoCampaignSegment(value as CrmSegment)}>
             <SelectTrigger>
               <SelectValue placeholder="Selecciona un segmento" />
