@@ -65,6 +65,19 @@ export type CrmTaskDTO = z.infer<typeof CrmTaskSchema>;
 export const CrmSegmentSchema = z.enum(["VIP", "PREMIUM", "RECURRENTE", "OCASIONAL"]);
 export type CrmSegment = z.infer<typeof CrmSegmentSchema>;
 
+export const CreateCampaignSchema = z.object({
+  name: z.string().min(3, "Nombre mínimo de 3 caracteres"),
+  subject: z.string().min(3, "Asunto mínimo de 3 caracteres"),
+  body: z.string().min(10, "Contenido mínimo de 10 caracteres"),
+  segment: z.string().min(2, "Segmento mínimo de 2 caracteres"),
+  channel: z.enum(["Email", "SMS", "WhatsApp"], {
+    required_error: "Selecciona un canal",
+  }),
+  scheduledAt: z.string().optional(),
+});
+
+export type CreateCampaignDTO = z.infer<typeof CreateCampaignSchema>;
+
 export const CrmAnalyticsKpisSchema = z.object({
   totalClientes: z.coerce.number(),
   ventasTotales: z.coerce.number(),

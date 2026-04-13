@@ -4,17 +4,19 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Sparkles, Copy, Send, Loader2, Save, FolderOpen } from "lucide-react";
+import { AlertTriangle, Mail, MessageSquare, Smartphone, Sparkles, Copy, Send, Loader2, Save, FolderOpen } from "lucide-react";
 import apiClient from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 import {
   createCampaignTemplate,
+  createCampaign,
   generateCampaignCopy,
   getCampaignTemplates,
   listCategories,
@@ -24,6 +26,7 @@ import {
   sendCampaignTest,
 } from "@/features/crm/services";
 import type { CampaignTemplate } from "@/types/crm";
+import type { CustomerDTO } from "@/features/crm/schemas";
 import type { CrmSegment } from "@/features/crm/schemas";
 import {
   Select,
@@ -73,6 +76,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { CreateCampaignSchema as CampaignCreateSchema } from "@/features/crm/schemas";
 
 const schema = z.object({
   prompt: z.string().min(10, "Describe la campaña en al menos 10 caracteres"),
@@ -114,17 +118,6 @@ const sendTestSchema = z.object({
   }
 });
 
-const createCampaignSchema = z.object({
-  name: z.string().min(3, "Nombre mínimo de 3 caracteres"),
-  subject: z.string().min(3, "Asunto mínimo de 3 caracteres"),
-  body: z.string().min(10, "Contenido mínimo de 10 caracteres"),
-  segment: z.string().min(2, "Segmento mínimo de 2 caracteres"),
-  channel: z.enum(["Email", "SMS", "WhatsApp"], {
-    required_error: "Selecciona un canal",
-  }),
-  scheduled_at: z.string().min(1, "Selecciona fecha programada"),
-});
-
 const RecipientSchema = z.object({
   customer_id: z.string(),
   name: z.string(),
@@ -143,11 +136,20 @@ const saveTemplateSchema = z.object({
 type RecipientStrategy = { type: "category"; category_id: string };
 
 type RecipientDTO = z.infer<typeof RecipientSchema>;
+type PreviewContact = RecipientDTO &
+  Partial<CustomerDTO> & {
+    firstName?: string;
+    lastName?: string;
+    totalSales?: number;
+    totalComprado?: number;
+    totalPurchased?: number;
+    phone?: string;
+  };
 
 const RECIPIENTS_PREVIEW_PAGE_SIZE = 10;
 
 type FormValues = z.infer<typeof schema>;
-type CreateCampaignValues = z.infer<typeof createCampaignSchema>;
+type CreateCampaignValues = z.infer<typeof CampaignCreateSchema>;
 
 async function resolveCampaignRecipients(strategies: RecipientStrategy[]): Promise<RecipientDTO[]> {
   const { data } = await apiClient.post("/api/crm/campaigns/recipients/resolve", {
@@ -200,6 +202,254 @@ function buildAutomationPrompt(segment: CrmSegment, customers: Array<{ metadata?
   ].join(" ");
 }
 
+function pickFirstString(source: Record<string, unknown>, keys: string[]): string {
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return "";
+}
+
+function pickFirstNumber(source: Record<string, unknown>, keys: string[]): number | undefined {
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+
+    if (typeof value === "string" && value.trim()) {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function buildPreviewContact(recipient: RecipientDTO | null, customer?: CustomerDTO | null): PreviewContact | null {
+  if (!recipient) {
+    return null;
+  }
+
+  const merged = {
+    ...customer,
+    ...recipient,
+  } as Record<string, unknown>;
+
+  return {
+    ...recipient,
+    ...(customer ?? {}),
+    name:
+      pickFirstString(merged, ["name", "firstName", "first_name", "fullName", "nombre"]) ||
+      recipient.name,
+    email: pickFirstString(merged, ["email", "mail"]) || recipient.email,
+    phone: pickFirstString(merged, ["phone", "phone_number", "phoneNumber", "telefono", "celular"]),
+    segment:
+      pickFirstString(merged, ["segment", "segmento", "category_name", "categoryName", "main_category"]) ||
+      recipient.segment,
+    categoryName: pickFirstString(merged, ["category_name", "categoryName", "main_category"]),
+    totalSales: pickFirstNumber(merged, ["totalSales", "total_sales", "totalComprado", "total_purchased", "ltv"]),
+  };
+}
+
+function formatPhone(phone?: string | null): string {
+  if (!phone) return "—";
+  return phone;
+}
+
+function getPreviewVariables(contact: PreviewContact): Record<string, unknown> {
+  return {
+    ...contact,
+    name: contact.name,
+    firstName: contact.firstName ?? contact.name,
+    lastName: contact.lastName ?? "",
+    email: contact.email ?? "",
+    phone: contact.phone ?? "",
+    telefono: contact.phone ?? "",
+    segmento: contact.segment ?? "",
+    segment: contact.segment ?? "",
+    categoria: contact.categoryName ?? contact.category_name ?? "",
+    categoryName: contact.categoryName ?? contact.category_name ?? "",
+    category_name: contact.categoryName ?? contact.category_name ?? "",
+    totalSales: contact.totalSales ?? contact.totalComprado ?? contact.totalPurchased ?? contact.ltv ?? 0,
+    totalComprado: contact.totalSales ?? contact.totalComprado ?? contact.totalPurchased ?? contact.ltv ?? 0,
+    total_purchased: contact.totalSales ?? contact.totalComprado ?? contact.totalPurchased ?? contact.ltv ?? 0,
+    ltv: contact.totalSales ?? contact.totalComprado ?? contact.totalPurchased ?? contact.ltv ?? 0,
+  };
+}
+
+function replacePreviewVars(text: string, contact: PreviewContact | null): string {
+  if (!contact) return text;
+
+  const replacedBracketSyntax = text.replace(/\[(nombre|name|firstname)\]/gi, contact.name);
+
+  return replacedBracketSyntax.replace(/{{\s*([^}]+)\s*}}/g, (_, rawKey: string) => {
+    const key = rawKey.trim();
+    const normalized = key.toLowerCase();
+
+    if (normalized === "name" || normalized === "firstname" || normalized === "nombre") {
+      return contact.name;
+    }
+
+    return `{{${key}}}`;
+  });
+}
+
+function limitSmsText(text: string): string {
+  return text.length > 150 ? text.slice(0, 150) : text;
+}
+
+function PreviewEmptyState({ channel }: { channel: "Email" | "SMS" | "WhatsApp" }) {
+  const icon = channel === "Email" ? Mail : channel === "WhatsApp" ? MessageSquare : Smartphone;
+  const label = channel === "Email" ? "Email" : channel === "WhatsApp" ? "WhatsApp" : "SMS";
+  const Icon = icon;
+
+  return (
+    <div className="flex min-h-[320px] items-center justify-center rounded-3xl border border-dashed bg-muted/30 p-6 text-center">
+      <div className="max-w-sm space-y-3">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <Icon className="h-5 w-5" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold">Vista previa {label}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Previsualiza destinatarios para mostrar aquí un ejemplo real de la audiencia seleccionada.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EmailPreviewMockup({
+  contact,
+  subject,
+  body,
+}: {
+  contact: PreviewContact;
+  subject: string;
+  body: string;
+}) {
+  const processedBody = replacePreviewVars(body, contact);
+
+  return (
+    <div className="overflow-hidden rounded-[1.75rem] border bg-background shadow-sm">
+      <div className="flex items-center gap-3 border-b bg-muted/40 px-4 py-3">
+        <div className="flex items-center gap-2">
+          <span className="h-3 w-3 rounded-full bg-red-400" />
+          <span className="h-3 w-3 rounded-full bg-amber-400" />
+          <span className="h-3 w-3 rounded-full bg-emerald-400" />
+        </div>
+        <div className="ml-2 flex-1 rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">
+          mail.ludoia.com / composer
+        </div>
+        <Badge variant="outline" className="gap-1">
+          <Mail className="h-3 w-3" />
+          Email
+        </Badge>
+      </div>
+
+      <div className="space-y-4 bg-white p-5 text-sm text-foreground">
+        <div className="space-y-1">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Para</p>
+          <p className="font-medium">{contact.email || "—"}</p>
+        </div>
+        <div className="space-y-1">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Asunto</p>
+          <p className="font-medium">{subject || "Sin asunto"}</p>
+        </div>
+        <div className="rounded-2xl border border-border/70 bg-muted/20 p-4 leading-relaxed whitespace-pre-wrap">
+          {processedBody || "Escribe un mensaje para ver la vista previa."}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PhonePreviewMockup({
+  contact,
+  channel,
+  body,
+}: {
+  contact: PreviewContact;
+  channel: "SMS" | "WhatsApp";
+  body: string;
+}) {
+  const processedBody = replacePreviewVars(body, contact);
+  const bubbleClass = channel === "WhatsApp" ? "bg-success/10 text-foreground" : "bg-primary/10 text-foreground";
+  const title = channel === "WhatsApp" ? "WhatsApp" : "Mensajes";
+  const icon = channel === "WhatsApp" ? MessageSquare : Smartphone;
+  const Icon = icon;
+
+  return (
+    <div className="mx-auto max-w-[360px] rounded-[2rem] border-[3px] border-foreground/10 bg-background p-3 shadow-lg">
+      <div className="mx-auto mb-3 h-5 w-28 rounded-full bg-foreground/80" />
+      <div className="rounded-[1.5rem] border bg-muted/20 p-4">
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <Icon className="h-4 w-4 text-primary" />
+              {title}
+            </div>
+            <p className="text-xs text-muted-foreground">{formatPhone(contact.phone)}</p>
+          </div>
+          <Badge variant="secondary" className="gap-1">
+            {channel}
+          </Badge>
+        </div>
+
+        <div className={`rounded-[1.25rem] rounded-bl-sm px-4 py-3 text-sm leading-relaxed shadow-sm ${bubbleClass}`}>
+          {processedBody || "Escribe un mensaje para ver la vista previa."}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CampaignPreviewPanel({
+  channel,
+  contact,
+  subject,
+  body,
+}: {
+  channel: "Email" | "SMS" | "WhatsApp";
+  contact: PreviewContact | null;
+  subject: string;
+  body: string;
+}) {
+  return (
+    <div className="space-y-3 rounded-2xl border bg-muted/20 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold">Vista Previa en Tiempo Real</p>
+          <p className="text-xs text-muted-foreground">
+            Se renderiza con el primer destinatario real de la audiencia previsualizada.
+          </p>
+        </div>
+        <Badge variant="outline" className="gap-1">
+          {channel === "Email" ? <Mail className="h-3 w-3" /> : channel === "WhatsApp" ? <MessageSquare className="h-3 w-3" /> : <Smartphone className="h-3 w-3" />}
+          {channel}
+        </Badge>
+      </div>
+
+      {contact ? (
+        channel === "Email" ? (
+          <EmailPreviewMockup contact={contact} subject={subject} body={body} />
+        ) : (
+          <PhonePreviewMockup contact={contact} channel={channel} body={body} />
+        )
+      ) : (
+        <PreviewEmptyState channel={channel} />
+      )}
+    </div>
+  );
+}
+
 export default function AiCampaignGenerator() {
   const queryClient = useQueryClient();
   const [autoCampaignSegment, setAutoCampaignSegment] = useState<CrmSegment | "">("");
@@ -229,6 +479,19 @@ export default function AiCampaignGenerator() {
     queryFn: () => listCategories({ limit: 100, offset: 0 }),
   });
 
+  const getCategoryIdFromSegment = (segment: CrmSegment): string | null => {
+    const categories = categoriesQuery.data ?? [];
+    const normalizedSegment = segment.trim().toLowerCase();
+
+    const exact = categories.find((category) => category.name?.trim().toLowerCase() === normalizedSegment);
+    if (exact?.id) {
+      return exact.id;
+    }
+
+    const partial = categories.find((category) => category.name?.trim().toLowerCase().includes(normalizedSegment));
+    return partial?.id ?? null;
+  };
+
   const templatesQuery = useQuery({
     queryKey: ["crm", "campaign-templates"],
     queryFn: getCampaignTemplates,
@@ -246,6 +509,13 @@ export default function AiCampaignGenerator() {
     enabled: testSendOpen,
   });
 
+    const previewDirectoryQuery = useQuery({
+      queryKey: ["crm", "customers", "campaign-preview-directory", resolvedRecipients.length],
+      queryFn: () => getCustomers(),
+      enabled: resolvedRecipients.length > 0,
+      staleTime: 5 * 60 * 1000,
+    });
+
   const saveTemplateForm = useForm<z.infer<typeof saveTemplateSchema>>({
     resolver: zodResolver(saveTemplateSchema),
     defaultValues: {
@@ -254,14 +524,14 @@ export default function AiCampaignGenerator() {
   });
 
   const createCampaignForm = useForm<CreateCampaignValues>({
-    resolver: zodResolver(createCampaignSchema),
+    resolver: zodResolver(CampaignCreateSchema),
     defaultValues: {
       name: "",
       subject: "",
       body: "",
       segment: "",
       channel: "Email",
-      scheduled_at: "",
+      scheduledAt: "",
     },
   });
 
@@ -303,8 +573,11 @@ export default function AiCampaignGenerator() {
       return text;
     },
     onSuccess: (generatedText, values) => {
-      setGeneratedText(generatedText);
-      createCampaignForm.setValue("body", generatedText, { shouldDirty: true, shouldValidate: true });
+      const currentChannel = createCampaignForm.getValues("channel");
+      const finalGeneratedText = currentChannel === "SMS" ? limitSmsText(generatedText) : generatedText;
+
+      setGeneratedText(finalGeneratedText);
+      createCampaignForm.setValue("body", finalGeneratedText, { shouldDirty: true, shouldValidate: true });
       const currentSubject = form.getValues("subject");
       if (!currentSubject || currentSubject.trim().length === 0) {
         const suggestedSubject = suggestSubjectFromGeneratedText(generatedText, values.prompt);
@@ -356,9 +629,22 @@ export default function AiCampaignGenerator() {
       createCampaignForm.setValue("segment", segment, { shouldDirty: true, shouldValidate: true });
       createCampaignForm.setValue("subject", subject, { shouldDirty: true, shouldValidate: true });
       createCampaignForm.setValue("body", body, { shouldDirty: true, shouldValidate: true });
+
+      const categoryId = getCategoryIdFromSegment(segment);
+      if (categoryId) {
+        setSelectedCategoryId(categoryId);
+        previewRecipientsMutation.mutate([{ type: "category", category_id: categoryId }]);
+      } else {
+        toast({
+          title: "Campaña automática lista",
+          description: `Se generó el borrador para ${segment}, pero no se encontró una categoría destino equivalente para previsualizar destinatarios automáticamente.`,
+        });
+        return;
+      }
+
       toast({
         title: "Campaña automática lista",
-        description: `Se generó un borrador para ${segment}.`,
+        description: `Se generó un borrador para ${segment} y se previsualizaron sus destinatarios automáticamente.`,
       });
     },
     onError: (error) => {
@@ -413,26 +699,27 @@ export default function AiCampaignGenerator() {
 
   const createCampaignMutation = useMutation<unknown, Error, CreateCampaignValues>({
     mutationFn: async (values) => {
-      const scheduledAtIso = new Date(values.scheduled_at).toISOString();
       const currentStrategies = buildRecipientStrategies();
       const currentStrategiesJson = JSON.stringify(currentStrategies);
       const lastPreviewStrategiesJson = JSON.stringify(lastPreviewStrategies);
+      const bodyToSend = values.channel === "SMS" ? limitSmsText(values.body) : values.body;
 
       if (currentStrategiesJson !== lastPreviewStrategiesJson) {
         throw new Error("Debes previsualizar nuevamente los destinatarios antes de enviar.");
       }
 
-      const { data } = await apiClient.post("/api/crm/campaigns", {
+      const scheduledAtIso = values.scheduledAt
+        ? new Date(`${values.scheduledAt}:00-05:00`).toISOString()
+        : undefined;
+
+      return createCampaign({
         name: values.name,
         subject: values.subject,
-        body: values.body,
+        body: bodyToSend,
         segment: values.segment,
         channel: values.channel,
-        scheduled_at: scheduledAtIso,
-        recipient_strategies: currentStrategies,
-        recipient_count: resolvedRecipients.length,
+        scheduledAt: scheduledAtIso,
       });
-      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["crm", "campaigns"] });
@@ -442,7 +729,7 @@ export default function AiCampaignGenerator() {
         body: "",
         segment: "",
         channel: "Email",
-        scheduled_at: "",
+        scheduledAt: "",
       });
       setSelectedCategoryId("");
       setResolvedRecipients([]);
@@ -503,6 +790,10 @@ export default function AiCampaignGenerator() {
   const campaignSubject = form.watch("subject");
   const canSendCampaign = Boolean(generatedText && campaignSubject?.trim());
   const canSaveTemplate = Boolean(generatedText && campaignSubject?.trim());
+  const previewChannel = createCampaignForm.watch("channel");
+  const previewSubject = createCampaignForm.watch("subject");
+  const previewBody = createCampaignForm.watch("body");
+  const isSmsOverLimit = previewChannel === "SMS" && (previewBody?.length ?? 0) > 150;
   const selectedCategory = (categoriesQuery.data ?? []).find((c) => c.id === selectedAudience);
   const selectedSegmentLabel = selectedAudience === "all"
     ? "Todos los clientes"
@@ -512,6 +803,19 @@ export default function AiCampaignGenerator() {
     .filter((line) => line.trim().length > 0)
     .slice(0, 3)
     .join("\n");
+
+  const previewContact = useMemo(() => {
+    const firstRecipient = resolvedRecipients[0];
+    if (!firstRecipient) {
+      return null;
+    }
+
+    const matchingCustomer = previewDirectoryQuery.data?.find(
+      (customer) => customer.id === firstRecipient.customer_id,
+    );
+
+    return buildPreviewContact(firstRecipient, matchingCustomer ?? null);
+  }, [previewDirectoryQuery.data, resolvedRecipients]);
 
   const handleSendCampaign = () => {
     if (!generatedText || !campaignSubject?.trim()) return;
@@ -1078,103 +1382,122 @@ export default function AiCampaignGenerator() {
                   className="space-y-4"
                 >
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <FormField
-                  control={createCampaignForm.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nombre</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Ej: Promo Bienestar Marzo" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                    <FormField
+                      control={createCampaignForm.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Nombre</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Ej: Promo Bienestar Marzo" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                <FormField
-                  control={createCampaignForm.control}
-                  name="subject"
-                  render={({ field }) => (
-                    <FormItem className="md:col-span-2">
-                      <FormLabel>Asunto</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Asunto del mensaje" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                    <FormField
+                      control={createCampaignForm.control}
+                      name="subject"
+                      render={({ field }) => (
+                        <FormItem className="md:col-span-2">
+                          <FormLabel>Asunto</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Asunto del mensaje" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                <FormField
-                  control={createCampaignForm.control}
-                  name="body"
-                  render={({ field }) => (
-                    <FormItem className="md:col-span-2">
-                      <FormLabel>Contenido</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Contenido de la campaña"
-                          className="min-h-[140px]"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                    <FormField
+                      control={createCampaignForm.control}
+                      name="body"
+                      render={({ field }) => (
+                        <FormItem className="md:col-span-2">
+                          <FormLabel>Contenido</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder="Contenido de la campaña"
+                              className="min-h-[140px]"
+                              value={field.value}
+                              onChange={(event) => {
+                                field.onChange(event.target.value);
+                              }}
+                            />
+                          </FormControl>
+                          {previewChannel === "SMS" && (
+                            <div className={`mt-1 flex items-center gap-1 text-xs ${isSmsOverLimit ? "text-destructive" : "text-muted-foreground"}`}>
+                              {isSmsOverLimit ? <AlertTriangle className="h-3.5 w-3.5" /> : null}
+                              <span>
+                                {previewBody?.length ?? 0}/150 caracteres para SMS
+                                {isSmsOverLimit ? " - excede el límite permitido." : ""}
+                              </span>
+                            </div>
+                          )}
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                <FormField
-                  control={createCampaignForm.control}
-                  name="segment"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Segmento</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Ej: Clientes recurrentes" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                    <FormField
+                      control={createCampaignForm.control}
+                      name="segment"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Segmento</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Ej: Clientes recurrentes" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                <FormField
-                  control={createCampaignForm.control}
-                  name="channel"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Canal</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecciona canal" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="Email">Email</SelectItem>
-                          <SelectItem value="SMS">SMS</SelectItem>
-                          <SelectItem value="WhatsApp">WhatsApp</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                    <FormField
+                      control={createCampaignForm.control}
+                      name="channel"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Canal</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecciona canal" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="Email">Email</SelectItem>
+                              <SelectItem value="SMS">SMS</SelectItem>
+                              <SelectItem value="WhatsApp">WhatsApp</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                <FormField
-                  control={createCampaignForm.control}
-                  name="scheduled_at"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Fecha programada</FormLabel>
-                      <FormControl>
-                        <Input type="datetime-local" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+                    <FormField
+                      control={createCampaignForm.control}
+                      name="scheduledAt"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Fecha programada</FormLabel>
+                          <FormControl>
+                            <Input type="datetime-local" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                      <CampaignPreviewPanel
+                        channel={previewChannel}
+                        contact={previewContact}
+                        subject={previewSubject}
+                        body={previewBody || generatedText}
+                      />
 
               <Button
                 type="submit"

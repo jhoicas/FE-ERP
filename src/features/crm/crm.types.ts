@@ -90,6 +90,17 @@ export interface SummarizeTimelineRequest {
   customer_id: string;
 }
 
+export type CampaignChannel = "Email" | "SMS" | "WhatsApp";
+
+export interface CreateCampaignRequest {
+  name: string;
+  subject: string;
+  body: string;
+  segment: string;
+  channel: CampaignChannel;
+  scheduledAt?: string;
+}
+
 // -----------------------------
 // DTOs de responses
 // -----------------------------

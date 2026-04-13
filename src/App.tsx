@@ -10,6 +10,7 @@ import BillingPage from "@/pages/BillingPage";
 import CRMPage from "./pages/CRMPage";
 import CRMAnalyticsPage from "@/pages/CRMAnalyticsPage";
 import CRMRemarketingPage from "@/pages/CRMRemarketingPage";
+import CRMOmnichannelTab from "@/features/crm/components/CRMOmnichannelTab";
 import ClientDetailPage from "@/pages/ClientDetailPage";
 import CustomerProfile360Page from "@/pages/CustomerProfile360Page";
 import TicketsPage from "@/pages/TicketsPage";
@@ -174,6 +175,14 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={["crm", "sales", "support", "marketing", "admin"]}>
                   <CRMRemarketingPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/crm/omnichannel"
+              element={
+                <ProtectedRoute allowedRoles={["crm", "sales", "support", "marketing", "admin"]}>
+                  <CRMOmnichannelTab />
                 </ProtectedRoute>
               }
             />
