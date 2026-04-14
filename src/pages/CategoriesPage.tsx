@@ -1,18 +1,18 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { Gift, ChevronRight, Trash2, Plus, Pencil } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
-import { listBenefitsByCategory, listCategories, deactivateCrmCategory, createCategory, updateCategory } from "@/features/crm/services";
+import { listBenefitsByCategory, listCategories, deactivateCrmCategory, createCategory, updateCategory, createBenefit, updateBenefit, deleteBenefit } from "@/features/crm/services";
 import { getApiErrorMessage } from "@/lib/api/errors";
 import type { BenefitResponse, CategoryResponse } from "@/types/crm";
 import { useAuthUser } from "@/features/auth/useAuthUser";
 import { useToast } from "@/hooks/use-toast";
 import ExplainableAcronym from "@/components/shared/ExplainableAcronym";
 import { isAdmin as isAdminUser } from "@/features/auth/permissions";
-import { createCategorySchema, type CreateCategoryRequest } from "@/lib/validations/crm";
+import { createCategorySchema, createBenefitSchema, updateBenefitSchema, type CreateCategoryRequest, type CreateBenefitRequest, type UpdateBenefitRequest } from "@/lib/validations/crm";
 import {
   Table,
   TableBody,
@@ -101,6 +101,10 @@ export default function CategoriesPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<CategoryResponse | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<CategoryResponse | null>(null);
+  const [createBenefitOpen, setCreateBenefitOpen] = useState(false);
+  const [editingBenefit, setEditingBenefit] = useState<BenefitResponse | null>(null);
+  const [benefitToDelete, setBenefitToDelete] = useState<BenefitResponse | null>(null);
+  const benefitsSectionRef = useRef<HTMLDivElement | null>(null);
 
   const isAdmin = isAdminUser(user);
 
@@ -112,6 +116,16 @@ export default function CategoriesPage() {
   const editCategoryForm = useForm<CreateCategoryRequest>({
     resolver: zodResolver(createCategorySchema),
     defaultValues: { name: "", min_ltv: 0 },
+  });
+
+  const createBenefitForm = useForm<CreateBenefitRequest>({
+    resolver: zodResolver(createBenefitSchema),
+    defaultValues: { name: "", description: "" },
+  });
+
+  const editBenefitForm = useForm<UpdateBenefitRequest>({
+    resolver: zodResolver(updateBenefitSchema),
+    defaultValues: { name: "", description: "" },
   });
 
   const categoriesQuery = useQuery({
@@ -134,6 +148,55 @@ export default function CategoriesPage() {
     queryKey: ["crm-category-benefits", selectedCategory?.id, 100, 0],
     queryFn: () => listBenefitsByCategory(selectedCategory!.id, { limit: 100, offset: 0 }),
     enabled: selectedCategory?.id != null,
+  });
+
+  const createBenefitMutation = useMutation({
+    mutationFn: (body: CreateBenefitRequest) => createBenefit(selectedCategory!.id, body),
+    onSuccess: () => {
+      toast({ title: "Beneficio creado" });
+      queryClient.invalidateQueries({ queryKey: ["crm-category-benefits", selectedCategory?.id, 100, 0] });
+      setCreateBenefitOpen(false);
+      createBenefitForm.reset({ name: "", description: "" });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error al crear beneficio",
+        description: getApiErrorMessage(error, "Beneficios"),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateBenefitMutation = useMutation({
+    mutationFn: (body: UpdateBenefitRequest) => updateBenefit(editingBenefit!.id, body),
+    onSuccess: () => {
+      toast({ title: "Beneficio actualizado" });
+      queryClient.invalidateQueries({ queryKey: ["crm-category-benefits", selectedCategory?.id, 100, 0] });
+      setEditingBenefit(null);
+    },
+    onError: (error) => {
+      toast({
+        title: "Error al actualizar beneficio",
+        description: getApiErrorMessage(error, "Beneficios"),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteBenefitMutation = useMutation({
+    mutationFn: (benefitId: string) => deleteBenefit(benefitId),
+    onSuccess: () => {
+      toast({ title: "Beneficio eliminado" });
+      queryClient.invalidateQueries({ queryKey: ["crm-category-benefits", selectedCategory?.id, 100, 0] });
+      setBenefitToDelete(null);
+    },
+    onError: (error) => {
+      toast({
+        title: "Error al eliminar beneficio",
+        description: getApiErrorMessage(error, "Beneficios"),
+        variant: "destructive",
+      });
+    },
   });
 
   const createCategoryMutation = useMutation({
@@ -223,6 +286,27 @@ export default function CategoriesPage() {
     const wantActive = statusFilter === "active";
     return items.filter((c) => (c.is_active ?? true) === wantActive);
   }, [items, statusFilter]);
+
+  useEffect(() => {
+    if (selectedCategory && benefitsSectionRef.current) {
+      benefitsSectionRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [selectedCategory]);
+
+  useEffect(() => {
+    if (editingBenefit) {
+      editBenefitForm.reset({
+        name: editingBenefit.name,
+        description: editingBenefit.description,
+      });
+    }
+  }, [editingBenefit, editBenefitForm]);
+
+  useEffect(() => {
+    if (createBenefitOpen) {
+      createBenefitForm.reset({ name: "", description: "" });
+    }
+  }, [createBenefitOpen, createBenefitForm]);
 
   return (
     <div className="animate-fade-in space-y-4">
@@ -453,23 +537,35 @@ export default function CategoriesPage() {
       )}
 
       {selectedCategory && (
-        <div className="erp-card p-4">
+        <div ref={benefitsSectionRef} className="erp-card p-4 border border-primary/20 bg-primary/5">
           <div className="flex items-center justify-between gap-2 mb-3">
             <div>
               <p className="text-sm font-semibold">
                 Beneficios · {selectedCategory.name}
               </p>
               <p className="text-xs text-muted-foreground">
-                Mostrando beneficios para esta categoría (limit 100).
+                Mostrando beneficios para esta categoría (limit 100). Total: {(benefitsQuery.data ?? []).length}
               </p>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSelectedCategory(null)}
-            >
-              Cerrar
-            </Button>
+            <div className="flex items-center gap-2">
+              {isAdmin && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCreateBenefitOpen(true)}
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Agregar beneficio
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedCategory(null)}
+              >
+                Cerrar
+              </Button>
+            </div>
           </div>
 
           {benefitsQuery.isLoading && (
@@ -502,6 +598,11 @@ export default function CategoriesPage() {
                       <TableHead className="text-xs text-muted-foreground">
                         Descripción
                       </TableHead>
+                      {isAdmin && (
+                        <TableHead className="text-xs text-muted-foreground text-right">
+                          Acciones
+                        </TableHead>
+                      )}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -511,6 +612,29 @@ export default function CategoriesPage() {
                         <TableCell className="text-sm text-muted-foreground">
                           {b.description || "—"}
                         </TableCell>
+                        {isAdmin && (
+                          <TableCell className="text-right space-x-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-xs"
+                              onClick={() => setEditingBenefit(b)}
+                            >
+                              <Pencil className="h-3.5 w-3.5 mr-1" />
+                              Editar
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-xs text-destructive hover:text-destructive"
+                              onClick={() => setBenefitToDelete(b)}
+                              disabled={deleteBenefitMutation.isPending}
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-1" />
+                              Eliminar
+                            </Button>
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))}
                   </TableBody>
@@ -537,6 +661,125 @@ export default function CategoriesPage() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deactivateMutation.isPending ? "Desactivando..." : "Desactivar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog open={createBenefitOpen} onOpenChange={setCreateBenefitOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Agregar beneficio</DialogTitle>
+          </DialogHeader>
+          <Form {...createBenefitForm}>
+            <form
+              onSubmit={createBenefitForm.handleSubmit((values) => createBenefitMutation.mutate(values))}
+              className="space-y-4"
+            >
+              <FormField
+                control={createBenefitForm.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nombre</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Nombre del beneficio" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={createBenefitForm.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Descripción</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Describe el beneficio" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button type="submit" disabled={createBenefitMutation.isPending}>
+                  {createBenefitMutation.isPending ? "Guardando…" : "Guardar"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editingBenefit != null} onOpenChange={(open) => !open && setEditingBenefit(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar beneficio</DialogTitle>
+          </DialogHeader>
+          {editingBenefit && (
+            <Form {...editBenefitForm}>
+              <form
+                onSubmit={editBenefitForm.handleSubmit((values) => updateBenefitMutation.mutate(values))}
+                className="space-y-4"
+              >
+                <FormField
+                  control={editBenefitForm.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Nombre</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Nombre del beneficio" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editBenefitForm.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Descripción</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Describe el beneficio" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <DialogFooter>
+                  <Button type="submit" disabled={updateBenefitMutation.isPending}>
+                    {updateBenefitMutation.isPending ? "Guardando…" : "Guardar cambios"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </Form>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={benefitToDelete != null} onOpenChange={(open) => !open && setBenefitToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar beneficio</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Seguro que deseas eliminar este beneficio? Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (benefitToDelete) {
+                  deleteBenefitMutation.mutate(benefitToDelete.id);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteBenefitMutation.isPending}
+            >
+              {deleteBenefitMutation.isPending ? "Eliminando…" : "Eliminar"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

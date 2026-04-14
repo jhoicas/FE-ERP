@@ -612,11 +612,23 @@ export async function listBenefitsByCategory(
   params?: { limit?: number; offset?: number }
 ): Promise<BenefitResponse[]> {
   try {
-    const { data } = await apiClient.get<BenefitResponse[]>(
+    const { data } = await apiClient.get<BenefitResponse[] | { items?: unknown; data?: unknown; rows?: unknown }>(
       `${CRM_BASE}/categories/${categoryId}/benefits`,
       { params: { limit: params?.limit, offset: params?.offset } }
     );
-    return Array.isArray(data) ? data : [];
+
+    if (Array.isArray(data)) {
+      return data;
+    }
+
+    const payload = data as {
+      items?: unknown;
+      data?: unknown;
+      rows?: unknown;
+    };
+
+    const candidates = payload?.items ?? payload?.data ?? payload?.rows ?? [];
+    return Array.isArray(candidates) ? (candidates as BenefitResponse[]) : [];
   } catch (error) {
     return throwOnApiError(error);
   }
