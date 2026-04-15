@@ -50,6 +50,7 @@ const APP_MENU_CONFIG = [
       { id: "crm-analytics", label: "Analítica", frontend_route: "/crm/analytics" },
       { id: "crm-remarketing", label: "Remarketing", frontend_route: "/crm/remarketing" },
       { id: "crm-omnichannel", label: "Omnichannel", frontend_route: "/crm/omnichannel" },
+      { id: "crm-automations", label: "Automatizaciones", frontend_route: "/crm/automations" },
       { id: "crm-categorias", label: "Categorías", frontend_route: "/crm/categories" },
       { id: "crm-campanas", label: "Campañas", frontend_route: "/crm/campaigns" },
       { id: "crm-tareas", label: "Tareas", frontend_route: "/crm/tasks" },

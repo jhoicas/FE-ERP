@@ -101,6 +101,38 @@ export interface CreateCampaignRequest {
   scheduledAt?: string;
 }
 
+export type CrmAutomationType = "BIRTHDAY" | "REPURCHASE";
+
+export interface CrmAutomationConfig {
+  productId?: string;
+  daysSincePurchase?: number;
+}
+
+export interface CrmAutomation {
+  id: string;
+  name: string;
+  type: CrmAutomationType;
+  template_id: string;
+  config: CrmAutomationConfig;
+  is_active: boolean;
+}
+
+export interface CreateCrmAutomationRequest {
+  name: string;
+  type: CrmAutomationType;
+  template_id: string;
+  config: CrmAutomationConfig;
+  is_active?: boolean;
+}
+
+export interface UpdateCrmAutomationRequest {
+  name?: string;
+  type?: CrmAutomationType;
+  template_id?: string;
+  config?: CrmAutomationConfig;
+  is_active?: boolean;
+}
+
 // -----------------------------
 // DTOs de responses
 // -----------------------------

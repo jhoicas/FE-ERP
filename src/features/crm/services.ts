@@ -52,6 +52,11 @@ import {
   type RemarketingProspectDTO,
   type CreateCampaignDTO,
 } from "./schemas";
+import type {
+  CrmAutomation,
+  CreateCrmAutomationRequest,
+  UpdateCrmAutomationRequest,
+} from "./crm.types";
 
 const CampaignTemplateSchema = z.object({
   id: z.string(),
@@ -59,6 +64,21 @@ const CampaignTemplateSchema = z.object({
   subject: z.string(),
   body: z.string(),
   created_at: z.string(),
+}).passthrough();
+
+const CrmAutomationSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  type: z.enum(["BIRTHDAY", "REPURCHASE"]),
+  template_id: z.string(),
+  config: z
+    .object({
+      productId: z.string().optional(),
+      daysSincePurchase: z.coerce.number().optional(),
+    })
+    .passthrough()
+    .default({}),
+  is_active: z.coerce.boolean(),
 }).passthrough();
 
 const CRM_BASE = "/api/crm";
@@ -990,6 +1010,91 @@ export async function createCampaign(body: CreateCampaignDTO): Promise<unknown> 
     });
 
     return data;
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}
+
+export async function listCrmAutomations(): Promise<CrmAutomation[]> {
+  try {
+    const { data } = await apiClient.get(`${CRM_BASE}/automations`, {
+      params: { limit: 200, offset: 0 },
+    });
+
+    if (Array.isArray(data)) {
+      return z.array(CrmAutomationSchema).parse(data) as CrmAutomation[];
+    }
+
+    if (data && Array.isArray((data as { items?: unknown[] }).items)) {
+      return z.array(CrmAutomationSchema).parse((data as { items: unknown[] }).items) as CrmAutomation[];
+    }
+
+    if (data && Array.isArray((data as { rows?: unknown[] }).rows)) {
+      return z.array(CrmAutomationSchema).parse((data as { rows: unknown[] }).rows) as CrmAutomation[];
+    }
+
+    return [];
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}
+
+export async function createCrmAutomation(body: CreateCrmAutomationRequest): Promise<CrmAutomation> {
+  const payload = z
+    .object({
+      name: z.string().min(1),
+      type: z.enum(["BIRTHDAY", "REPURCHASE"]),
+      template_id: z.string().min(1),
+      config: z
+        .object({
+          productId: z.string().optional(),
+          daysSincePurchase: z.coerce.number().optional(),
+        })
+        .passthrough()
+        .default({}),
+      is_active: z.boolean().optional(),
+    })
+    .parse(body);
+
+  try {
+    const { data } = await apiClient.post(`${CRM_BASE}/automations`, payload);
+    return CrmAutomationSchema.parse(data) as CrmAutomation;
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}
+
+export async function updateCrmAutomation(
+  automationId: string,
+  body: UpdateCrmAutomationRequest,
+): Promise<CrmAutomation> {
+  const payload = z
+    .object({
+      name: z.string().min(1).optional(),
+      type: z.enum(["BIRTHDAY", "REPURCHASE"]).optional(),
+      template_id: z.string().min(1).optional(),
+      config: z
+        .object({
+          productId: z.string().optional(),
+          daysSincePurchase: z.coerce.number().optional(),
+        })
+        .passthrough()
+        .optional(),
+      is_active: z.boolean().optional(),
+    })
+    .parse(body);
+
+  try {
+    const { data } = await apiClient.put(`${CRM_BASE}/automations/${automationId}`, payload);
+    return CrmAutomationSchema.parse(data) as CrmAutomation;
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}
+
+export async function deleteCrmAutomation(automationId: string): Promise<void> {
+  try {
+    await apiClient.delete(`${CRM_BASE}/automations/${automationId}`);
   } catch (error) {
     return throwOnApiError(error);
   }

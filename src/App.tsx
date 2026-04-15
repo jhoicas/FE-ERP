@@ -10,6 +10,7 @@ import BillingPage from "@/pages/BillingPage";
 import CRMPage from "./pages/CRMPage";
 import CRMAnalyticsPage from "@/pages/CRMAnalyticsPage";
 import CRMRemarketingPage from "@/pages/CRMRemarketingPage";
+import CRMAutomationsPage from "@/pages/CRMAutomationsPage";
 import CRMOmnichannelTab from "@/features/crm/components/CRMOmnichannelTab";
 import ClientDetailPage from "@/pages/ClientDetailPage";
 import CustomerProfile360Page from "@/pages/CustomerProfile360Page";
@@ -183,6 +184,14 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={["crm", "sales", "support", "marketing", "admin"]}>
                   <CRMOmnichannelTab />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/crm/automations"
+              element={
+                <ProtectedRoute allowedRoles={["crm", "sales", "support", "marketing", "admin"]}>
+                  <CRMAutomationsPage />
                 </ProtectedRoute>
               }
             />
