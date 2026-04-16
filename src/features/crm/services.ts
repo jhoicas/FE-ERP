@@ -1139,3 +1139,90 @@ export async function deactivateSupplier(supplierId: string): Promise<void> {
     return throwOnApiError(error);
   }
 }
+
+// ========================================================================
+// AI ANALYTICS - Chat & Data Import
+// ========================================================================
+
+/**
+ * POST /api/crm/ai/ask - Envía una pregunta al asistente de IA para análisis
+ * Retorna texto de análisis + opcionalmente datos tabulares y configuración de gráfico
+ */
+export async function askAiAnalyst(question: string): Promise<{
+  text: string;
+  data?: Record<string, any>[];
+  chartType?: "bar" | "line" | "pie" | "area";
+  chartConfig?: {
+    xAxis: string;
+    yAxis: string;
+  };
+}> {
+  try {
+    const { data } = await apiClient.post(`${CRM_BASE}/ai/ask`, { question });
+    return data;
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}
+
+/**
+ * POST /api/crm/sales/import - Importa un archivo CSV/Excel con mapeo de columnas
+ * Retorna resultado del procesamiento: rows procesadas, exitosas, fallidas + errores
+ */
+export async function uploadSalesFile(
+  file: File,
+  columnMappings: Array<{
+    sourceIndex: number;
+    sourceHeader: string;
+    targetField: string;
+  }>
+): Promise<{
+  status: "success" | "partial" | "error";
+  rowsProcessed: number;
+  rowsSuccess: number;
+  rowsFailed: number;
+  errors?: Array<{ row: number; error: string }>;
+  message: string;
+}> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("columnMappings", JSON.stringify(columnMappings));
+
+  try {
+    const { data } = await apiClient.post(`${CRM_BASE}/sales/import`, formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+    return data;
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}
+
+/**
+ * POST /api/crm/sales/detect-columns - Detecta columnas en archivo CSV/Excel
+ * Retorna sugerencias de mapeo automático basadas en similitud de encabezados
+ */
+export async function detectColumnsInFile(file: File): Promise<
+  Array<{
+    index: number;
+    header: string;
+    suggestedField?: string;
+    confidence?: number;
+  }>
+> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  try {
+    const { data } = await apiClient.post(`${CRM_BASE}/sales/detect-columns`, formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+    return data;
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}

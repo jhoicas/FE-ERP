@@ -65,10 +65,10 @@ export function getDefaultRouteForRoles(userRoles: string[] | undefined): string
   }
 
   if (hasAccess(roles, ["crm", "sales", "support", "marketing"])) {
-    return "/crm";
+    return "/crm/analytics";
   }
 
-  return "/dashboard";
+  return "/crm/analytics";
 }
 
 function normalizeRoute(route: string): string {
@@ -208,11 +208,15 @@ export function canAccessFrontendRoute(menu: RbacMenuDTO | null | undefined, pat
 export function getDefaultRouteFromMenu(menu: RbacMenuDTO | null | undefined): string {
   const routes = getFlattenedRbacRoutes(menu);
 
+  if (routes.includes("/crm/analytics")) {
+    return "/crm/analytics";
+  }
+
   if (routes.includes("/dashboard")) {
     return "/dashboard";
   }
 
-  return routes[0] ?? "/dashboard";
+  return routes[0] ?? "/crm/analytics";
 }
 
 export function getMenuTitleForPath(menu: RbacMenuDTO | null | undefined, pathname: string): string | null {

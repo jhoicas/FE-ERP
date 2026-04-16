@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button";
 import { AUTH_TOKEN_COOKIE_KEY } from "@/config/auth";
 import {
   canAccessFrontendRoute,
+  getDefaultRouteForRoles,
   getDefaultRouteFromMenu,
+  isAdmin,
   getUserRoles,
   hasAccess,
   isSuperAdmin,
@@ -51,6 +53,11 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
 
   if (!token) {
     return <Navigate to="/login" replace />;
+  }
+
+  if ((location.pathname === "/dashboard" || location.pathname.startsWith("/dashboard/")) && !isAdmin(user)) {
+    const fallbackRoute = menu ? getDefaultRouteFromMenu(menu) : getDefaultRouteForRoles(userRoles);
+    return <Navigate to={fallbackRoute} replace />;
   }
 
   if (superAdmin && !location.pathname.startsWith("/admin")) {

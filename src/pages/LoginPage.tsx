@@ -87,12 +87,15 @@ export default function LoginPage() {
         }
 
         const cachedMenu = queryClient.getQueryData<RbacMenuDTO>(RBAC_MENU_QUERY_KEY);
-        void cachedMenu;
-        navigate("/dashboard", { replace: true });
+        const defaultRoute = cachedMenu
+          ? getDefaultRouteFromMenu(cachedMenu)
+          : getDefaultRouteForRoles(getUserRoles(sessionUser));
+
+        navigate(defaultRoute, { replace: true });
         return;
       }
 
-      navigate("/dashboard", { replace: true });
+      navigate(getDefaultRouteForRoles(getUserRoles(null)), { replace: true });
     } catch (error) {
       console.error(error);
       setServerError("No se pudo iniciar sesión. Verifica tus credenciales e inténtalo nuevamente.");

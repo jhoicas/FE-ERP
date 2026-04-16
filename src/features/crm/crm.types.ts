@@ -397,3 +397,128 @@ export function formatCurrencyFromDecimalString(
   }).format(n);
 }
 
+// ========================================================================
+// AI ANALYTICS - Chat & Data Import
+// ========================================================================
+
+/**
+ * Mensaje individual en el historial del AI Chat
+ */
+export interface AiChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
+  data?: Record<string, any>[]; // Para respuestas con datos tabulares
+}
+
+/**
+ * Request al endpoint POST /api/crm/ai/ask
+ * Contiene la pregunta del usuario para análisis de datos
+ */
+export interface AiAnalystRequest {
+  question: string;
+  limitDays?: number; // opcional, filtro de fecha
+  segment?: string; // opcional, filtro por segmento
+}
+
+/**
+ * Response del endpoint POST /api/crm/ai/ask
+ * Contiene texto y opcionalmente datos para renderizar en tabla/gráfico
+ */
+export interface AiAnalystResponse {
+  text: string;
+  data?: Record<string, any>[]; // Array de objetos para tabla o gráfico
+  chartType?: "bar" | "line" | "pie" | "area"; // Sugerencia de tipo de gráfico
+  chartConfig?: {
+    xAxis: string; // Nombre del campo para eje X
+    yAxis: string; // Nombre del campo para eje Y
+  };
+}
+
+/**
+ * Columna mapeada en el importador de ventas
+ */
+export interface ColumnMapping {
+  sourceIndex: number;
+  sourceHeader: string;
+  targetField: string; // "nombre", "precio", "producto", etc.
+}
+
+/**
+ * Request para importar archivo de ventas
+ * Multipart: file + columnMappings JSON
+ */
+export interface SalesImportRequest {
+  file: File;
+  columnMappings: ColumnMapping[];
+}
+
+/**
+ * Response después de importar archivo
+ */
+export interface SalesImportResponse {
+  status: "success" | "partial" | "error";
+  rowsProcessed: number;
+  rowsSuccess: number;
+  rowsFailed: number;
+  errors?: Array<{
+    row: number;
+    error: string;
+  }>;
+  message: string;
+}
+
+/**
+ * Detección automática de columnas en CSV/Excel
+ */
+export interface DetectedColumn {
+  index: number;
+  header: string;
+  suggestedField?: string; // "nombre", "precio", etc. basado en similitud
+  confidence?: number; // 0-1, qué tan seguro es el mapeo sugerido
+}
+
+/**
+ * Zod schemas para AI Analytics
+ */
+export const aiAnalystRequestSchema = z.object({
+  question: z.string().min(1, "La pregunta es obligatoria"),
+  limitDays: z.number().optional(),
+  segment: z.string().optional(),
+});
+
+export const aiAnalystResponseSchema = z.object({
+  text: z.string(),
+  data: z.array(z.record(z.any())).optional(),
+  chartType: z.enum(["bar", "line", "pie", "area"]).optional(),
+  chartConfig: z
+    .object({
+      xAxis: z.string(),
+      yAxis: z.string(),
+    })
+    .optional(),
+});
+
+export const columnMappingSchema = z.object({
+  sourceIndex: z.number(),
+  sourceHeader: z.string(),
+  targetField: z.string(),
+});
+
+export const salesImportResponseSchema = z.object({
+  status: z.enum(["success", "partial", "error"]),
+  rowsProcessed: z.number(),
+  rowsSuccess: z.number(),
+  rowsFailed: z.number(),
+  errors: z
+    .array(
+      z.object({
+        row: z.number(),
+        error: z.string(),
+      }),
+    )
+    .optional(),
+  message: z.string(),
+});
+

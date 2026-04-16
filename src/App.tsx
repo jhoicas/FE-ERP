@@ -64,7 +64,14 @@ const App = () => (
             }
           >
             <Route path="/" element={<Navigate to="/crm/analytics" replace />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <DashboardPage />
+                </ProtectedRoute>
+              }
+            />
             {/* Inventario y facturación: solo admin */}
             <Route
               path="/inventario"

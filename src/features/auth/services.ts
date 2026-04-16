@@ -65,11 +65,21 @@ export async function getCompanyModules(companyId: string): Promise<CompanyModul
 }
 
 const UserSchema = z.object({
-  id: z.string(),
+  id: z.union([z.string(), z.number()]).transform(String),
   name: z.string(),
-  email: z.string().email(),
-  roles: z.array(z.string()),
-});
+  email: z.string().email().or(z.string()),
+  roles: z.preprocess((value) => {
+    if (Array.isArray(value)) {
+      return value;
+    }
+
+    if (typeof value === "string" && value.trim().length > 0) {
+      return [value];
+    }
+
+    return [];
+  }, z.array(z.string())).default([]),
+}).passthrough();
 
 const ResolutionSchema = z
   .object({
@@ -101,9 +111,25 @@ export type CreateResolutionPayload = {
 export type UserDTO = z.infer<typeof UserSchema>;
 export type ResolutionDTO = z.infer<typeof ResolutionSchema>;
 
+function normalizeUsersResponse(data: unknown): UserDTO[] {
+  const payload = data as {
+    items?: unknown;
+    users?: unknown;
+    data?: unknown;
+    results?: unknown;
+    rows?: unknown;
+  };
+
+  const candidates = Array.isArray(data)
+    ? data
+    : payload?.items ?? payload?.users ?? payload?.data ?? payload?.results ?? payload?.rows ?? [];
+
+  return z.array(UserSchema).catch([]).parse(candidates ?? []);
+}
+
 export async function getUsers(): Promise<UserDTO[]> {
   const response = await apiClient.get("/api/users");
-  return z.array(UserSchema).parse(response.data);
+  return normalizeUsersResponse(response.data);
 }
 
 export async function createUser(body: {

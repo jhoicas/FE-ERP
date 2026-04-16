@@ -22,6 +22,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { getCrmAnalytics } from "@/features/crm/services";
+import AiChatAnalyst from "@/features/crm/components/AiChatAnalyst";
+import SalesImporter from "@/features/crm/components/SalesImporter";
 
 const tooltipStyle = {
   backgroundColor: "hsl(var(--card))",
@@ -243,6 +245,27 @@ export default function CrmAnalyticsDashboard() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* AI Analytics Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card className="lg:col-span-1">
+          <CardHeader>
+            <CardTitle className="text-sm">IA Analyst</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <AiChatAnalyst />
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-1">
+          <CardHeader>
+            <CardTitle className="text-sm">Importar Ventas</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <SalesImporter />
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
