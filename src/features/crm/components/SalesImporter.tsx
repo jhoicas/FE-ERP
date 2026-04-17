@@ -43,6 +43,8 @@ const VALID_FIELDS = [
   { value: "fecha", label: "Fecha" },
   { value: "total", label: "Total" },
   { value: "estado", label: "Estado" },
+   { value: "precioVenta", label: "Precio Venta" },
+   { value: "costoUnitario", label: "Costo Unitario" },
 ];
 
 interface DetectedColumn {
@@ -88,8 +90,8 @@ function parseCsvLine(line: string, delimiter: "," | ";"): string[] {
       continue;
     }
 
-    if (char === delimiter && !inQuotes) {
-      result.push(current.trim());
+      if (char === delimiter && !inQuotes) {
+        result.push(current.trim().normalize("NFC"));
       current = "";
       continue;
     }
@@ -97,7 +99,7 @@ function parseCsvLine(line: string, delimiter: "," | ";"): string[] {
     current += char;
   }
 
-  result.push(current.trim());
+    result.push(current.trim().normalize("NFC"));
   return result;
 }
 
