@@ -34,6 +34,8 @@ import type { ColumnMapping } from "../crm.types";
 const VALID_FIELDS = [
   { value: "nombre", label: "Nombre del Producto" },
   { value: "precio", label: "Precio" },
+  { value: "precioVenta", label: "Precio Venta" },
+  { value: "costoUnitario", label: "Costo Unitario" },
   { value: "cantidad", label: "Cantidad" },
   { value: "sku", label: "SKU" },
   { value: "categoria", label: "Categoría" },
@@ -43,8 +45,6 @@ const VALID_FIELDS = [
   { value: "fecha", label: "Fecha" },
   { value: "total", label: "Total" },
   { value: "estado", label: "Estado" },
-   { value: "precioVenta", label: "Precio Venta" },
-   { value: "costoUnitario", label: "Costo Unitario" },
 ];
 
 interface DetectedColumn {
@@ -90,8 +90,8 @@ function parseCsvLine(line: string, delimiter: "," | ";"): string[] {
       continue;
     }
 
-      if (char === delimiter && !inQuotes) {
-        result.push(current.trim().normalize("NFC"));
+    if (char === delimiter && !inQuotes) {
+      result.push(current.trim().normalize("NFC"));
       current = "";
       continue;
     }
@@ -99,8 +99,14 @@ function parseCsvLine(line: string, delimiter: "," | ";"): string[] {
     current += char;
   }
 
-    result.push(current.trim().normalize("NFC"));
+  result.push(current.trim().normalize("NFC"));
   return result;
+}
+
+async function readCsvAsUtf8(csvFile: File): Promise<string> {
+  const buffer = await csvFile.arrayBuffer();
+  // Decodifica explícitamente en UTF-8 para preservar tildes y caracteres especiales en la vista previa.
+  return new TextDecoder("utf-8").decode(buffer).normalize("NFC");
 }
 
 export default function SalesImporter() {
@@ -119,8 +125,8 @@ export default function SalesImporter() {
 
   const detectColumns = useCallback(async (csvFile: File) => {
     try {
-      // Lectura de texto para detectar delimitador y encabezados de CSV.
-      const text = await csvFile.text();
+      // Lectura explícita en UTF-8 para preservar acentos en encabezados y datos.
+      const text = await readCsvAsUtf8(csvFile);
       const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0);
 
       if (lines.length === 0) {
@@ -132,7 +138,7 @@ export default function SalesImporter() {
 
       const delimiter = detectDelimiter(text);
       const headers = parseCsvLine(lines[0], delimiter).map((h, idx) => {
-        const clean = h.replace(/^\uFEFF/, "").trim();
+        const clean = h.replace(/^\uFEFF/, "").trim().normalize("NFC");
         return clean.length > 0 ? clean : `Columna ${idx + 1}`;
       });
 
