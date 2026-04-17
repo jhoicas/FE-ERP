@@ -56,10 +56,56 @@ interface ColumnMapRow {
   targetField: string;
 }
 
+function detectDelimiter(text: string): "," | ";" {
+  const firstLine = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => line.length > 0) ?? "";
+
+  const commas = (firstLine.match(/,/g) ?? []).length;
+  const semicolons = (firstLine.match(/;/g) ?? []).length;
+
+  return semicolons > commas ? ";" : ",";
+}
+
+function parseCsvLine(line: string, delimiter: "," | ";"): string[] {
+  const result: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+    const next = i + 1 < line.length ? line[i + 1] : "";
+
+    if (char === '"') {
+      // Handle escaped quotes "" within quoted values.
+      if (inQuotes && next === '"') {
+        current += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (char === delimiter && !inQuotes) {
+      result.push(current.trim());
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  result.push(current.trim());
+  return result;
+}
+
 export default function SalesImporter() {
   const [file, setFile] = useState<File | null>(null);
   const [detectedColumns, setDetectedColumns] = useState<DetectedColumn[]>([]);
   const [columnMappings, setColumnMappings] = useState<ColumnMapRow[]>([]);
+  const [previewData, setPreviewData] = useState<string[][]>([]);
   const [showMappingDialog, setShowMappingDialog] = useState(false);
   const [uploadResult, setUploadResult] = useState<{
     status: "success" | "partial" | "error";
@@ -71,17 +117,35 @@ export default function SalesImporter() {
 
   const detectColumns = useCallback(async (csvFile: File) => {
     try {
-      // Lectura simple del archivo para detectar encabezados
+      // Lectura de texto para detectar delimitador y encabezados de CSV.
       const text = await csvFile.text();
-      const lines = text.split("\n");
-      const headers = lines[0].split(",").map((h) => h.trim());
+      const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0);
+
+      if (lines.length === 0) {
+        setDetectedColumns([]);
+        setColumnMappings([]);
+        setPreviewData([]);
+        return [];
+      }
+
+      const delimiter = detectDelimiter(text);
+      const headers = parseCsvLine(lines[0], delimiter).map((h, idx) => {
+        const clean = h.replace(/^\uFEFF/, "").trim();
+        return clean.length > 0 ? clean : `Columna ${idx + 1}`;
+      });
 
       const detected: DetectedColumn[] = headers.map((header, index) => ({
         index,
         header,
       }));
 
+      const previewRows = lines.slice(1, 6).map((line) => {
+        const parsed = parseCsvLine(line, delimiter);
+        return headers.map((_, index) => parsed[index] ?? "");
+      });
+
       setDetectedColumns(detected);
+      setPreviewData(previewRows);
 
       // Inicializar mappings con campos sugeridos
       const initialMappings: ColumnMapRow[] = detected.map((col) => ({
@@ -153,6 +217,7 @@ export default function SalesImporter() {
           setFile(null);
           setColumnMappings([]);
           setDetectedColumns([]);
+          setPreviewData([]);
           setUploadResult(null);
         }, 2000);
       }
@@ -227,6 +292,7 @@ export default function SalesImporter() {
                   setFile(null);
                   setColumnMappings([]);
                   setDetectedColumns([]);
+                  setPreviewData([]);
                   setUploadResult(null);
                 }}
               >
@@ -332,6 +398,32 @@ export default function SalesImporter() {
                 </TableBody>
               </Table>
             </div>
+
+            {previewData.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs text-slate-600">Vista previa detectada (primeras filas):</p>
+                <div className="overflow-x-auto rounded border border-slate-200">
+                  <Table className="text-xs">
+                    <TableHeader>
+                      <TableRow>
+                        {detectedColumns.map((column) => (
+                          <TableHead key={column.index}>{column.header}</TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {previewData.map((row, rowIndex) => (
+                        <TableRow key={`preview-${rowIndex}`}>
+                          {row.map((cell, colIndex) => (
+                            <TableCell key={`preview-${rowIndex}-${colIndex}`}>{cell || "-"}</TableCell>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
 
             {!isReadyToUpload && (
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex gap-2">
