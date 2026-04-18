@@ -581,20 +581,22 @@ export default function AiCampaignGenerator() {
       const currentChannel = createCampaignForm.getValues("channel");
       const finalGeneratedText = currentChannel === "SMS" ? limitSmsText(generatedText) : generatedText;
 
+      // Actualizar estado global
       setGeneratedText(finalGeneratedText);
+
+      // Inyectar en el formulario de creación (Paso 3)
       createCampaignForm.setValue("body", finalGeneratedText, { shouldDirty: true, shouldValidate: true });
-      const currentSubject = form.getValues("subject");
-      if (!currentSubject || currentSubject.trim().length === 0) {
-        const suggestedSubject = suggestSubjectFromGeneratedText(generatedText, values.prompt);
-        form.setValue("subject", suggestedSubject, {
-          shouldDirty: true,
-          shouldValidate: true,
-        });
-        createCampaignForm.setValue("subject", suggestedSubject, {
-          shouldDirty: true,
-          shouldValidate: true,
-        });
-      }
+      
+      const suggestedSubject = suggestSubjectFromGeneratedText(generatedText, values.prompt);
+      
+      // Actualizar ambos formularios para mantener consistencia
+      form.setValue("subject", suggestedSubject, { shouldDirty: true, shouldValidate: true });
+      createCampaignForm.setValue("subject", suggestedSubject, { shouldDirty: true, shouldValidate: true });
+      
+      toast({
+        title: "Contenido generado",
+        description: "El copy ha sido redactado y cargado en el editor.",
+      });
     },
     onError: (error) => {
       toast({
@@ -1066,8 +1068,9 @@ export default function AiCampaignGenerator() {
   };
 
   return (
-    <div className="animate-fade-in max-w-4xl mx-auto space-y-8 pb-24">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="w-full bg-background/50 min-h-screen">
+      <div className="animate-fade-in max-w-5xl mx-auto px-4 py-12 space-y-12 pb-32">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h2 className="text-3xl font-extrabold flex items-center gap-3 tracking-tight">
             <Sparkles className="h-8 w-8 text-primary animate-pulse" />
@@ -1230,10 +1233,11 @@ export default function AiCampaignGenerator() {
                   />
                 </div>
                 <Button 
-                  type="submit" 
+                  type="button" 
+                  onClick={form.handleSubmit(onSubmit)}
                   disabled={mutation.isPending} 
                   size="lg"
-                  className="w-full lg:w-auto gap-3 h-14 px-10 rounded-xl text-lg font-bold shadow-xl hover:scale-[1.02] active:scale-95 transition-all"
+                  className="w-full lg:w-auto gap-3 h-14 px-10 rounded-xl text-lg font-bold shadow-xl hover:scale-[1.02] active:scale-95 transition-all bg-primary hover:bg-primary/90"
                 >
                   {mutation.isPending ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
@@ -1805,6 +1809,7 @@ export default function AiCampaignGenerator() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
     </div>
   );
 }
