@@ -772,7 +772,7 @@ export default function AiCampaignGenerator() {
       return createCampaignTemplate({
         name,
         subject,
-        body: generatedText,
+        body: watchedBody,
       });
     },
     onSuccess: () => {
@@ -1511,7 +1511,7 @@ export default function AiCampaignGenerator() {
           <div className="space-y-3 text-sm">
             <div>
               <p className="text-xs text-muted-foreground">Asunto</p>
-              <p className="font-medium">{campaignSubject || "—"}</p>
+              <p className="font-medium">{watchedSubject || "—"}</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Segmento</p>
@@ -1787,7 +1787,7 @@ export default function AiCampaignGenerator() {
             <div className="space-y-1">
               <Label>Contenido</Label>
               <p className="text-xs text-muted-foreground line-clamp-4 bg-muted/50 p-3 rounded-md">
-                {generatedText ? generatedText.slice(0, 200) + (generatedText.length > 200 ? "..." : "") : "Sin contenido generado."}
+                {watchedBody ? watchedBody.slice(0, 200) + (watchedBody.length > 200 ? "..." : "") : "Sin contenido generado."}
               </p>
             </div>
           </div>
