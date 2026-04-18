@@ -758,8 +758,8 @@ export default function AiCampaignGenerator() {
   });
 
   const handleCopy = async () => {
-    if (!generatedText) return;
-    await navigator.clipboard.writeText(generatedText);
+    if (!watchedBody) return;
+    await navigator.clipboard.writeText(watchedBody);
     toast({
       title: "Texto copiado",
       description: "El copy se ha copiado al portapapeles.",
@@ -794,18 +794,23 @@ export default function AiCampaignGenerator() {
   });
 
   const selectedAudience = form.watch("category_id");
-  const campaignSubject = form.watch("subject");
-  const canSendCampaign = Boolean(generatedText && campaignSubject?.trim());
-  const canSaveTemplate = Boolean(generatedText && campaignSubject?.trim());
   const previewChannel = createCampaignForm.watch("channel");
-  const previewSubject = createCampaignForm.watch("subject");
-  const previewBody = createCampaignForm.watch("body");
-  const isSmsOverLimit = previewChannel === "SMS" && (previewBody?.length ?? 0) > 150;
+  
+  // Observar los campos del editor en tiempo real (Paso 3)
+  const watchedSubject = createCampaignForm.watch("subject");
+  const watchedBody = createCampaignForm.watch("body");
+
+  const canSendCampaign = Boolean(watchedBody?.trim() && (previewChannel !== "EMAIL" || watchedSubject?.trim()));
+  const canSaveTemplate = Boolean(watchedBody?.trim() && (previewChannel !== "EMAIL" || watchedSubject?.trim()));
+  
+  const isSmsOverLimit = previewChannel === "SMS" && (watchedBody?.length ?? 0) > 150;
+  
   const selectedCategory = (categoriesQuery.data ?? []).find((c) => c.id === selectedAudience);
   const selectedSegmentLabel = selectedAudience === "all"
     ? "Todos los clientes"
     : selectedCategory?.name ?? "Segmento no encontrado";
-  const campaignBodyPreview = (generatedText ?? "")
+
+  const campaignBodyPreview = (watchedBody ?? "")
     .split(/\r?\n/)
     .filter((line) => line.trim().length > 0)
     .slice(0, 3)
@@ -856,11 +861,11 @@ export default function AiCampaignGenerator() {
   });
 
   const handleDirectTestSend = () => {
-    if (!directTestPhone.trim() || !generatedText) return;
+    if (!directTestPhone.trim() || !watchedBody) return;
     directTestMutation.mutate({
       channel: previewChannel as "SMS" | "WHATSAPP",
       destination_phone: directTestPhone.trim(),
-      content: generatedText,
+      content: watchedBody,
     });
   };
 
@@ -1358,8 +1363,8 @@ export default function AiCampaignGenerator() {
                     <CampaignPreviewPanel
                       channel={previewChannel}
                       contact={previewContact}
-                      subject={previewSubject}
-                      body={previewBody || generatedText}
+                      subject={watchedSubject}
+                      body={watchedBody}
                     />
                   </div>
                 </div>
