@@ -1015,6 +1015,15 @@ export async function createCampaign(body: CreateCampaignRequest): Promise<unkno
   }
 }
 
+export async function triggerCampaignWorker(): Promise<unknown> {
+  try {
+    const { data } = await apiClient.post(`${CRM_BASE}/campaigns/worker/trigger`);
+    return data;
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}
+
 export async function listCrmAutomations(): Promise<CrmAutomation[]> {
   try {
     const { data } = await apiClient.get(`${CRM_BASE}/automations`, {
