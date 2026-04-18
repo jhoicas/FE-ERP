@@ -762,9 +762,11 @@ export default function AiCampaignGenerator() {
   // Observar los campos del editor en tiempo real (Paso 3)
   const watchedSubject = createCampaignForm.watch("subject");
   const watchedBody = createCampaignForm.watch("body");
+  const hasSubjectDraft = Boolean((watchedSubject ?? "").trim());
+  const hasBodyDraft = Boolean((watchedBody ?? "").trim());
 
-  const canSendCampaign = Boolean(watchedBody?.trim() && (previewChannel !== "EMAIL" || watchedSubject?.trim()));
-  const canSaveTemplate = Boolean(watchedBody?.trim() && (previewChannel !== "EMAIL" || watchedSubject?.trim()));
+  const canSendCampaign = Boolean(hasBodyDraft && (previewChannel !== "EMAIL" || hasSubjectDraft));
+  const canSaveTemplate = Boolean(hasBodyDraft && (previewChannel !== "EMAIL" || hasSubjectDraft));
   const isEmailChannel = previewChannel === "EMAIL";
   const isPhoneChannel = previewChannel === "WHATSAPP" || previewChannel === "SMS";
   
@@ -795,7 +797,7 @@ export default function AiCampaignGenerator() {
   }, [previewDirectoryQuery.data, resolvedRecipients]);
 
   const handleSendCampaign = () => {
-    if (!watchedBody || (previewChannel === "EMAIL" && !watchedSubject?.trim())) return;
+    if (!hasBodyDraft || (previewChannel === "EMAIL" && !hasSubjectDraft)) return;
 
     sendCampaignMutation.mutate({
       channel: previewChannel,
@@ -1386,7 +1388,7 @@ export default function AiCampaignGenerator() {
                       size="lg"
                       className="rounded-xl h-14 px-6 border-dashed"
                       onClick={() => setTestSendOpen(true)}
-                      disabled={!watchedBody || !watchedSubject?.trim()}
+                      disabled={!hasBodyDraft || !hasSubjectDraft}
                     >
                       Enviar Email de Prueba
                     </Button>
