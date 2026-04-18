@@ -1228,3 +1228,74 @@ export async function detectColumnsInFile(file: File): Promise<
     return throwOnApiError(error);
   }
 }
+
+// ── Campaign History & Execution ────────────────────────────────────────────
+
+import {
+  CampaignResponseSchema,
+  type CampaignResponseDTO,
+  type SendTestMessageDTO,
+} from "@/features/crm/schemas";
+
+/**
+ * GET /api/crm/campaigns – Lista campañas de la empresa.
+ */
+export async function getCampaigns(
+  limit = 50,
+  offset = 0,
+): Promise<{ items: CampaignResponseDTO[]; total: number }> {
+  try {
+    const { data } = await apiClient.get(`${CRM_BASE}/campaigns`, {
+      params: { limit, offset },
+    });
+
+    // El backend devuelve { items, total, limit, offset }
+    if (data && Array.isArray(data.items)) {
+      const items = z.array(CampaignResponseSchema).parse(data.items);
+      return { items, total: data.total ?? items.length };
+    }
+
+    // Fallback: respuesta como array plano
+    if (Array.isArray(data)) {
+      const items = z.array(CampaignResponseSchema).parse(data);
+      return { items, total: items.length };
+    }
+
+    return { items: [], total: 0 };
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}
+
+/**
+ * POST /api/crm/campaigns/:id/execute – Ejecuta una campaña manualmente.
+ */
+export async function executeCampaign(
+  campaignId: string,
+): Promise<{ status: string }> {
+  try {
+    const { data } = await apiClient.post<{ status: string }>(
+      `${CRM_BASE}/campaigns/${campaignId}/execute`,
+    );
+    return z.object({ status: z.string() }).parse(data) as { status: string };
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}
+
+/**
+ * POST /api/crm/campaigns/test-message – Envía un mensaje directo de prueba (SMS o WHATSAPP).
+ */
+export async function sendTestMessage(
+  payload: SendTestMessageDTO,
+): Promise<{ status: string }> {
+  try {
+    const { data } = await apiClient.post<{ status: string }>(
+      `${CRM_BASE}/campaigns/test-message`,
+      payload,
+    );
+    return z.object({ status: z.string() }).parse(data) as { status: string };
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}

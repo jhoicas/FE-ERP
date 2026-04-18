@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Mail, MessageSquare, Smartphone, Sparkles, Copy, Send, Loader2, Save, FolderOpen } from "lucide-react";
+import { AlertTriangle, Mail, MessageSquare, Smartphone, Sparkles, Copy, Send, Loader2, Save, FolderOpen, Phone } from "lucide-react";
 import apiClient from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -24,6 +24,7 @@ import {
   listCustomers,
   sendCampaign,
   sendCampaignTest,
+  sendTestMessage,
 } from "@/features/crm/services";
 import type { CampaignTemplate } from "@/types/crm";
 import type { CustomerDTO } from "@/features/crm/schemas";
@@ -462,6 +463,8 @@ export default function AiCampaignGenerator() {
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [generatedText, setGeneratedText] = useState("");
   const [testSendOpen, setTestSendOpen] = useState(false);
+  const [directTestOpen, setDirectTestOpen] = useState(false);
+  const [directTestPhone, setDirectTestPhone] = useState("");
   const [customerSearch, setCustomerSearch] = useState("");
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -825,6 +828,35 @@ export default function AiCampaignGenerator() {
       subject: campaignSubject?.trim() || "",
       body: generatedText,
       category_id: selectedAudience === "all" ? null : selectedAudience,
+    });
+  };
+
+  // ── Mutación de prueba directa (SMS / WhatsApp) ─────────────
+  const directTestMutation = useMutation({
+    mutationFn: sendTestMessage,
+    onSuccess: () => {
+      toast({
+        title: "Prueba enviada",
+        description: `Mensaje de prueba enviado por ${previewChannel} correctamente.`,
+      });
+      setDirectTestOpen(false);
+      setDirectTestPhone("");
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error al enviar prueba",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDirectTestSend = () => {
+    if (!directTestPhone.trim() || !generatedText) return;
+    directTestMutation.mutate({
+      channel: previewChannel as "SMS" | "WHATSAPP",
+      destination_phone: directTestPhone.trim(),
+      content: generatedText,
     });
   };
 
@@ -1217,7 +1249,7 @@ export default function AiCampaignGenerator() {
               <div className="text-sm whitespace-pre-wrap leading-relaxed text-foreground/90">
                 {generatedText}
               </div>
-              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <Button
                   type="button"
                   variant="outline"
@@ -1227,6 +1259,18 @@ export default function AiCampaignGenerator() {
                 >
                   Enviar prueba
                 </Button>
+                {(previewChannel === "SMS" || previewChannel === "WHATSAPP") && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full gap-1.5 border-emerald-500/30 hover:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                    onClick={() => setDirectTestOpen(true)}
+                    disabled={!generatedText || directTestMutation.isPending}
+                  >
+                    <Phone className="h-4 w-4" />
+                    Prueba Directa
+                  </Button>
+                )}
                 <Button
                   type="button"
                   className="w-full"
@@ -1778,6 +1822,60 @@ export default function AiCampaignGenerator() {
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* ── Dialog: Prueba Directa SMS / WhatsApp ─────────────────────── */}
+      <Dialog open={directTestOpen} onOpenChange={setDirectTestOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Phone className="h-5 w-5 text-primary" />
+              Enviar Prueba Directa
+            </DialogTitle>
+            <DialogDescription>
+              Envía un mensaje de prueba por <strong>{previewChannel}</strong> a un número
+              de teléfono específico. No se guardará en la base de datos.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="direct-test-phone">Número de Teléfono</Label>
+              <Input
+                id="direct-test-phone"
+                placeholder="+57 300 123 4567"
+                value={directTestPhone}
+                onChange={(e) => setDirectTestPhone(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Contenido</Label>
+              <p className="text-xs text-muted-foreground line-clamp-4 bg-muted/50 p-3 rounded-md">
+                {generatedText ? generatedText.slice(0, 200) + (generatedText.length > 200 ? "..." : "") : "Sin contenido generado."}
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDirectTestOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleDirectTestSend}
+              disabled={!directTestPhone.trim() || directTestMutation.isPending}
+            >
+              {directTestMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Enviando...
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4 mr-2" />
+                  Enviar Prueba
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

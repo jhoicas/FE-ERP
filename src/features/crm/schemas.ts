@@ -142,3 +142,37 @@ export const RemarketingProspectSchema = z.object({
 
 export type RemarketingProspectDTO = z.infer<typeof RemarketingProspectSchema>;
 
+// ── Campaign List & Execution ──────────────────────────────────────────────
+
+export const CampaignResponseSchema = z.object({
+  id: z.string(),
+  company_id: z.string().optional(),
+  name: z.string(),
+  description: z.string().optional().nullable(),
+  status: z.string().optional().nullable(),
+  channel: z.string().optional().nullable(),
+  scheduled_at: z.string().optional().nullable(),
+  created_by: z.string().optional().nullable(),
+  created_at: z.string().optional().nullable(),
+  updated_at: z.string().optional().nullable(),
+}).passthrough();
+
+export type CampaignResponseDTO = z.infer<typeof CampaignResponseSchema>;
+
+export const CampaignListResponseSchema = z.object({
+  items: z.array(CampaignResponseSchema),
+  total: z.number(),
+  limit: z.number(),
+  offset: z.number(),
+});
+
+export type CampaignListResponseDTO = z.infer<typeof CampaignListResponseSchema>;
+
+export const SendTestMessageSchema = z.object({
+  channel: z.enum(["SMS", "WHATSAPP"]),
+  destination_phone: z.string().min(1, "El número de teléfono es obligatorio"),
+  content: z.string().min(1, "El contenido es obligatorio"),
+});
+
+export type SendTestMessageDTO = z.infer<typeof SendTestMessageSchema>;
+
