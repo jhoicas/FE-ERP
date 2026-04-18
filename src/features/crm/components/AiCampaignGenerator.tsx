@@ -85,8 +85,6 @@ const schema = z.object({
   prompt: z.string().min(10, "Describe la campaña en al menos 10 caracteres"),
   tone: z.string().min(1, "Selecciona un tono"),
   target_audience: z.string().min(3, "Indica el público objetivo"),
-  category_id: z.string().min(1, "Selecciona segmento"),
-  subject: z.string().min(1, "El asunto del correo es obligatorio para enviar"),
 });
 
 const sendTestSchema = z.object({
@@ -470,12 +468,11 @@ export default function AiCampaignGenerator() {
   const [customerSearch, setCustomerSearch] = useState("");
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
+    mode: "onChange",
     defaultValues: {
       prompt: "",
-      tone: "",
+      tone: "profesional",
       target_audience: "",
-      category_id: "all",
-      subject: "",
     },
   });
 
@@ -530,6 +527,7 @@ export default function AiCampaignGenerator() {
 
   const createCampaignForm = useForm<CreateCampaignValues>({
     resolver: zodResolver(CampaignCreateSchema),
+    mode: "onChange",
     defaultValues: {
       name: "",
       subject: "",
@@ -590,7 +588,7 @@ export default function AiCampaignGenerator() {
       const suggestedSubject = suggestSubjectFromGeneratedText(generatedText, values.prompt);
       
       // Actualizar ambos formularios para mantener consistencia
-      form.setValue("subject", suggestedSubject, { shouldDirty: true, shouldValidate: true });
+      // Actualizar el formulario de creación para reflejar el contenido generado
       createCampaignForm.setValue("subject", suggestedSubject, { shouldDirty: true, shouldValidate: true });
       
       toast({
