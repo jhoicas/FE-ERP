@@ -29,6 +29,7 @@ import {
 import type { CampaignTemplate } from "@/types/crm";
 import type { CustomerDTO } from "@/features/crm/schemas";
 import type { CrmSegment } from "@/features/crm/schemas";
+import type { CreateCampaignRequest } from "@/features/crm/crm.types";
 import {
   Select,
   SelectContent,
@@ -682,13 +683,20 @@ export default function AiCampaignGenerator() {
         ? new Date(`${values.scheduledAt}:00-05:00`).toISOString()
         : undefined;
 
-      return createCampaign({
+      const description = (form.getValues("target_audience") ?? "").trim() || selectedSegmentLabel;
+      const campaignPayload: CreateCampaignRequest = {
         name: values.name,
-        subject: values.subject,
-        body: bodyToSend,
-        segment: values.segment,
+        description,
+        subject: values.channel === "EMAIL" ? (values.subject ?? "").trim() : "",
+        body: values.body,
+        category_id: selectedCategoryId || "",
         channel: values.channel,
-        scheduledAt: scheduledAtIso,
+        scheduled_at: scheduledAtIso ?? "",
+      };
+
+      return createCampaign({
+        ...campaignPayload,
+        body: bodyToSend,
       });
     },
     onSuccess: () => {

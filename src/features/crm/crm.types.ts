@@ -94,11 +94,12 @@ export type CampaignChannel = "EMAIL" | "SMS" | "WHATSAPP";
 
 export interface CreateCampaignRequest {
   name: string;
+  description: string;
   subject: string;
   body: string;
-  segment: string;
+  category_id: string;
   channel: CampaignChannel;
-  scheduledAt?: string;
+  scheduled_at: string;
 }
 
 export type CrmAutomationType = "BIRTHDAY" | "REPURCHASE";

@@ -45,17 +45,16 @@ import {
   CustomerSchema,
   CrmAnalyticsSchema,
   RemarketingProspectSchema,
-  CreateCampaignSchema,
   type CustomerDTO,
   type CustomerListResponse,
   type CrmAnalyticsDTO,
   type RemarketingProspectDTO,
-  type CreateCampaignDTO,
 } from "./schemas";
 import type {
   CrmAutomation,
   CreateCrmAutomationRequest,
   UpdateCrmAutomationRequest,
+  CreateCampaignRequest,
 } from "./crm.types";
 
 const CampaignTemplateSchema = z.object({
@@ -998,17 +997,16 @@ export async function createCampaignTemplate(body: {
   }
 }
 
-export async function createCampaign(body: CreateCampaignDTO): Promise<unknown> {
-  const payload = CreateCampaignSchema.parse(body);
-
+export async function createCampaign(body: CreateCampaignRequest): Promise<unknown> {
   try {
     const { data } = await apiClient.post(`${CRM_BASE}/campaigns`, {
-      name: payload.name,
-      subject: payload.subject,
-      body: payload.body,
-      segment: payload.segment,
-      channel: payload.channel,
-      scheduled_at: payload.scheduledAt,
+      name: body.name,
+      description: body.description,
+      subject: body.subject,
+      body: body.body,
+      category_id: body.category_id,
+      channel: body.channel,
+      scheduled_at: body.scheduled_at,
     });
 
     return data;
