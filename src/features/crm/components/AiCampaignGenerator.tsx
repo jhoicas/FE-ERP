@@ -22,7 +22,6 @@ import {
   getCampaignTemplates,
   listCategories,
   getCustomers,
-  listCustomers,
   sendCampaign,
   sendCampaignTest,
   sendTestMessage,
@@ -85,38 +84,13 @@ const schema = z.object({
   prompt: z.string().min(10, "Describe la campaña en al menos 10 caracteres"),
   tone: z.string().min(1, "Selecciona un tono"),
   target_audience: z.string().min(3, "Indica el público objetivo"),
+  subject: z.string().optional().default(""),
+  body: z.string().optional().default(""),
+  category_id: z.string().optional().default(""),
 });
 
 const sendTestSchema = z.object({
-  mode: z.enum(["customer", "email"]),
-  // Nota: en react-hook-form el campo puede existir con "" cuando no está visible.
-  // Hacemos que "" cuente como `undefined` para que no bloquee el submit.
-  customer_id: z
-    .preprocess((v) => (typeof v === "string" && v.trim() === "" ? undefined : v), z.string())
-    .optional(),
-  email: z
-    .preprocess((v) => (typeof v === "string" && v.trim() === "" ? undefined : v), z.string().email("Email inválido"))
-    .optional(),
-}).superRefine((values, ctx) => {
-  if (values.mode === "customer") {
-    if (!values.customer_id) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["customer_id"],
-        message: "Selecciona un cliente.",
-      });
-    }
-  }
-
-  if (values.mode === "email") {
-    if (!values.email) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["email"],
-        message: "Ingresa un email.",
-      });
-    }
-  }
+  email: z.string().email("Email inválido"),
 });
 
 const RecipientSchema = z.object({
@@ -465,7 +439,6 @@ export default function AiCampaignGenerator() {
   const [testSendOpen, setTestSendOpen] = useState(false);
   const [directTestOpen, setDirectTestOpen] = useState(false);
   const [directTestPhone, setDirectTestPhone] = useState("");
-  const [customerSearch, setCustomerSearch] = useState("");
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     mode: "onChange",
@@ -473,6 +446,9 @@ export default function AiCampaignGenerator() {
       prompt: "",
       tone: "profesional",
       target_audience: "",
+      subject: "",
+      body: "",
+      category_id: "",
     },
   });
 
@@ -498,17 +474,6 @@ export default function AiCampaignGenerator() {
     queryKey: ["crm", "campaign-templates"],
     queryFn: getCampaignTemplates,
     enabled: templatesOpen,
-  });
-
-  const customersQuery = useQuery({
-    queryKey: ["crm", "customers", "campaign-test", customerSearch],
-    queryFn: () =>
-      listCustomers({
-        limit: 20,
-        offset: 0,
-        search: customerSearch.trim() || undefined,
-      }),
-    enabled: testSendOpen,
   });
 
     const previewDirectoryQuery = useQuery({
@@ -587,8 +552,7 @@ export default function AiCampaignGenerator() {
       
       const suggestedSubject = suggestSubjectFromGeneratedText(generatedText, values.prompt);
       
-      // Actualizar ambos formularios para mantener consistencia
-      // Actualizar el formulario de creación para reflejar el contenido generado
+      // Reflejar el contenido generado en el formulario del Paso 3.
       createCampaignForm.setValue("subject", suggestedSubject, { shouldDirty: true, shouldValidate: true });
       
       toast({
@@ -666,7 +630,7 @@ export default function AiCampaignGenerator() {
   const sendCampaignMutation = useMutation<
     { status: string },
     Error,
-    { channel: string; subject: string; body: string; category_id: string | null }
+    { channel: "EMAIL" | "SMS" | "WHATSAPP"; subject: string; body: string; category_id: string | null }
   >({
     mutationFn: sendCampaign,
     onSuccess: (data: { status: string }) => {
@@ -834,7 +798,7 @@ export default function AiCampaignGenerator() {
       channel: previewChannel,
       subject: watchedSubject?.trim() || "",
       body: watchedBody,
-      category_id: selectedAudience === "all" ? null : selectedAudience,
+      category_id: selectedAudience === "all" ? null : selectedAudience || null,
     });
   };
 
@@ -869,136 +833,57 @@ export default function AiCampaignGenerator() {
 
   const sendTestForm = useForm<z.infer<typeof sendTestSchema>>({
     resolver: zodResolver(sendTestSchema),
-    defaultValues: { mode: "email", email: "" },
+    defaultValues: { email: "" },
   });
 
   useEffect(() => {
     if (!testSendOpen) return;
-    // Evita estados “pegados” entre aperturas del modal.
-    sendTestForm.reset({ mode: "email", email: "" });
-    setCustomerSearch("");
+    sendTestForm.reset({ email: "" });
   }, [testSendOpen, sendTestForm]);
 
-  const sendTestMutation = useMutation<{ status: string }, Error, z.infer<typeof sendTestSchema>>({
+  const sendEmailTestMutation = useMutation<{ status: string }, Error, z.infer<typeof sendTestSchema>>({
     mutationFn: async (values) => {
-      const subject = form.getValues("subject")?.trim();
-      const body = generatedText;
-      if (!body || (previewChannel === "EMAIL" && !subject)) {
-        throw new Error("Primero genera el mensaje y define el asunto (si es Email).");
+      const subject = createCampaignForm.getValues("subject")?.trim();
+      const body = createCampaignForm.getValues("body");
+      const email = values.email?.trim();
+
+      if (!subject || !body?.trim()) {
+        throw new Error("Primero genera o completa asunto y contenido del email.");
       }
 
-      if (values.mode === "customer") {
-        if (!values.customer_id) throw new Error("Selecciona un cliente.");
-        return sendCampaignTest({
-          channel: previewChannel,
-          subject: subject || "",
-          body,
-          customer_id: values.customer_id,
-          // El backend valida que `email` exista para el envío de prueba si es EMAIL.
-          email: values.email,
-        });
-      }
-
-      if (!values.email && previewChannel === "EMAIL") throw new Error("Ingresa un email.");
-      return sendCampaignTest({ channel: previewChannel, subject: subject || "", body, email: values.email });
+      return sendCampaignTest({
+        channel: "EMAIL",
+        subject,
+        body,
+        email,
+      });
     },
     onSuccess: () => {
-      toast({ title: "Correo de prueba enviado" });
+      toast({ title: "Email de prueba enviado" });
       setTestSendOpen(false);
-      sendTestForm.reset({ mode: "email", email: "" });
-      setCustomerSearch("");
+      sendTestForm.reset({ email: "" });
     },
     onError: (error) => {
       toast({
-        title: "No se pudo enviar el correo de prueba",
+        title: "No se pudo enviar el email de prueba",
         description: error.message ?? "Intenta nuevamente.",
         variant: "destructive",
       });
     },
   });
 
-  const handleSendTest = () => {
-    const mode = sendTestForm.watch("mode");
-    const customerId = sendTestForm.watch("customer_id");
-    const emailInput = sendTestForm.watch("email");
-
-    if (mode === "customer") {
-      if (!customerId) {
-        toast({
-          title: "Revisa el destino",
-          description: "Selecciona un cliente válido.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const selected = (customersQuery.data?.items ?? []).find((c) => c.id === customerId);
-
-      const selectedEmail = selected?.email ?? undefined;
-      const maybeSend = (email?: string) => {
-        if (!email) {
-          toast({
-            title: "Cliente sin email",
-            description:
-              "El backend requiere `email` para el envío de prueba. No pude obtener el email del cliente seleccionado. Usa “Destino: Email manual”.",
-            variant: "destructive",
-          });
-          return;
-        }
-
-        sendTestMutation.mutate({
-          mode: "customer",
-          customer_id: customerId,
-          email,
-        });
-      };
-
-      if (selectedEmail) {
-        maybeSend(selectedEmail);
-        return;
-      }
-
-      // Fallback: si el query de clientes filtrado/buscado no trajo el email,
-      // lo consultamos completo para encontrar el email por `id`.
-      void (async () => {
-        try {
-          const all = await getCustomers();
-          const fromAll = all.find((c) => c.id === customerId);
-          maybeSend(fromAll?.email ?? undefined);
-        } catch {
-          toast({
-            title: "No se pudo obtener el email",
-            description: "Intenta nuevamente o usa “Destino: Email manual”.",
-            variant: "destructive",
-          });
-        }
-      })();
-      return;
-    }
-
-    if (mode === "email") {
-      const parsedEmail = z.string().email("Ingresa un email válido.").safeParse(emailInput);
-      if (!parsedEmail.success) {
-        toast({
-          title: "Revisa el destino",
-          description: parsedEmail.error.issues[0]?.message ?? "Ingresa un email válido.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      sendTestMutation.mutate({
-        mode: "email",
-        email: parsedEmail.data,
+  const handleSendEmailTest = () => {
+    const parsed = sendTestSchema.safeParse(sendTestForm.getValues());
+    if (!parsed.success) {
+      toast({
+        title: "Revisa el destino",
+        description: parsed.error.issues[0]?.message ?? "Ingresa un email válido.",
+        variant: "destructive",
       });
       return;
     }
 
-    toast({
-      title: "Revisa el destino",
-      description: "Selecciona un destino válido.",
-      variant: "destructive",
-    });
+    sendEmailTestMutation.mutate(parsed.data);
   };
 
   const handleUseTemplate = (template: CampaignTemplate) => {
@@ -1407,7 +1292,7 @@ export default function AiCampaignGenerator() {
                         pagedRecipients.map((recipient) => (
                           <TableRow key={recipient.customer_id} className="hover:bg-muted/30 transition-colors">
                             <TableCell className="font-medium">{recipient.name}</TableCell>
-                            <TableCell>{previewChannel === "EMAIL" ? (recipient.email ?? "—") : (recipient.phone ?? "—")}</TableCell>
+                            <TableCell>{previewChannel === "EMAIL" ? (recipient.email ?? "—") : "—"}</TableCell>
                             <TableCell>
                               <Badge variant="outline" className="font-normal">{recipient.segment ?? "General"}</Badge>
                             </TableCell>
@@ -1452,17 +1337,19 @@ export default function AiCampaignGenerator() {
               {/* BOTONES DE ACCIÓN FINAL */}
               <div className="flex flex-col sm:flex-row justify-between items-center gap-6 pt-8 border-t">
                 <div className="flex gap-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="lg"
-                    className="rounded-xl h-14 px-6 border-dashed"
-                    onClick={() => setTestSendOpen(true)}
-                    disabled={!watchedBody}
-                  >
-                    Prueba de Segmento
-                  </Button>
-                  {(previewChannel === "SMS" || previewChannel === "WHATSAPP") && (
+                  {previewChannel === "EMAIL" && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="lg"
+                      className="rounded-xl h-14 px-6 border-dashed"
+                      onClick={() => setTestSendOpen(true)}
+                      disabled={!watchedBody || !watchedSubject?.trim()}
+                    >
+                      Enviar Email de Prueba
+                    </Button>
+                  )}
+                  {previewChannel === "WHATSAPP" && (
                     <Button
                       type="button"
                       variant="outline"
@@ -1472,7 +1359,7 @@ export default function AiCampaignGenerator() {
                       disabled={!watchedBody || directTestMutation.isPending}
                     >
                       <Phone className="h-5 w-5" />
-                      Prueba Directa
+                      WhatsApp de Prueba
                     </Button>
                   )}
                 </div>
@@ -1541,10 +1428,9 @@ export default function AiCampaignGenerator() {
       <Dialog open={testSendOpen} onOpenChange={setTestSendOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Enviar correo de prueba</DialogTitle>
+            <DialogTitle>Enviar Email de Prueba</DialogTitle>
             <DialogDescription>
-              Envía el mensaje actual a un email manual o a un cliente específico. El placeholder{" "}
-              <span className="font-mono">[Nombre]</span> se mantiene.
+              Envía el contenido actual a un destinatario de prueba por email.
             </DialogDescription>
           </DialogHeader>
 
@@ -1552,119 +1438,30 @@ export default function AiCampaignGenerator() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                handleSendTest();
+                handleSendEmailTest();
               }}
               className="space-y-4"
             >
               <FormField
                 control={sendTestForm.control}
-                name="mode"
+                name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Destino</FormLabel>
-                    <Select
-                      value={field.value ?? ""}
-                      onValueChange={(value) => {
-                        field.onChange(value);
-                        sendTestForm.setValue("mode", value as "customer" | "email", {
-                          shouldDirty: true,
-                          shouldValidate: true,
-                        });
-                      }}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecciona destino" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="email">Email manual</SelectItem>
-                        <SelectItem value="customer">Cliente</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <FormLabel>Email destinatario</FormLabel>
+                    <FormControl>
+                      <Input placeholder="correo@ejemplo.com" {...field} />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
-              {sendTestForm.watch("mode") === "email" ? (
-                <FormField
-                  control={sendTestForm.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input placeholder="correo@ejemplo.com" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              ) : (
-                <>
-                  <div className="space-y-2">
-                    <FormLabel>Buscar cliente</FormLabel>
-                    <Input
-                      value={customerSearch}
-                      onChange={(e) => setCustomerSearch(e.target.value)}
-                      placeholder="Nombre, NIT o email…"
-                    />
-                  </div>
-
-                  <FormField
-                    control={sendTestForm.control}
-                    name="customer_id"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Cliente</FormLabel>
-                        <Select
-                          // `undefined` puede dejar el Select en estado no controlado.
-                          // Para sincronizar con RHF usamos "" cuando no hay valor.
-                          value={field.value ?? ""}
-                          onValueChange={(value) => {
-                            field.onChange(value);
-                            sendTestForm.setValue("customer_id", value, {
-                              shouldDirty: true,
-                              shouldValidate: true,
-                            });
-                          }}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue
-                                placeholder={customersQuery.isLoading ? "Cargando..." : "Seleccionar"}
-                              />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {(customersQuery.data?.items ?? []).map((c) => (
-                              <SelectItem key={c.id} value={c.id}>
-                                {c.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                {/* <p className="text-xs text-muted-foreground">
-                    customer_id en el formulario:{" "}
-                    <span className="font-mono">
-                      {sendTestForm.watch("customer_id") || "—"}
-                    </span>
-                  </p> */}
-                </>
-              )}
-
               <DialogFooter>
                 <Button type="button" variant="ghost" onClick={() => setTestSendOpen(false)}>
                   Cancelar
                 </Button>
-                <Button type="submit" disabled={sendTestMutation.isPending}>
-                  {sendTestMutation.isPending ? "Enviando..." : "Enviar prueba"}
+                <Button type="submit" disabled={sendEmailTestMutation.isPending}>
+                  {sendEmailTestMutation.isPending ? "Enviando..." : "Enviar Email de Prueba"}
                 </Button>
               </DialogFooter>
             </form>
