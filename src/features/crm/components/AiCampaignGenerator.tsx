@@ -548,12 +548,12 @@ export default function AiCampaignGenerator() {
       // Actualizar estado global
       setGeneratedText(finalGeneratedText);
 
-      // Inyectar en el formulario de creación (Paso 3)
+      // Inyectar en el formulario de creación (Paso 4)
       createCampaignForm.setValue("body", finalGeneratedText, { shouldDirty: true, shouldValidate: true });
       
       const suggestedSubject = suggestSubjectFromGeneratedText(generatedText, values.prompt);
       
-      // Reflejar el contenido generado en el formulario del Paso 3.
+      // Reflejar el contenido generado en el formulario del Paso 4.
       createCampaignForm.setValue("subject", suggestedSubject, { shouldDirty: true, shouldValidate: true });
       
       toast({
@@ -759,7 +759,7 @@ export default function AiCampaignGenerator() {
   const selectedAudience = form.watch("category_id");
   const previewChannel = createCampaignForm.watch("channel");
   
-  // Observar los campos del editor en tiempo real (Paso 3)
+  // Observar los campos del editor en tiempo real (Paso 4)
   const watchedSubject = createCampaignForm.watch("subject");
   const watchedBody = createCampaignForm.watch("body");
   const hasSubjectDraft = Boolean((watchedSubject ?? "").trim());
@@ -1145,11 +1145,144 @@ export default function AiCampaignGenerator() {
         </div>
       </Card>
 
-      {/* PASO 3: EDITOR Y LANZAMIENTO */}
-      <Card className="erp-card overflow-hidden border-none shadow-2xl ring-1 ring-primary/20">
+      {/* PASO 3: REVISIÓN DE AUDIENCIA */}
+      <Card className="erp-card overflow-hidden border-none shadow-xl ring-1 ring-primary/10">
         <div className="bg-primary/5 px-6 py-4 border-b border-primary/10 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground font-bold shadow-lg">3</span>
+            <div>
+              <h3 className="text-lg font-bold">Revisión de Audiencia</h3>
+              <p className="text-xs text-muted-foreground">Valida destinatarios y detecta faltantes antes de enviar.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-8 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h4 className="font-bold text-lg">Audiencia Seleccionada</h4>
+              <p className="text-sm text-muted-foreground">Verifica quiénes recibirán este mensaje.</p>
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              className="gap-2"
+              disabled={previewRecipientsMutation.isPending || !selectedCategoryId}
+              onClick={handlePreviewRecipients}
+            >
+              {previewRecipientsMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FolderOpen className="h-4 w-4" />}
+              Actualizar Lista de Destinatarios
+            </Button>
+          </div>
+
+          <div className="rounded-2xl border overflow-hidden shadow-sm">
+            <Table>
+              <TableHeader className="bg-muted/50">
+                <TableRow>
+                  <TableHead className="font-bold">Cliente</TableHead>
+                  <TableHead className={cn("font-bold", isEmailChannel ? "bg-primary/5 text-primary" : "text-muted-foreground")}>Email</TableHead>
+                  <TableHead className={cn("font-bold", isPhoneChannel ? "bg-primary/5 text-primary" : "text-muted-foreground")}>Teléfono</TableHead>
+                  <TableHead className="font-bold">Segmento</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {resolvedRecipients.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="h-24 text-center text-muted-foreground italic">
+                      Haz clic en "Actualizar Lista" para ver la audiencia.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  pagedRecipients.map((recipient) => {
+                    const email = recipient.email?.trim() ?? "";
+                    const phone = recipient.phone?.trim() ?? "";
+                    const hasMissingEmail = !recipient.email || recipient.email.trim() === "";
+                    const hasMissingPhone = !recipient.phone || recipient.phone.trim() === "";
+                    const missingRequired = (isEmailChannel && hasMissingEmail) || (isPhoneChannel && hasMissingPhone);
+
+                    return (
+                      <TableRow key={recipient.customer_id} className={cn("hover:bg-muted/30 transition-colors", missingRequired && "bg-destructive/5")}>
+                        <TableCell className="font-medium">{recipient.name}</TableCell>
+                        <TableCell className={cn(isEmailChannel ? "bg-primary/5" : "text-muted-foreground")}>
+                          {email ? (
+                            email
+                          ) : isEmailChannel ? (
+                            <span className="inline-flex items-center gap-1 font-medium text-destructive">
+                              <AlertTriangle className="h-3.5 w-3.5" />
+                              Sin email
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </TableCell>
+                        <TableCell className={cn(isPhoneChannel ? "bg-primary/5" : "text-muted-foreground")}>
+                          {phone ? (
+                            phone
+                          ) : isPhoneChannel ? (
+                            <span className="inline-flex items-center gap-1 font-medium text-destructive">
+                              <AlertTriangle className="h-3.5 w-3.5" />
+                              Sin teléfono
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="font-normal">{recipient.segment ?? "General"}</Badge>
+                            {missingRequired && (
+                              <span className="inline-flex items-center gap-1 text-xs font-medium text-destructive">
+                                <AlertTriangle className="h-3.5 w-3.5" />
+                                Dato requerido faltante
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+            {resolvedRecipients.length > 0 && (
+              <div className="flex items-center justify-between px-6 py-4 border-t bg-muted/10">
+                <p className="text-xs text-muted-foreground">
+                  Mostrando <span className="font-bold">{recipientsSliceStart + 1}–{Math.min(recipientsSliceStart + RECIPIENTS_PREVIEW_PAGE_SIZE, recipientsTotal)}</span> de {recipientsTotal} clientes.
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={currentRecipientsPage <= 1}
+                    onClick={() => setRecipientsPage((prev) => Math.max(1, prev - 1))}
+                  >
+                    Anterior
+                  </Button>
+                  <div className="text-xs font-bold px-3 py-1 bg-background rounded-md border">
+                    {currentRecipientsPage} / {recipientsTotalPages}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={currentRecipientsPage >= recipientsTotalPages}
+                    onClick={() => setRecipientsPage((prev) => Math.min(recipientsTotalPages, prev + 1))}
+                  >
+                    Siguiente
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </Card>
+
+      {/* PASO 4: EDITOR Y LANZAMIENTO */}
+      <Card className="erp-card overflow-hidden border-none shadow-2xl ring-1 ring-primary/20">
+        <div className="bg-primary/5 px-6 py-4 border-b border-primary/10 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground font-bold shadow-lg">4</span>
             <div>
               <h3 className="text-lg font-bold">Personalización y Lanzamiento</h3>
               <p className="text-xs text-muted-foreground">Revisa el contenido final, previsualiza y programa el envío.</p>
@@ -1255,126 +1388,6 @@ export default function AiCampaignGenerator() {
                       body={watchedBody}
                     />
                   </div>
-                </div>
-              </div>
-
-              {/* AUDIENCIA */}
-              <div className="border-t pt-8 space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div>
-                    <h4 className="font-bold text-lg">Audiencia Seleccionada</h4>
-                    <p className="text-sm text-muted-foreground">Verifica quiénes recibirán este mensaje.</p>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="gap-2"
-                    disabled={previewRecipientsMutation.isPending || !selectedCategoryId}
-                    onClick={handlePreviewRecipients}
-                  >
-                    {previewRecipientsMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FolderOpen className="h-4 w-4" />}
-                    Actualizar Lista de Destinatarios
-                  </Button>
-                </div>
-
-                <div className="rounded-2xl border overflow-hidden shadow-sm">
-                  <Table>
-                    <TableHeader className="bg-muted/50">
-                      <TableRow>
-                        <TableHead className="font-bold">Cliente</TableHead>
-                        <TableHead className={cn("font-bold", isEmailChannel ? "bg-primary/5 text-primary" : "text-muted-foreground")}>Email</TableHead>
-                        <TableHead className={cn("font-bold", isPhoneChannel ? "bg-primary/5 text-primary" : "text-muted-foreground")}>Teléfono</TableHead>
-                        <TableHead className="font-bold">Segmento</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {resolvedRecipients.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={4} className="h-24 text-center text-muted-foreground italic">
-                            Haz clic en "Actualizar Lista" para ver la audiencia.
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        pagedRecipients.map((recipient) => {
-                          const email = recipient.email?.trim() ?? "";
-                          const phone = recipient.phone?.trim() ?? "";
-                          const hasMissingEmail = !recipient.email || recipient.email.trim() === "";
-                          const hasMissingPhone = !recipient.phone || recipient.phone.trim() === "";
-                          const missingRequired = (isEmailChannel && hasMissingEmail) || (isPhoneChannel && hasMissingPhone);
-
-                          return (
-                          <TableRow key={recipient.customer_id} className={cn("hover:bg-muted/30 transition-colors", missingRequired && "bg-destructive/5")}>
-                            <TableCell className="font-medium">{recipient.name}</TableCell>
-                            <TableCell className={cn(isEmailChannel ? "bg-primary/5" : "text-muted-foreground")}> 
-                              {email ? (
-                                email
-                              ) : isEmailChannel ? (
-                                <span className="inline-flex items-center gap-1 font-medium text-destructive">
-                                  <AlertTriangle className="h-3.5 w-3.5" />
-                                  Sin email
-                                </span>
-                              ) : (
-                                "—"
-                              )}
-                            </TableCell>
-                            <TableCell className={cn(isPhoneChannel ? "bg-primary/5" : "text-muted-foreground")}>
-                              {phone ? (
-                                phone
-                              ) : isPhoneChannel ? (
-                                <span className="inline-flex items-center gap-1 font-medium text-destructive">
-                                  <AlertTriangle className="h-3.5 w-3.5" />
-                                  Sin teléfono
-                                </span>
-                              ) : (
-                                "—"
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                <Badge variant="outline" className="font-normal">{recipient.segment ?? "General"}</Badge>
-                                {missingRequired && (
-                                  <span className="inline-flex items-center gap-1 text-xs font-medium text-destructive">
-                                    <AlertTriangle className="h-3.5 w-3.5" />
-                                    Dato requerido faltante
-                                  </span>
-                                )}
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        )})
-                      )}
-                    </TableBody>
-                  </Table>
-                  {resolvedRecipients.length > 0 && (
-                    <div className="flex items-center justify-between px-6 py-4 border-t bg-muted/10">
-                      <p className="text-xs text-muted-foreground">
-                        Mostrando <span className="font-bold">{recipientsSliceStart + 1}–{Math.min(recipientsSliceStart + RECIPIENTS_PREVIEW_PAGE_SIZE, recipientsTotal)}</span> de {recipientsTotal} clientes.
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          disabled={currentRecipientsPage <= 1}
-                          onClick={() => setRecipientsPage((prev) => Math.max(1, prev - 1))}
-                        >
-                          Anterior
-                        </Button>
-                        <div className="text-xs font-bold px-3 py-1 bg-background rounded-md border">
-                          {currentRecipientsPage} / {recipientsTotalPages}
-                        </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          disabled={currentRecipientsPage >= recipientsTotalPages}
-                          onClick={() => setRecipientsPage((prev) => Math.min(recipientsTotalPages, prev + 1))}
-                        >
-                          Siguiente
-                        </Button>
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
 
