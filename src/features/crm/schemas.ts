@@ -67,13 +67,28 @@ export type CrmSegment = z.infer<typeof CrmSegmentSchema>;
 
 export const CreateCampaignSchema = z.object({
   name: z.string().min(3, "Nombre mínimo de 3 caracteres"),
-  subject: z.string().min(3, "Asunto mínimo de 3 caracteres"),
+  subject: z.string().optional(),
   body: z.string().min(10, "Contenido mínimo de 10 caracteres"),
   segment: z.string().min(2, "Segmento mínimo de 2 caracteres"),
-  channel: z.enum(["Email", "SMS", "WhatsApp"], {
+  channel: z.enum(["EMAIL", "SMS", "WHATSAPP"], {
     required_error: "Selecciona un canal",
   }),
   scheduledAt: z.string().optional(),
+}).superRefine((data, ctx) => {
+  if (data.channel === "EMAIL" && (!data.subject || data.subject.trim() === "")) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "El Asunto es obligatorio para campañas de Email",
+      path: ["subject"],
+    });
+  }
+  if (data.channel === "SMS" && data.body.length > 160) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "El contenido de un SMS no puede exceder 160 caracteres",
+      path: ["body"],
+    });
+  }
 });
 
 export type CreateCampaignDTO = z.infer<typeof CreateCampaignSchema>;

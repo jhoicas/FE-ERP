@@ -848,13 +848,15 @@ export async function sendBulkCampaign(customerIds: string[]): Promise<{ status:
 }
 
 export async function sendCampaignTest(body: {
-  subject: string;
+  channel: string;
+  subject?: string;
   body: string;
   customer_id?: string;
   email?: string;
 }): Promise<{ status: string }> {
   const payload = z.object({
-    subject: z.string().min(1),
+    channel: z.enum(["EMAIL", "SMS", "WHATSAPP"]),
+    subject: z.string().optional(),
     body: z.string().min(1),
     customer_id: z.string().optional(),
     email: z.string().email().optional(),

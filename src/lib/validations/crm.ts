@@ -117,7 +117,8 @@ export const updateBenefitSchema = z.object({
 export type UpdateBenefitRequest = z.infer<typeof updateBenefitSchema>;
 
 export const sendCampaignSchema = z.object({
-  subject: z.string().min(1, "El asunto es obligatorio"),
+  channel: z.enum(["EMAIL", "SMS", "WHATSAPP"]),
+  subject: z.string().optional(),
   body: z.string().min(1, "El contenido es obligatorio"),
   category_id: z.string().uuid().optional().nullable(),
 });

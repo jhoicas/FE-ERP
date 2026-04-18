@@ -90,7 +90,7 @@ export interface SummarizeTimelineRequest {
   customer_id: string;
 }
 
-export type CampaignChannel = "Email" | "SMS" | "WhatsApp";
+export type CampaignChannel = "EMAIL" | "SMS" | "WHATSAPP";
 
 export interface CreateCampaignRequest {
   name: string;

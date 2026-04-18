@@ -572,9 +572,14 @@ export default function MarketingAIPage() {
                         <div className="flex w-full items-center justify-between gap-4 text-left pr-2">
                           <div className="min-w-0">
                             <p className="text-sm font-medium truncate">{campaign.name}</p>
-                            <p className="text-xs text-muted-foreground truncate">
-                              {campaign.segment || "Sin segmento"} · {campaign.channel || "Sin canal"}
-                            </p>
+                            <div className="flex items-center gap-1.5 mt-1">
+                              <p className="text-xs text-muted-foreground truncate">
+                                {campaign.segment || "Sin segmento"}
+                              </p>
+                              <Badge variant="secondary" className="text-[10px] h-4 px-1.5 leading-none">
+                                {campaign.channel || "EMAIL"}
+                              </Badge>
+                            </div>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             <Badge variant="outline" className={statusVariant(campaign.status)}>

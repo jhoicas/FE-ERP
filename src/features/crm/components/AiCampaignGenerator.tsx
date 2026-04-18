@@ -304,9 +304,9 @@ function limitSmsText(text: string): string {
   return text.length > 150 ? text.slice(0, 150) : text;
 }
 
-function PreviewEmptyState({ channel }: { channel: "Email" | "SMS" | "WhatsApp" }) {
-  const icon = channel === "Email" ? Mail : channel === "WhatsApp" ? MessageSquare : Smartphone;
-  const label = channel === "Email" ? "Email" : channel === "WhatsApp" ? "WhatsApp" : "SMS";
+function PreviewEmptyState({ channel }: { channel: "EMAIL" | "SMS" | "WHATSAPP" }) {
+  const icon = channel === "EMAIL" ? Mail : channel === "WHATSAPP" ? MessageSquare : Smartphone;
+  const label = channel === "EMAIL" ? "Email" : channel === "WHATSAPP" ? "WhatsApp" : "SMS";
   const Icon = icon;
 
   return (
@@ -377,13 +377,13 @@ function PhonePreviewMockup({
   body,
 }: {
   contact: PreviewContact;
-  channel: "SMS" | "WhatsApp";
+  channel: "SMS" | "WHATSAPP";
   body: string;
 }) {
   const processedBody = replacePreviewVars(body, contact);
-  const bubbleClass = channel === "WhatsApp" ? "bg-success/10 text-foreground" : "bg-primary/10 text-foreground";
-  const title = channel === "WhatsApp" ? "WhatsApp" : "Mensajes";
-  const icon = channel === "WhatsApp" ? MessageSquare : Smartphone;
+  const bubbleClass = channel === "WHATSAPP" ? "bg-success/10 text-foreground" : "bg-primary/10 text-foreground";
+  const title = channel === "WHATSAPP" ? "WhatsApp" : "Mensajes";
+  const icon = channel === "WHATSAPP" ? MessageSquare : Smartphone;
   const Icon = icon;
 
   return (
@@ -417,7 +417,7 @@ function CampaignPreviewPanel({
   subject,
   body,
 }: {
-  channel: "Email" | "SMS" | "WhatsApp";
+  channel: "EMAIL" | "SMS" | "WHATSAPP";
   contact: PreviewContact | null;
   subject: string;
   body: string;
@@ -432,16 +432,16 @@ function CampaignPreviewPanel({
           </p>
         </div>
         <Badge variant="outline" className="gap-1">
-          {channel === "Email" ? <Mail className="h-3 w-3" /> : channel === "WhatsApp" ? <MessageSquare className="h-3 w-3" /> : <Smartphone className="h-3 w-3" />}
+          {channel === "EMAIL" ? <Mail className="h-3 w-3" /> : channel === "WHATSAPP" ? <MessageSquare className="h-3 w-3" /> : <Smartphone className="h-3 w-3" />}
           {channel}
         </Badge>
       </div>
 
       {contact ? (
-        channel === "Email" ? (
+        channel === "EMAIL" ? (
           <EmailPreviewMockup contact={contact} subject={subject} body={body} />
         ) : (
-          <PhonePreviewMockup contact={contact} channel={channel} body={body} />
+          <PhonePreviewMockup contact={contact} channel={channel as "SMS" | "WHATSAPP"} body={body} />
         )
       ) : (
         <PreviewEmptyState channel={channel} />
@@ -530,7 +530,7 @@ export default function AiCampaignGenerator() {
       subject: "",
       body: "",
       segment: "",
-      channel: "Email",
+      channel: "EMAIL",
       scheduledAt: "",
     },
   });
@@ -661,7 +661,7 @@ export default function AiCampaignGenerator() {
   const sendCampaignMutation = useMutation<
     { status: string },
     Error,
-    { subject: string; body: string; category_id: string | null }
+    { channel: string; subject: string; body: string; category_id: string | null }
   >({
     mutationFn: sendCampaign,
     onSuccess: (data: { status: string }) => {
@@ -728,7 +728,7 @@ export default function AiCampaignGenerator() {
         subject: "",
         body: "",
         segment: "",
-        channel: "Email",
+        channel: "EMAIL",
         scheduledAt: "",
       });
       setSelectedCategoryId("");
@@ -818,10 +818,11 @@ export default function AiCampaignGenerator() {
   }, [previewDirectoryQuery.data, resolvedRecipients]);
 
   const handleSendCampaign = () => {
-    if (!generatedText || !campaignSubject?.trim()) return;
+    if (!generatedText || (previewChannel === "EMAIL" && !campaignSubject?.trim())) return;
 
     sendCampaignMutation.mutate({
-      subject: campaignSubject.trim(),
+      channel: previewChannel,
+      subject: campaignSubject?.trim() || "",
       body: generatedText,
       category_id: selectedAudience === "all" ? null : selectedAudience,
     });
@@ -841,25 +842,26 @@ export default function AiCampaignGenerator() {
 
   const sendTestMutation = useMutation<{ status: string }, Error, z.infer<typeof sendTestSchema>>({
     mutationFn: async (values) => {
-      const subject = form.getValues("subject").trim();
+      const subject = form.getValues("subject")?.trim();
       const body = generatedText;
-      if (!subject || !body) {
-        throw new Error("Primero genera el mensaje y define el asunto.");
+      if (!body || (previewChannel === "EMAIL" && !subject)) {
+        throw new Error("Primero genera el mensaje y define el asunto (si es Email).");
       }
 
       if (values.mode === "customer") {
         if (!values.customer_id) throw new Error("Selecciona un cliente.");
         return sendCampaignTest({
-          subject,
+          channel: previewChannel,
+          subject: subject || "",
           body,
           customer_id: values.customer_id,
-          // El backend valida que `email` exista para el envío de prueba.
+          // El backend valida que `email` exista para el envío de prueba si es EMAIL.
           email: values.email,
         });
       }
 
-      if (!values.email) throw new Error("Ingresa un email.");
-      return sendCampaignTest({ subject, body, email: values.email });
+      if (!values.email && previewChannel === "EMAIL") throw new Error("Ingresa un email.");
+      return sendCampaignTest({ channel: previewChannel, subject: subject || "", body, email: values.email });
     },
     onSuccess: () => {
       toast({ title: "Correo de prueba enviado" });
@@ -1221,7 +1223,7 @@ export default function AiCampaignGenerator() {
                   variant="outline"
                   className="w-full"
                   onClick={() => setTestSendOpen(true)}
-                  disabled={!canSendCampaign}
+                  disabled={!generatedText}
                 >
                   Enviar prueba
                 </Button>
@@ -1229,7 +1231,7 @@ export default function AiCampaignGenerator() {
                   type="button"
                   className="w-full"
                   onClick={() => setConfirmSendOpen(true)}
-                  disabled={!canSendCampaign || sendCampaignMutation.isPending}
+                  disabled={!generatedText || (previewChannel === "EMAIL" && !campaignSubject?.trim()) || sendCampaignMutation.isPending}
                 >
                   {sendCampaignMutation.isPending ? (
                     <>
@@ -1396,19 +1398,21 @@ export default function AiCampaignGenerator() {
                       )}
                     />
 
-                    <FormField
-                      control={createCampaignForm.control}
-                      name="subject"
-                      render={({ field }) => (
-                        <FormItem className="md:col-span-2">
-                          <FormLabel>Asunto</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Asunto del mensaje" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    {previewChannel === "EMAIL" && (
+                      <FormField
+                        control={createCampaignForm.control}
+                        name="subject"
+                        render={({ field }) => (
+                          <FormItem className="md:col-span-2">
+                            <FormLabel>Asunto</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Asunto del mensaje" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
 
                     <FormField
                       control={createCampaignForm.control}
@@ -1467,9 +1471,9 @@ export default function AiCampaignGenerator() {
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value="Email">Email</SelectItem>
+                              <SelectItem value="EMAIL">Email</SelectItem>
                               <SelectItem value="SMS">SMS</SelectItem>
-                              <SelectItem value="WhatsApp">WhatsApp</SelectItem>
+                              <SelectItem value="WHATSAPP">WhatsApp</SelectItem>
                             </SelectContent>
                           </Select>
                           <FormMessage />
