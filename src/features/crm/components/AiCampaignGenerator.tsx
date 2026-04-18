@@ -97,6 +97,7 @@ const RecipientSchema = z.object({
   customer_id: z.string(),
   name: z.string(),
   email: z.string().optional().nullable(),
+  phone: z.string().optional().nullable(),
   segment: z.string().optional().nullable(),
 });
 
@@ -764,6 +765,8 @@ export default function AiCampaignGenerator() {
 
   const canSendCampaign = Boolean(watchedBody?.trim() && (previewChannel !== "EMAIL" || watchedSubject?.trim()));
   const canSaveTemplate = Boolean(watchedBody?.trim() && (previewChannel !== "EMAIL" || watchedSubject?.trim()));
+  const isEmailChannel = previewChannel === "EMAIL";
+  const isPhoneChannel = previewChannel === "WHATSAPP" || previewChannel === "SMS";
   
   const isSmsOverLimit = previewChannel === "SMS" && (watchedBody?.length ?? 0) > 150;
   
@@ -1277,27 +1280,66 @@ export default function AiCampaignGenerator() {
                     <TableHeader className="bg-muted/50">
                       <TableRow>
                         <TableHead className="font-bold">Cliente</TableHead>
-                        <TableHead className="font-bold">Contacto</TableHead>
+                        <TableHead className={cn("font-bold", isEmailChannel ? "bg-primary/5 text-primary" : "text-muted-foreground")}>Email</TableHead>
+                        <TableHead className={cn("font-bold", isPhoneChannel ? "bg-primary/5 text-primary" : "text-muted-foreground")}>Teléfono</TableHead>
                         <TableHead className="font-bold">Segmento</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {resolvedRecipients.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={3} className="h-24 text-center text-muted-foreground italic">
+                          <TableCell colSpan={4} className="h-24 text-center text-muted-foreground italic">
                             Haz clic en "Actualizar Lista" para ver la audiencia.
                           </TableCell>
                         </TableRow>
                       ) : (
-                        pagedRecipients.map((recipient) => (
-                          <TableRow key={recipient.customer_id} className="hover:bg-muted/30 transition-colors">
+                        pagedRecipients.map((recipient) => {
+                          const email = recipient.email?.trim() ?? "";
+                          const phone = recipient.phone?.trim() ?? "";
+                          const hasMissingEmail = !recipient.email || recipient.email.trim() === "";
+                          const hasMissingPhone = !recipient.phone || recipient.phone.trim() === "";
+                          const missingRequired = (isEmailChannel && hasMissingEmail) || (isPhoneChannel && hasMissingPhone);
+
+                          return (
+                          <TableRow key={recipient.customer_id} className={cn("hover:bg-muted/30 transition-colors", missingRequired && "bg-destructive/5")}>
                             <TableCell className="font-medium">{recipient.name}</TableCell>
-                            <TableCell>{previewChannel === "EMAIL" ? (recipient.email ?? "—") : "—"}</TableCell>
+                            <TableCell className={cn(isEmailChannel ? "bg-primary/5" : "text-muted-foreground")}> 
+                              {email ? (
+                                email
+                              ) : isEmailChannel ? (
+                                <span className="inline-flex items-center gap-1 font-medium text-destructive">
+                                  <AlertTriangle className="h-3.5 w-3.5" />
+                                  Sin email
+                                </span>
+                              ) : (
+                                "—"
+                              )}
+                            </TableCell>
+                            <TableCell className={cn(isPhoneChannel ? "bg-primary/5" : "text-muted-foreground")}>
+                              {phone ? (
+                                phone
+                              ) : isPhoneChannel ? (
+                                <span className="inline-flex items-center gap-1 font-medium text-destructive">
+                                  <AlertTriangle className="h-3.5 w-3.5" />
+                                  Sin teléfono
+                                </span>
+                              ) : (
+                                "—"
+                              )}
+                            </TableCell>
                             <TableCell>
-                              <Badge variant="outline" className="font-normal">{recipient.segment ?? "General"}</Badge>
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="font-normal">{recipient.segment ?? "General"}</Badge>
+                                {missingRequired && (
+                                  <span className="inline-flex items-center gap-1 text-xs font-medium text-destructive">
+                                    <AlertTriangle className="h-3.5 w-3.5" />
+                                    Dato requerido faltante
+                                  </span>
+                                )}
+                              </div>
                             </TableCell>
                           </TableRow>
-                        ))
+                        )})
                       )}
                     </TableBody>
                   </Table>
