@@ -1064,128 +1064,60 @@ export default function AiCampaignGenerator() {
   };
 
   return (
-    <div className="animate-fade-in space-y-4">
-      {/* Sin botón "Volver a CRM" */}
-      <div>
-        <h2 className="text-lg font-bold flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-primary" />
-          Generador de Campañas con IA
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          Describe tu campaña y genera copy comercial al instante.
-        </p>
-      </div>
-      <div className="flex justify-end">
-        <Button type="button" variant="outline" onClick={() => setTemplatesOpen(true)}>
-          <FolderOpen className="h-4 w-4 mr-2" />
+    <div className="animate-fade-in max-w-4xl mx-auto space-y-8 pb-24">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-3xl font-extrabold flex items-center gap-3 tracking-tight">
+            <Sparkles className="h-8 w-8 text-primary animate-pulse" />
+            Campaña Inteligente
+          </h2>
+          <p className="text-muted-foreground text-lg">
+            Crea, personaliza y programa tus envíos en minutos.
+          </p>
+        </div>
+        <Button type="button" variant="outline" size="lg" onClick={() => setTemplatesOpen(true)} className="rounded-full px-6">
+          <FolderOpen className="h-5 w-5 mr-2" />
           Mis Plantillas
         </Button>
       </div>
-      <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 md:flex-row md:items-end md:justify-between">
-        <div className="w-full md:max-w-xs">
-          <Label>Segmento a impactar</Label>
-          <Select value={autoCampaignSegment} onValueChange={(value) => setAutoCampaignSegment(value as CrmSegment)}>
-            <SelectTrigger>
-              <SelectValue placeholder="Selecciona un segmento" />
-            </SelectTrigger>
-            <SelectContent>
-              {SEGMENT_OPTIONS.map((segment) => (
-                <SelectItem key={segment} value={segment}>
-                  {segment}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+
+      {/* PASO 1: CONFIGURACIÓN */}
+      <Card className="erp-card overflow-hidden border-none shadow-xl ring-1 ring-primary/10">
+        <div className="bg-primary/5 px-6 py-4 border-b border-primary/10 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground font-bold shadow-lg">1</span>
+            <div>
+              <h3 className="text-lg font-bold">Configuración Básica</h3>
+              <p className="text-xs text-muted-foreground">Define el destino y el medio de envío.</p>
+            </div>
+          </div>
         </div>
-
-        <Button
-          type="button"
-          onClick={handleGenerateAutomaticCampaign}
-          disabled={autoCampaignMutation.isPending}
-          className="md:self-end"
-        >
-          {autoCampaignMutation.isPending ? "Generando…" : "Generar Campaña Automática"}
-        </Button>
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left: Form */}
-        <section className="erp-card">
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <div className="p-8">
+          <Form {...createCampaignForm}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <FormField
-                control={form.control}
-                name="prompt"
+                control={createCampaignForm.control}
+                name="segment"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>¿De qué trata la campaña?</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Ej: Lanzamiento de nueva colección de aceites esenciales"
-                        className="min-h-[100px] resize-none"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="tone"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tono</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormLabel className="text-base font-semibold">¿A quién va dirigida?</FormLabel>
+                    <Select 
+                      onValueChange={(val) => {
+                        field.onChange(val);
+                        const catId = getCategoryIdFromSegment(val as CrmSegment);
+                        if (catId) setSelectedCategoryId(catId);
+                      }} 
+                      value={field.value}
+                    >
                       <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecciona un tono" />
+                        <SelectTrigger className="h-12 text-lg">
+                          <SelectValue placeholder="Selecciona un segmento" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="profesional">Profesional</SelectItem>
-                        <SelectItem value="casual">Casual</SelectItem>
-                        <SelectItem value="persuasivo">Persuasivo</SelectItem>
-                        <SelectItem value="urgente">Urgente</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="target_audience"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Público objetivo</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="Ej: Mujeres 25-40 interesadas en bienestar"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="category_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Segmento</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecciona segmento" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="all">Todos los clientes</SelectItem>
-                        {(categoriesQuery.data ?? []).map((category) => (
-                          <SelectItem key={category.id} value={category.id}>
-                            Solo {category.name}
+                        {SEGMENT_OPTIONS.map((segment) => (
+                          <SelectItem key={segment} value={segment}>
+                            {segment}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1196,368 +1128,363 @@ export default function AiCampaignGenerator() {
               />
 
               <FormField
-                control={form.control}
-                name="subject"
+                control={createCampaignForm.control}
+                name="channel"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Asunto del Correo</FormLabel>
+                    <FormLabel className="text-base font-semibold">¿Por qué canal enviamos?</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger className="h-12 text-lg">
+                          <SelectValue placeholder="Selecciona el canal" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="EMAIL">Email Marketing</SelectItem>
+                        <SelectItem value="SMS">Mensaje de Texto (SMS)</SelectItem>
+                        <SelectItem value="WHATSAPP">WhatsApp Business</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </Form>
+        </div>
+      </Card>
+
+      {/* PASO 2: ASISTENTE IA */}
+      <Card className="erp-card overflow-hidden border-none shadow-xl ring-1 ring-primary/10">
+        <div className="bg-primary/5 px-6 py-4 border-b border-primary/10 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground font-bold shadow-lg">2</span>
+            <div>
+              <h3 className="text-lg font-bold">Redacción con Inteligencia Artificial</h3>
+              <p className="text-xs text-muted-foreground">Deja que la IA redacte un mensaje persuasivo para ti.</p>
+            </div>
+          </div>
+        </div>
+        <div className="p-8">
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <FormField
+                control={form.control}
+                name="prompt"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-base font-semibold">¿Cuál es el objetivo de esta campaña?</FormLabel>
                     <FormControl>
-                      <Input placeholder="Asunto del correo" {...field} />
+                      <Textarea
+                        placeholder="Escribe aquí los detalles, beneficios o promociones que quieres resaltar..."
+                        className="min-h-[140px] text-lg bg-muted/30 focus:bg-background transition-colors p-4 resize-none rounded-xl"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-
-              <Button type="submit" disabled={mutation.isPending} className="w-full gap-2">
-                <Sparkles className="h-4 w-4" />
-                {mutation.isPending ? "Generando…" : "Generar Copy Comercial"}
-              </Button>
+              
+              <div className="flex flex-col lg:flex-row justify-between items-end gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full lg:max-w-xl">
+                  <FormField
+                    control={form.control}
+                    name="tone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs uppercase tracking-wider font-bold text-muted-foreground">Tono de voz</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger className="h-11">
+                              <SelectValue placeholder="Tono" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="profesional">Profesional</SelectItem>
+                            <SelectItem value="casual">Casual</SelectItem>
+                            <SelectItem value="persuasivo">Persuasivo</SelectItem>
+                            <SelectItem value="urgente">Urgente</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="target_audience"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs uppercase tracking-wider font-bold text-muted-foreground">Público Objetivo</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Ej: Clientes recurrentes"
+                            className="h-11"
+                            {...field}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <Button 
+                  type="submit" 
+                  disabled={mutation.isPending} 
+                  size="lg"
+                  className="w-full lg:w-auto gap-3 h-14 px-10 rounded-xl text-lg font-bold shadow-xl hover:scale-[1.02] active:scale-95 transition-all"
+                >
+                  {mutation.isPending ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-5 w-5" />
+                  )}
+                  Generar Contenido
+                </Button>
+              </div>
             </form>
           </Form>
-        </section>
-        {/* Right: Result */}
-        <section className="erp-card relative min-h-[200px]">
-          <h3 className="text-sm font-semibold mb-3">Resultado</h3>
-          {mutation.isPending && (
-            <div className="space-y-3">
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-5/6" />
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-4/6" />
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-3/6" />
+        </div>
+      </Card>
+
+      {/* PASO 3: EDITOR Y LANZAMIENTO */}
+      <Card className="erp-card overflow-hidden border-none shadow-2xl ring-1 ring-primary/20">
+        <div className="bg-primary/5 px-6 py-4 border-b border-primary/10 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground font-bold shadow-lg">3</span>
+            <div>
+              <h3 className="text-lg font-bold">Personalización y Lanzamiento</h3>
+              <p className="text-xs text-muted-foreground">Revisa el contenido final, previsualiza y programa el envío.</p>
             </div>
-          )}
-          {!mutation.isPending && generatedText && (
-            <>
-              <div className="absolute top-3 right-3 flex items-center gap-2">
-                <Button variant="ghost" size="icon" onClick={handleCopy}>
-                  <Copy className="h-4 w-4" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSaveTemplateOpen(true)}
-                  disabled={!canSaveTemplate || saveTemplateMutation.isPending}
-                >
-                  <Save className="h-4 w-4 mr-2" />
-                  Guardar como Plantilla
-                </Button>
+          </div>
+        </div>
+
+        <div className="p-8">
+          <Form {...createCampaignForm}>
+            <form className="space-y-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField
+                  control={createCampaignForm.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="font-semibold">Nombre de la Campaña (Interno)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Ej: Lanzamiento Verano 2026" className="h-11" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={createCampaignForm.control}
+                  name="scheduledAt"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="font-semibold">Fecha y Hora de Envío</FormLabel>
+                      <FormControl>
+                        <Input type="datetime-local" className="h-11" {...field} />
+                      </FormControl>
+                      <FormDescription>Si se deja vacío, quedará como borrador pendiente.</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
-              <div className="text-sm whitespace-pre-wrap leading-relaxed text-foreground/90">
-                {generatedText}
+
+              <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+                <div className="lg:col-span-3 space-y-6">
+                  {previewChannel === "EMAIL" && (
+                    <FormField
+                      control={createCampaignForm.control}
+                      name="subject"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="font-semibold">Asunto del Mensaje</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Escribe un asunto irresistible..." className="h-11 font-medium" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+
+                  <FormField
+                    control={createCampaignForm.control}
+                    name="body"
+                    render={({ field }) => (
+                      <FormItem>
+                        <div className="flex justify-between items-center mb-2">
+                          <FormLabel className="font-semibold">Contenido del Mensaje</FormLabel>
+                          <Button variant="outline" size="sm" type="button" onClick={handleCopy} className="h-8 text-xs gap-2 rounded-lg">
+                            <Copy className="h-3.5 w-3.5" /> Copiar Texto
+                          </Button>
+                        </div>
+                        <FormControl>
+                          <Textarea
+                            placeholder="Aquí aparecerá el texto generado. Puedes editarlo libremente..."
+                            className="min-h-[350px] text-base font-sans leading-relaxed p-6 rounded-2xl border-primary/20"
+                            {...field}
+                            onChange={(e) => {
+                              field.onChange(e);
+                              setGeneratedText(e.target.value);
+                            }}
+                          />
+                        </FormControl>
+                        {previewChannel === "SMS" && (
+                          <div className="flex justify-between mt-2 px-2">
+                            <p className={cn("text-xs font-medium", isSmsOverLimit ? "text-destructive" : "text-muted-foreground")}>
+                              {field.value.length} / 160 caracteres
+                            </p>
+                            {isSmsOverLimit && <p className="text-xs text-destructive font-bold">¡Atención! Excede 1 SMS.</p>}
+                          </div>
+                        )}
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="lg:col-span-2 space-y-6">
+                   <div className="sticky top-4">
+                    <h4 className="text-sm font-bold uppercase tracking-widest text-muted-foreground mb-4">Vista Previa</h4>
+                    <CampaignPreviewPanel
+                      channel={previewChannel}
+                      contact={previewContact}
+                      subject={previewSubject}
+                      body={previewBody || generatedText}
+                    />
+                  </div>
+                </div>
               </div>
-              <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => setTestSendOpen(true)}
-                  disabled={!generatedText}
-                >
-                  Enviar prueba
-                </Button>
-                {(previewChannel === "SMS" || previewChannel === "WHATSAPP") && (
+
+              {/* AUDIENCIA */}
+              <div className="border-t pt-8 space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h4 className="font-bold text-lg">Audiencia Seleccionada</h4>
+                    <p className="text-sm text-muted-foreground">Verifica quiénes recibirán este mensaje.</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="gap-2"
+                    disabled={previewRecipientsMutation.isPending || !selectedCategoryId}
+                    onClick={handlePreviewRecipients}
+                  >
+                    {previewRecipientsMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FolderOpen className="h-4 w-4" />}
+                    Actualizar Lista de Destinatarios
+                  </Button>
+                </div>
+
+                <div className="rounded-2xl border overflow-hidden shadow-sm">
+                  <Table>
+                    <TableHeader className="bg-muted/50">
+                      <TableRow>
+                        <TableHead className="font-bold">Cliente</TableHead>
+                        <TableHead className="font-bold">Contacto</TableHead>
+                        <TableHead className="font-bold">Segmento</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {resolvedRecipients.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={3} className="h-24 text-center text-muted-foreground italic">
+                            Haz clic en "Actualizar Lista" para ver la audiencia.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        pagedRecipients.map((recipient) => (
+                          <TableRow key={recipient.customer_id} className="hover:bg-muted/30 transition-colors">
+                            <TableCell className="font-medium">{recipient.name}</TableCell>
+                            <TableCell>{previewChannel === "EMAIL" ? (recipient.email ?? "—") : (recipient.phone ?? "—")}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="font-normal">{recipient.segment ?? "General"}</Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                  {resolvedRecipients.length > 0 && (
+                    <div className="flex items-center justify-between px-6 py-4 border-t bg-muted/10">
+                      <p className="text-xs text-muted-foreground">
+                        Mostrando <span className="font-bold">{recipientsSliceStart + 1}–{Math.min(recipientsSliceStart + RECIPIENTS_PREVIEW_PAGE_SIZE, recipientsTotal)}</span> de {recipientsTotal} clientes.
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          disabled={currentRecipientsPage <= 1}
+                          onClick={() => setRecipientsPage((prev) => Math.max(1, prev - 1))}
+                        >
+                          Anterior
+                        </Button>
+                        <div className="text-xs font-bold px-3 py-1 bg-background rounded-md border">
+                          {currentRecipientsPage} / {recipientsTotalPages}
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          disabled={currentRecipientsPage >= recipientsTotalPages}
+                          onClick={() => setRecipientsPage((prev) => Math.min(recipientsTotalPages, prev + 1))}
+                        >
+                          Siguiente
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* BOTONES DE ACCIÓN FINAL */}
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-6 pt-8 border-t">
+                <div className="flex gap-4">
                   <Button
                     type="button"
                     variant="outline"
-                    className="w-full gap-1.5 border-emerald-500/30 hover:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-                    onClick={() => setDirectTestOpen(true)}
-                    disabled={!generatedText || directTestMutation.isPending}
+                    size="lg"
+                    className="rounded-xl h-14 px-6 border-dashed"
+                    onClick={() => setTestSendOpen(true)}
+                    disabled={!previewBody}
                   >
-                    <Phone className="h-4 w-4" />
-                    Prueba Directa
+                    Prueba de Segmento
                   </Button>
-                )}
+                  {(previewChannel === "SMS" || previewChannel === "WHATSAPP") && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="lg"
+                      className="rounded-xl h-14 px-6 gap-2 border-emerald-500/30 hover:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                      onClick={() => setDirectTestOpen(true)}
+                      disabled={!previewBody || directTestMutation.isPending}
+                    >
+                      <Phone className="h-5 w-5" />
+                      Prueba Directa
+                    </Button>
+                  )}
+                </div>
+
                 <Button
                   type="button"
-                  className="w-full"
-                  onClick={() => setConfirmSendOpen(true)}
-                  disabled={!generatedText || (previewChannel === "EMAIL" && !campaignSubject?.trim()) || sendCampaignMutation.isPending}
+                  size="lg"
+                  className="w-full sm:w-auto px-12 h-14 text-xl font-black rounded-2xl shadow-2xl hover:scale-105 active:scale-95 transition-all gap-3 bg-primary"
+                  onClick={createCampaignForm.handleSubmit((values) => createCampaignMutation.mutate(values))}
+                  disabled={createCampaignMutation.isPending}
                 >
-                  {sendCampaignMutation.isPending ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Enviando...
-                    </>
+                  {createCampaignMutation.isPending ? (
+                    <Loader2 className="h-6 w-6 animate-spin" />
                   ) : (
-                    <>
-                      <Send className="w-4 h-4 mr-2" />
-                      Enviar a Clientes
-                    </>
+                    <Save className="h-6 w-6" />
                   )}
+                  Guardar Campaña
                 </Button>
               </div>
-            </>
-          )}
-          {!mutation.isPending && !generatedText && (
-            <p className="text-sm text-muted-foreground">
-              El copy generado aparecerá aquí.
-            </p>
-          )}
-        </section>
-      </div>
-
-      <Card className="erp-card">
-        <div className="space-y-4">
-          <div>
-            <h3 className="text-sm font-semibold">Paso final: Crear campaña</h3>
-            <p className="text-xs text-muted-foreground">
-              Define los datos de publicación y registra la campaña.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <section className="space-y-4">
-              <div className="space-y-1">
-                <p className="text-sm font-medium">Destinatarios</p>
-                <p className="text-xs text-muted-foreground">
-                  Selecciona la categoría de clientes y previsualiza la audiencia.
-                </p>
-              </div>
-
-              <div className="space-y-3 rounded-md border p-3">
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Categoría destino</p>
-                  <Select
-                    value={selectedCategoryId || undefined}
-                    onValueChange={setSelectedCategoryId}
-                    disabled={categoriesQuery.isLoading}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar categoría" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(categoriesQuery.data ?? []).map((category) => (
-                        <SelectItem key={category.id} value={category.id}>
-                          {category.name}
-                        </SelectItem>
-                      ))}
-                      {(categoriesQuery.data ?? []).length === 0 && !categoriesQuery.isLoading && (
-                        <SelectItem value="_none" disabled>
-                          Sin categorías disponibles
-                        </SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                disabled={previewRecipientsMutation.isPending}
-                onClick={handlePreviewRecipients}
-              >
-                {previewRecipientsMutation.isPending ? "Previsualizando…" : "Previsualizar destinatarios"}
-              </Button>
-
-              <div className="rounded-md border overflow-hidden">
-                <div className="flex items-center justify-between px-3 py-2 bg-muted/40 border-b">
-                  <p className="text-sm font-medium">Resultado</p>
-                  <p className="text-xs text-muted-foreground">
-                    Total: {resolvedRecipients.length}
-                  </p>
-                </div>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Nombre</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Segmento</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {resolvedRecipients.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={3} className="text-sm text-muted-foreground">
-                          Previsualiza destinatarios para ver resultados.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      pagedRecipients.map((recipient) => (
-                        <TableRow key={recipient.customer_id}>
-                          <TableCell>{recipient.name}</TableCell>
-                          <TableCell>{recipient.email ?? "—"}</TableCell>
-                          <TableCell>{recipient.segment ?? "—"}</TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-                {resolvedRecipients.length > 0 && (
-                  <div className="flex items-center justify-between px-3 py-2 border-t bg-muted/20">
-                    <p className="text-xs text-muted-foreground">
-                      Mostrando {recipientsSliceStart + 1}–{Math.min(recipientsSliceStart + RECIPIENTS_PREVIEW_PAGE_SIZE, recipientsTotal)} de {recipientsTotal}
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={currentRecipientsPage <= 1}
-                        onClick={() => setRecipientsPage((prev) => Math.max(1, prev - 1))}
-                      >
-                        Anterior
-                      </Button>
-                      <p className="text-xs text-muted-foreground">
-                        Página {currentRecipientsPage} / {recipientsTotalPages}
-                      </p>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={currentRecipientsPage >= recipientsTotalPages}
-                        onClick={() => setRecipientsPage((prev) => Math.min(recipientsTotalPages, prev + 1))}
-                      >
-                        Siguiente
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </section>
-
-            <section>
-              <Form {...createCampaignForm}>
-                <form
-                  onSubmit={createCampaignForm.handleSubmit((values) => createCampaignMutation.mutate(values))}
-                  className="space-y-4"
-                >
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <FormField
-                      control={createCampaignForm.control}
-                      name="name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Nombre</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Ej: Promo Bienestar Marzo" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    {previewChannel === "EMAIL" && (
-                      <FormField
-                        control={createCampaignForm.control}
-                        name="subject"
-                        render={({ field }) => (
-                          <FormItem className="md:col-span-2">
-                            <FormLabel>Asunto</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Asunto del mensaje" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    )}
-
-                    <FormField
-                      control={createCampaignForm.control}
-                      name="body"
-                      render={({ field }) => (
-                        <FormItem className="md:col-span-2">
-                          <FormLabel>Contenido</FormLabel>
-                          <FormControl>
-                            <Textarea
-                              placeholder="Contenido de la campaña"
-                              className="min-h-[140px]"
-                              value={field.value}
-                              onChange={(event) => {
-                                field.onChange(event.target.value);
-                              }}
-                            />
-                          </FormControl>
-                          {previewChannel === "SMS" && (
-                            <div className={`mt-1 flex items-center gap-1 text-xs ${isSmsOverLimit ? "text-destructive" : "text-muted-foreground"}`}>
-                              {isSmsOverLimit ? <AlertTriangle className="h-3.5 w-3.5" /> : null}
-                              <span>
-                                {previewBody?.length ?? 0}/150 caracteres para SMS
-                                {isSmsOverLimit ? " - excede el límite permitido." : ""}
-                              </span>
-                            </div>
-                          )}
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={createCampaignForm.control}
-                      name="segment"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Segmento</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Ej: Clientes recurrentes" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={createCampaignForm.control}
-                      name="channel"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Canal</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Selecciona canal" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="EMAIL">Email</SelectItem>
-                              <SelectItem value="SMS">SMS</SelectItem>
-                              <SelectItem value="WHATSAPP">WhatsApp</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={createCampaignForm.control}
-                      name="scheduledAt"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Fecha programada</FormLabel>
-                          <FormControl>
-                            <Input type="datetime-local" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                      <CampaignPreviewPanel
-                        channel={previewChannel}
-                        contact={previewContact}
-                        subject={previewSubject}
-                        body={previewBody || generatedText}
-                      />
-
-              <Button
-                type="submit"
-                disabled={createCampaignMutation.isPending}
-                className="w-full"
-              >
-                {createCampaignMutation.isPending ? "Enviando campaña…" : "Enviar campaña"}
-              </Button>
-                </form>
-              </Form>
-            </section>
-          </div>
+            </form>
+          </Form>
         </div>
       </Card>
 
