@@ -46,6 +46,11 @@ function getAutomationIcon(type: CrmAutomation["type"]) {
   return type === "BIRTHDAY" ? CalendarHeart : RotateCcw;
 }
 
+function getAutomationChannelLabel(): "EMAIL" {
+  // Las automatizaciones actuales del backend usan plantillas de email.
+  return "EMAIL";
+}
+
 export default function AutomationsTab() {
   const { toast } = useToast();
   const user = useAuthUser();
@@ -193,10 +198,9 @@ export default function AutomationsTab() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Nombre</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead>Template</TableHead>
-                    <TableHead>Config</TableHead>
-                    <TableHead className="text-center">Activa</TableHead>
+                    <TableHead>Evento Disparador</TableHead>
+                    <TableHead>Canal</TableHead>
+                    <TableHead className="text-center">Estado</TableHead>
                     {canManage && <TableHead className="text-right">Acciones</TableHead>}
                   </TableRow>
                 </TableHeader>
@@ -213,19 +217,23 @@ export default function AutomationsTab() {
                             {getAutomationTypeLabel(automation.type)}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{automation.template_id}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {automation.type === "REPURCHASE"
-                            ? `Producto: ${automation.config?.productId ?? "-"} · Días: ${automation.config?.daysSincePurchase ?? "-"}`
-                            : "Sin configuración adicional"}
+                        <TableCell>
+                          <Badge variant="secondary">{getAutomationChannelLabel()}</Badge>
                         </TableCell>
                         <TableCell className="text-center">
-                          <Switch
-                            checked={automation.is_active}
-                            onCheckedChange={() => handleToggleActive(automation)}
-                            disabled={toggleMutation.isPending || !canManage}
-                            aria-label={`Activar ${automation.name}`}
-                          />
+                          <div className="flex items-center justify-center gap-2">
+                            <Badge variant={automation.is_active ? "default" : "outline"}>
+                              {automation.is_active ? "Activa" : "Inactiva"}
+                            </Badge>
+                            {canManage && (
+                              <Switch
+                                checked={automation.is_active}
+                                onCheckedChange={() => handleToggleActive(automation)}
+                                disabled={toggleMutation.isPending || !canManage}
+                                aria-label={`Activar ${automation.name}`}
+                              />
+                            )}
+                          </div>
                         </TableCell>
                         {canManage && (
                           <TableCell className="text-right space-x-2">
@@ -272,14 +280,10 @@ export default function AutomationsTab() {
                   <CardContent className="space-y-2 text-xs">
                     <div className="flex items-center gap-1 text-muted-foreground">
                       <Icon className="h-3.5 w-3.5" />
-                      {getAutomationTypeLabel(automation.type)}
+                      Evento: {getAutomationTypeLabel(automation.type)}
                     </div>
-                    <p className="text-muted-foreground">Template: {automation.template_id}</p>
-                    {automation.type === "REPURCHASE" && (
-                      <p className="text-muted-foreground">
-                        Producto: {automation.config?.productId ?? "-"} · Días: {automation.config?.daysSincePurchase ?? "-"}
-                      </p>
-                    )}
+                    <p className="text-muted-foreground">Canal: {getAutomationChannelLabel()}</p>
+                    <p className="text-muted-foreground">Estado: {automation.is_active ? "Activa" : "Inactiva"}</p>
                     {canManage && (
                       <div className="flex gap-2 pt-1">
                         <Button variant="outline" size="sm" className="flex-1" onClick={() => setEditingAutomation(automation)}>
