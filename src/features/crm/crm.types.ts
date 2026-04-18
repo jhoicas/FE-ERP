@@ -113,6 +113,9 @@ export interface CrmAutomation {
   id: string;
   name: string;
   type: CrmAutomationType;
+  trigger?: string;
+  channel?: CampaignChannel;
+  status?: string;
   template_id: string;
   config: CrmAutomationConfig;
   is_active: boolean;
@@ -133,6 +136,11 @@ export interface UpdateCrmAutomationRequest {
   config?: CrmAutomationConfig;
   is_active?: boolean;
 }
+
+// DTO aliases aligned with backend naming for /api/crm/automations CRUD.
+export type AutomationResponse = CrmAutomation;
+export type CreateAutomationRequest = CreateCrmAutomationRequest;
+export type UpdateAutomationRequest = UpdateCrmAutomationRequest;
 
 // -----------------------------
 // DTOs de responses

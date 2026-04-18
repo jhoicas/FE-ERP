@@ -1,5 +1,5 @@
 import ExplainableAcronym from "@/components/shared/ExplainableAcronym";
-import AutomationsTab from "@/features/crm/components/AutomationsTab";
+import CampaignAutomations from "@/features/crm/components/CampaignAutomations";
 
 export default function CRMAutomationsPage() {
   return (
@@ -10,7 +10,7 @@ export default function CRMAutomationsPage() {
         </h1>
       </div>
 
-      <AutomationsTab />
+      <CampaignAutomations />
     </div>
   );
 }

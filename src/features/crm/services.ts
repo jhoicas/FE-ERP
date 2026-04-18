@@ -55,6 +55,9 @@ import type {
   CreateCrmAutomationRequest,
   UpdateCrmAutomationRequest,
   CreateCampaignRequest,
+  AutomationResponse,
+  CreateAutomationRequest,
+  UpdateAutomationRequest,
 } from "./crm.types";
 
 const CampaignTemplateSchema = z.object({
@@ -1048,6 +1051,10 @@ export async function listCrmAutomations(): Promise<CrmAutomation[]> {
   }
 }
 
+export async function getAutomations(): Promise<AutomationResponse[]> {
+  return listCrmAutomations();
+}
+
 export async function createCrmAutomation(body: CreateCrmAutomationRequest): Promise<CrmAutomation> {
   const payload = z
     .object({
@@ -1071,6 +1078,10 @@ export async function createCrmAutomation(body: CreateCrmAutomationRequest): Pro
   } catch (error) {
     return throwOnApiError(error);
   }
+}
+
+export async function createAutomation(body: CreateAutomationRequest): Promise<AutomationResponse> {
+  return createCrmAutomation(body);
 }
 
 export async function updateCrmAutomation(
@@ -1101,12 +1112,23 @@ export async function updateCrmAutomation(
   }
 }
 
+export async function updateAutomation(
+  automationId: string,
+  body: UpdateAutomationRequest,
+): Promise<AutomationResponse> {
+  return updateCrmAutomation(automationId, body);
+}
+
 export async function deleteCrmAutomation(automationId: string): Promise<void> {
   try {
     await apiClient.delete(`${CRM_BASE}/automations/${automationId}`);
   } catch (error) {
     return throwOnApiError(error);
   }
+}
+
+export async function deleteAutomation(automationId: string): Promise<void> {
+  return deleteCrmAutomation(automationId);
 }
 
 /** Compatibilidad: devuelve solo los items de tareas (lista plana). */
