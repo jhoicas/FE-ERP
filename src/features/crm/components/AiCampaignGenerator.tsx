@@ -830,12 +830,12 @@ export default function AiCampaignGenerator() {
   }, [previewDirectoryQuery.data, resolvedRecipients]);
 
   const handleSendCampaign = () => {
-    if (!generatedText || (previewChannel === "EMAIL" && !campaignSubject?.trim())) return;
+    if (!watchedBody || (previewChannel === "EMAIL" && !watchedSubject?.trim())) return;
 
     sendCampaignMutation.mutate({
       channel: previewChannel,
-      subject: campaignSubject?.trim() || "",
-      body: generatedText,
+      subject: watchedSubject?.trim() || "",
+      body: watchedBody,
       category_id: selectedAudience === "all" ? null : selectedAudience,
     });
   };
@@ -1460,7 +1460,7 @@ export default function AiCampaignGenerator() {
                     size="lg"
                     className="rounded-xl h-14 px-6 border-dashed"
                     onClick={() => setTestSendOpen(true)}
-                    disabled={!previewBody}
+                    disabled={!watchedBody}
                   >
                     Prueba de Segmento
                   </Button>
@@ -1471,7 +1471,7 @@ export default function AiCampaignGenerator() {
                       size="lg"
                       className="rounded-xl h-14 px-6 gap-2 border-emerald-500/30 hover:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
                       onClick={() => setDirectTestOpen(true)}
-                      disabled={!previewBody || directTestMutation.isPending}
+                      disabled={!watchedBody || directTestMutation.isPending}
                     >
                       <Phone className="h-5 w-5" />
                       Prueba Directa
