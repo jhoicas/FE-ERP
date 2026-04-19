@@ -9,6 +9,7 @@ import {
   createCampaignTemplate,
   getAuditLogs,
   getCampaignTemplates,
+  importSales,
   updateCampaign,
   updateTemplate,
 } from "@/features/crm/services";
@@ -73,4 +74,22 @@ export function useAuditLogs(params?: GetAuditLogsParams) {
     ],
     queryFn: () => getAuditLogs(params),
   });
+}
+
+export function useImportSales() {
+  const queryClient = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: (file: File) => importSales(file),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["customers"] });
+      await queryClient.invalidateQueries({ queryKey: ["customers-list"] });
+      await queryClient.invalidateQueries({ queryKey: ["crm", "analytics"] });
+    },
+  });
+
+  return {
+    ...mutation,
+    isLoading: mutation.isPending,
+  };
 }

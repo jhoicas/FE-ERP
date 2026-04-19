@@ -235,6 +235,12 @@ export type ImportStatusResponse = ImportReportResponse;
 
 export interface ImportPreviewResponse extends ImportReportResponse {}
 
+export interface ImportSalesResponse {
+  status?: string;
+  message?: string;
+  [key: string]: unknown;
+}
+
 export async function importCustomersFile(file: File): Promise<ImportCustomersResponse> {
   const formData = new FormData();
   formData.append("file", file);
@@ -253,6 +259,31 @@ export async function importCustomersFile(file: File): Promise<ImportCustomersRe
     }
 
     return { jobID: resolvedJobId };
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}
+
+export async function importSales(file: File): Promise<ImportSalesResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  try {
+    const { data } = await apiClient.post(`${CRM_BASE}/import/sales`, formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+
+    const payload = z
+      .object({
+        status: z.string().optional(),
+        message: z.string().optional(),
+      })
+      .passthrough()
+      .parse(data);
+
+    return payload;
   } catch (error) {
     return throwOnApiError(error);
   }
