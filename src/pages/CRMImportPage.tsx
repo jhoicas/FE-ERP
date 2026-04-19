@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent } from "react";
+import { useEffect, useState, type ChangeEvent, type DragEvent } from "react";
 import { Loader2, Upload } from "lucide-react";
 
 import ExplainableAcronym from "@/components/shared/ExplainableAcronym";
@@ -45,14 +45,21 @@ const SALES_HEADERS = [
 const CUSTOMER_HEADERS = ["name", "email", "phone", "tax_id", "fecha_nacimiento"] as const;
 
 function normalizeSummary(report: ImportReportResponse): ImportSummary {
+  const rows = report.Rows ?? [];
+  const insertedFromRows = rows.filter((row) => row.action === "inserted").length;
+  const updatedFromRows = rows.filter((row) => row.action === "updated").length;
+  const skippedFromRows = rows.filter((row) => row.action === "skipped").length;
+  const failedFromRows = rows.filter((row) => row.action === "failed" || row.action === "invalid").length;
+  const processedFromRows = Math.max(rows.length - failedFromRows, 0);
+
   return {
     status: report.Status,
-    total: report.TotalRows,
-    inserted: report.InsertedRows,
-    updated: report.UpdatedRows,
-    skipped: report.SkippedRows,
-    failed: report.FailedRows,
-    processed: report.ProcessedRows,
+    total: report.TotalRows > 0 ? report.TotalRows : rows.length,
+    inserted: report.InsertedRows > 0 ? report.InsertedRows : insertedFromRows,
+    updated: report.UpdatedRows > 0 ? report.UpdatedRows : updatedFromRows,
+    skipped: report.SkippedRows > 0 ? report.SkippedRows : skippedFromRows,
+    failed: report.FailedRows > 0 ? report.FailedRows : failedFromRows,
+    processed: report.ProcessedRows > 0 ? report.ProcessedRows : processedFromRows,
   };
 }
 
@@ -180,6 +187,25 @@ export default function CRMImportPage() {
     setCustomersProgress(0);
   };
 
+  const onCustomersFileSelect = (file: File | null) => {
+    setCustomersFile(file);
+    setPreviewSummary(null);
+    setFinalSummary(null);
+    setCustomersProgress(0);
+  };
+
+  const onCustomersDragOver = (event: DragEvent<HTMLLabelElement>) => {
+    event.preventDefault();
+  };
+
+  const onCustomersDrop = (event: DragEvent<HTMLLabelElement>) => {
+    event.preventDefault();
+    if (isImportingCustomers) return;
+
+    const droppedFile = event.dataTransfer.files?.[0] ?? null;
+    onCustomersFileSelect(droppedFile);
+  };
+
   const onPreviewCustomers = async () => {
     if (!customersFile) {
       toast({
@@ -302,7 +328,28 @@ export default function CRMImportPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Input type="file" accept=".xlsx,.csv" onChange={onCustomersFileChange} disabled={isImportingCustomers} />
+              <label
+                className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border bg-muted/20 p-8 text-center hover:bg-muted/40"
+                onDragOver={onCustomersDragOver}
+                onDrop={onCustomersDrop}
+              >
+                <Upload className="mb-2 h-8 w-8 text-muted-foreground" />
+                <p className="text-sm font-medium">Arrastra tu archivo o haz clic para seleccionar</p>
+                <p className="text-xs text-muted-foreground">Formatos permitidos: .csv, .xlsx, .xls</p>
+                <Input
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  className="hidden"
+                  onChange={onCustomersFileChange}
+                  disabled={isImportingCustomers}
+                />
+              </label>
+
+              {customersFile && (
+                <p className="text-sm text-muted-foreground">
+                  Archivo seleccionado: <span className="font-medium text-foreground">{customersFile.name}</span>
+                </p>
+              )}
 
               <Alert className="border-sky-200 bg-sky-50/70">
                 <AlertTitle>Estructura sugerida para importación de clientes</AlertTitle>
