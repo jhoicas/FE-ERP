@@ -35,7 +35,7 @@ export default function CreateCustomerDialog({
   const queryClient = useQueryClient();
   const form = useForm<CreateCustomerRequest>({
     resolver: zodResolver(createCustomerSchema),
-    defaultValues: { name: "", email: "", phone: "", tax_id: "" },
+    defaultValues: { name: "", email: "", phone: "", tax_id: "", birth_date: "" },
   });
 
   const mutation = useMutation({
@@ -44,7 +44,7 @@ export default function CreateCustomerDialog({
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["customers-list"] });
       onOpenChange(false);
-      form.reset({ name: "", email: "", phone: "", tax_id: "" });
+      form.reset({ name: "", email: "", phone: "", tax_id: "", birth_date: "" });
       onCreated?.(data.id);
     },
   });
@@ -108,6 +108,19 @@ export default function CreateCustomerDialog({
                   <FormLabel>NIT / Tax ID</FormLabel>
                   <FormControl>
                     <Input placeholder="Número de identificación tributaria" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="birth_date"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Fecha de Nacimiento</FormLabel>
+                  <FormControl>
+                    <Input type="date" {...field} value={field.value ?? ""} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

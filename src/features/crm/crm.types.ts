@@ -28,6 +28,7 @@ export interface CustomerResponse {
   id: string;
   name: string;
   email?: string;
+  birth_date?: string | null;
   // TODO: añadir campos como tax_id, phone, etc. cuando el backend los exponga aquí.
   [key: string]: unknown;
 }

@@ -74,11 +74,13 @@ export const createCustomerSchema = z.object({
   email: z.string().email("Email inválido").optional().or(z.literal("")),
   phone: z.string().optional(),
   tax_id: z.string().optional(),
+  birth_date: z.string().optional().nullable(),
 }).transform((v) => ({
   name: v.name,
   email: v.email === "" ? undefined : v.email,
   phone: v.phone || undefined,
   tax_id: v.tax_id || undefined,
+  birth_date: v.birth_date && v.birth_date.trim() !== "" ? v.birth_date : null,
 }));
 
 export type CreateCustomerRequest = z.infer<typeof createCustomerSchema>;
@@ -88,9 +90,11 @@ export const updateCustomerSchema = z.object({
   email: z.union([z.string().email("Email inválido"), z.literal("")]).optional(),
   phone: z.string().optional(),
   tax_id: z.string().optional(),
+  birth_date: z.string().optional().nullable(),
 }).transform((v) => ({
   ...v,
   email: v.email === "" ? undefined : v.email,
+  birth_date: v.birth_date === undefined ? undefined : v.birth_date && v.birth_date.trim() !== "" ? v.birth_date : null,
 }));
 
 export type UpdateCustomerRequest = z.infer<typeof updateCustomerSchema>;

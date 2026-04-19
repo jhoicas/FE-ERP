@@ -6,6 +6,7 @@ export const CustomerSchema = z.object({
   email: z.string().optional(),
   phone: z.string().optional(),
   tax_id: z.string().optional(),
+  birth_date: z.string().nullable().optional(),
   categoryName: z.string().optional(),
   category_name: z.string().nullable().optional(),
   ltv: z.coerce.number().optional(),

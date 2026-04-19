@@ -10,6 +10,7 @@ export interface CustomerResponse {
   tax_id: string;
   email?: string;
   phone?: string;
+  birth_date?: string | null;
   categoryName?: string;
   category_name?: string | null;
   ltv?: number;

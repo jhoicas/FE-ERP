@@ -29,6 +29,11 @@ interface EditCustomerDialogProps {
   customer: CustomerDTO | null;
 }
 
+function formatDateForInput(value?: string | null): string {
+  if (!value) return "";
+  return value.slice(0, 10);
+}
+
 export default function EditCustomerDialog({
   open,
   onOpenChange,
@@ -37,7 +42,7 @@ export default function EditCustomerDialog({
   const queryClient = useQueryClient();
   const form = useForm<UpdateCustomerRequest>({
     resolver: zodResolver(updateCustomerSchema),
-    defaultValues: { name: "", email: "", phone: "", tax_id: "" },
+    defaultValues: { name: "", email: "", phone: "", tax_id: "", birth_date: "" },
   });
 
   useEffect(() => {
@@ -47,6 +52,7 @@ export default function EditCustomerDialog({
         email: customer.email ?? "",
         phone: customer.phone ?? "",
         tax_id: customer.tax_id ?? "",
+        birth_date: formatDateForInput(customer.birth_date),
       });
     }
   }, [customer, open, form]);
@@ -123,6 +129,19 @@ export default function EditCustomerDialog({
                   <FormLabel>NIT / Tax ID</FormLabel>
                   <FormControl>
                     <Input placeholder="Número de identificación tributaria" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="birth_date"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Fecha de Nacimiento</FormLabel>
+                  <FormControl>
+                    <Input type="date" {...field} value={field.value ?? ""} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
