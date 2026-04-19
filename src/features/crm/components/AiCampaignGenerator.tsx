@@ -29,7 +29,7 @@ import {
 import type { CampaignTemplate } from "@/types/crm";
 import type { CustomerDTO } from "@/features/crm/schemas";
 import type { CrmSegment } from "@/features/crm/schemas";
-import type { CreateCampaignRequest } from "@/features/crm/crm.types";
+import type { CreateCampaignRequest, CreateCampaignTemplateRequest } from "@/features/crm/crm.types";
 import {
   Select,
   SelectContent,
@@ -435,7 +435,9 @@ export default function AiCampaignGenerator() {
   const [lastPreviewStrategies, setLastPreviewStrategies] = useState<RecipientStrategy[]>([]);
   const [recipientsPage, setRecipientsPage] = useState(1);
   const [confirmSendOpen, setConfirmSendOpen] = useState(false);
-  const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
+  const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false);
+  const [pendingCampaignData, setPendingCampaignData] = useState<CreateCampaignValues | null>(null);
+  const [templateName, setTemplateName] = useState("");
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [generatedText, setGeneratedText] = useState("");
   const [testSendOpen, setTestSendOpen] = useState(false);
@@ -484,13 +486,6 @@ export default function AiCampaignGenerator() {
       enabled: resolvedRecipients.length > 0,
       staleTime: 5 * 60 * 1000,
     });
-
-  const saveTemplateForm = useForm<z.infer<typeof saveTemplateSchema>>({
-    resolver: zodResolver(saveTemplateSchema),
-    defaultValues: {
-      name: "",
-    },
-  });
 
   const createCampaignForm = useForm<CreateCampaignValues>({
     resolver: zodResolver(CampaignCreateSchema),
@@ -629,6 +624,12 @@ export default function AiCampaignGenerator() {
 
   const onSubmit = (values: FormValues) => mutation.mutate(values);
 
+  const handleCampaignSubmit = (values: CreateCampaignValues) => {
+    setPendingCampaignData(values);
+    setTemplateName("");
+    setIsTemplateDialogOpen(true);
+  };
+
   const sendCampaignMutation = useMutation<
     { status: string },
     Error,
@@ -737,23 +738,14 @@ export default function AiCampaignGenerator() {
     });
   };
 
-  const saveTemplateMutation = useMutation<CampaignTemplate, Error, z.infer<typeof saveTemplateSchema>>({
-    mutationFn: async ({ name }) => {
-      const subject = form.getValues("subject").trim();
-      return createCampaignTemplate({
-        name,
-        subject,
-        body: watchedBody,
-      });
-    },
+  const saveTemplateMutation = useMutation<CampaignTemplate, Error, CreateCampaignTemplateRequest>({
+    mutationFn: async (payload) => createCampaignTemplate(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["crm", "campaign-templates"] });
       toast({
-        title: "Plantilla guardada",
+        title: "Plantilla guardada exitosamente",
         description: "La plantilla se guardó correctamente.",
       });
-      setSaveTemplateOpen(false);
-      saveTemplateForm.reset({ name: "" });
     },
     onError: (error) => {
       toast({
@@ -763,6 +755,49 @@ export default function AiCampaignGenerator() {
       });
     },
   });
+
+  const handleSaveCampaignOnly = async () => {
+    if (!pendingCampaignData) return;
+
+    try {
+      await createCampaignMutation.mutateAsync(pendingCampaignData);
+      setIsTemplateDialogOpen(false);
+      setPendingCampaignData(null);
+      setTemplateName("");
+    } catch {
+      // La mutación ya muestra el error.
+    }
+  };
+
+  const handleSaveBoth = async () => {
+    if (!pendingCampaignData) return;
+
+    const trimmedName = templateName.trim();
+    if (!trimmedName) {
+      toast({
+        title: "Nombre requerido",
+        description: "Ingresa un nombre para la plantilla.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await saveTemplateMutation.mutateAsync({
+        name: trimmedName,
+        subject: pendingCampaignData.subject || "",
+        body: pendingCampaignData.body,
+      });
+
+      await createCampaignMutation.mutateAsync(pendingCampaignData);
+
+      setIsTemplateDialogOpen(false);
+      setPendingCampaignData(null);
+      setTemplateName("");
+    } catch {
+      // Los errores ya se informan desde las mutaciones.
+    }
+  };
 
   const selectedAudience = form.watch("category_id");
   const previewChannel = createCampaignForm.watch("channel");
@@ -1300,7 +1335,7 @@ export default function AiCampaignGenerator() {
 
         <div className="p-8">
           <Form {...createCampaignForm}>
-            <form className="space-y-8">
+            <form onSubmit={createCampaignForm.handleSubmit(handleCampaignSubmit)} className="space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField
                   control={createCampaignForm.control}
@@ -1430,21 +1465,9 @@ export default function AiCampaignGenerator() {
                 </div>
 
                 <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-9"
-                  onClick={() => setSaveTemplateOpen(true)}
-                  disabled={!canSaveTemplate}
-                >
-                  Guardar como Plantilla
-                </Button>
-
-                <Button
-                  type="button"
+                  type="submit"
                   size="lg"
                   className="w-full sm:w-auto px-12 h-14 text-xl font-black rounded-2xl shadow-2xl hover:scale-105 active:scale-95 transition-all gap-3 bg-primary"
-                  onClick={createCampaignForm.handleSubmit((values) => createCampaignMutation.mutate(values))}
                   disabled={createCampaignMutation.isPending}
                 >
                   {createCampaignMutation.isPending ? (
@@ -1545,46 +1568,52 @@ export default function AiCampaignGenerator() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={saveTemplateOpen} onOpenChange={setSaveTemplateOpen}>
+      <Dialog open={isTemplateDialogOpen} onOpenChange={setIsTemplateDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Guardar como Plantilla</DialogTitle>
+            <DialogTitle>¿Deseas guardar este mensaje como plantilla?</DialogTitle>
             <DialogDescription>
-              Guarda este asunto y contenido para reutilizarlos después.
+              Puedes guardar el asunto y cuerpo actuales para reutilizarlos en futuras automatizaciones.
             </DialogDescription>
           </DialogHeader>
 
-          <Form {...saveTemplateForm}>
-            <form
-              onSubmit={saveTemplateForm.handleSubmit((values) =>
-                saveTemplateMutation.mutate({ name: values.name ?? "" })
-              )}
-              className="space-y-4"
-            >
-              <FormField
-                control={saveTemplateForm.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Nombre de la plantilla</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Ej: Promo Oro Marzo" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="template-name">Nombre de la plantilla</Label>
+              <Input
+                id="template-name"
+                value={templateName}
+                onChange={(event) => setTemplateName(event.target.value)}
+                placeholder="Ej: Promoción de Verano"
               />
+            </div>
 
-              <DialogFooter>
-                <Button type="button" variant="ghost" onClick={() => setSaveTemplateOpen(false)}>
-                  Cancelar
-                </Button>
-                <Button type="submit" disabled={saveTemplateMutation.isPending || !canSaveTemplate}>
-                  {saveTemplateMutation.isPending ? "Guardando..." : "Guardar plantilla"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
+            <p className="text-xs text-muted-foreground">
+              Si prefieres, puedes guardar solo la campaña sin crear plantilla.
+            </p>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={async () => {
+                await handleSaveCampaignOnly();
+              }}
+              disabled={createCampaignMutation.isPending}
+            >
+              Solo guardar campaña
+            </Button>
+            <Button
+              type="button"
+              onClick={async () => {
+                await handleSaveBoth();
+              }}
+              disabled={saveTemplateMutation.isPending || createCampaignMutation.isPending || !templateName.trim()}
+            >
+              {saveTemplateMutation.isPending || createCampaignMutation.isPending ? "Guardando..." : "Guardar ambas"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

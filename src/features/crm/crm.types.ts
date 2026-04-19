@@ -108,6 +108,12 @@ export interface UpdateCampaignTemplateRequest {
   body?: string;
 }
 
+export interface CreateCampaignTemplateRequest {
+  name: string;
+  subject: string;
+  body: string;
+}
+
 export interface UpdateCampaignRequest {
   name?: string;
   description?: string;
