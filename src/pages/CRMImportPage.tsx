@@ -42,6 +42,8 @@ const SALES_HEADERS = [
   "Precio_Unitario",
 ] as const;
 
+const CUSTOMER_HEADERS = ["name", "email", "phone", "tax_id"] as const;
+
 function normalizeSummary(report: ImportReportResponse): ImportSummary {
   return {
     status: report.Status,
@@ -66,6 +68,24 @@ function downloadSalesTemplate(): void {
 
   link.href = url;
   link.download = "plantilla-importacion-ventas.csv";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function downloadCustomersTemplate(): void {
+  const rows = [
+    CUSTOMER_HEADERS.join(","),
+    "Juan Perez,juan.perez@correo.com,3180000000,900123456-7",
+  ];
+
+  const blob = new Blob([`\uFEFF${rows.join("\n")}`], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = "plantilla-importacion-clientes.csv";
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -269,20 +289,33 @@ export default function CRMImportPage() {
 
       <Tabs defaultValue="customers" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="customers">Clientes Básicos</TabsTrigger>
+          <TabsTrigger value="customers">Clientes</TabsTrigger>
           <TabsTrigger value="sales">Ventas e Historial</TabsTrigger>
         </TabsList>
 
         <TabsContent value="customers">
           <Card>
             <CardHeader>
-              <CardTitle>Importación de Clientes Básicos</CardTitle>
+              <CardTitle>Importación de Clientes</CardTitle>
               <CardDescription>
                 Sube un archivo, revisa la vista previa y confirma la importación.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <Input type="file" accept=".xlsx,.csv" onChange={onCustomersFileChange} disabled={isImportingCustomers} />
+
+              <Alert className="border-sky-200 bg-sky-50/70">
+                <AlertTitle>Estructura sugerida para importación de clientes</AlertTitle>
+                <AlertDescription>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {CUSTOMER_HEADERS.map((column) => (
+                      <Badge key={column} variant="outline" className="bg-white">
+                        {column}
+                      </Badge>
+                    ))}
+                  </div>
+                </AlertDescription>
+              </Alert>
 
               {isImportingCustomers && (
                 <div className="space-y-2">
@@ -303,6 +336,9 @@ export default function CRMImportPage() {
               )}
 
               <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" onClick={downloadCustomersTemplate} disabled={isImportingCustomers || isPreviewing}>
+                  Descargar Plantilla CSV
+                </Button>
                 <Button type="button" variant="outline" onClick={onPreviewCustomers} disabled={!customersFile || isPreviewing || isImportingCustomers}>
                   {isPreviewing ? "Previsualizando..." : "Previsualizar"}
                 </Button>
