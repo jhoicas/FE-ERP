@@ -235,6 +235,9 @@ export type ImportStatusResponse = ImportReportResponse;
 
 export interface ImportPreviewResponse extends ImportReportResponse {}
 
+/** Tipo de plantilla que el backend debe validar en POST /api/crm/import/preview */
+export type CrmImportPreviewType = "customers" | "sales";
+
 export interface ImportCustomerColumnMappings {
   category_name?: string;
 }
@@ -509,14 +512,18 @@ function normalizeImportReport(data: unknown): ImportReportResponse {
   };
 }
 
-export async function previewImportCustomersFile(
+export async function previewCrmImport(
   file: File,
-  columnMappings?: ImportCustomerColumnMappings,
+  options?: {
+    importType?: CrmImportPreviewType;
+    columnMappings?: ImportCustomerColumnMappings;
+  },
 ): Promise<ImportPreviewResponse> {
   const formData = new FormData();
   formData.append("file", file);
-  if (columnMappings && Object.keys(columnMappings).length > 0) {
-    formData.append("columnMappings", JSON.stringify(columnMappings));
+  formData.append("type", options?.importType ?? "customers");
+  if (options?.columnMappings && Object.keys(options.columnMappings).length > 0) {
+    formData.append("columnMappings", JSON.stringify(options.columnMappings));
   }
 
   try {
@@ -530,6 +537,13 @@ export async function previewImportCustomersFile(
   } catch (error) {
     return throwOnApiError(error);
   }
+}
+
+export async function previewImportCustomersFile(
+  file: File,
+  columnMappings?: ImportCustomerColumnMappings,
+): Promise<ImportPreviewResponse> {
+  return previewCrmImport(file, { importType: "customers", columnMappings });
 }
 
 export async function getImportStatus(jobId: string): Promise<ImportReportResponse> {

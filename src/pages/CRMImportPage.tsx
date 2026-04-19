@@ -13,6 +13,7 @@ import { useImportSales } from "@/features/crm/hooks/use-crm";
 import {
   getImportStatus,
   importCustomersFile,
+  previewCrmImport,
   previewImportCustomersFile,
   type ImportReportResponse,
 } from "@/features/crm/services";
@@ -120,6 +121,7 @@ export default function CRMImportPage() {
   const [customersJobId, setCustomersJobId] = useState<string | null>(null);
   const [previewSummary, setPreviewSummary] = useState<ImportSummary | null>(null);
   const [finalSummary, setFinalSummary] = useState<ImportSummary | null>(null);
+  const [salesPreviewSummary, setSalesPreviewSummary] = useState<ImportSummary | null>(null);
 
   const [salesFile, setSalesFile] = useState<File | null>(null);
 
@@ -306,10 +308,12 @@ export default function CRMImportPage() {
   const onSalesFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] ?? null;
     setSalesFile(file);
+    setSalesPreviewSummary(null);
   };
 
   const onSalesFileSelect = (file: File | null) => {
     setSalesFile(file);
+    setSalesPreviewSummary(null);
   };
 
   const onSalesDragOver = (event: DragEvent<HTMLLabelElement>) => {
@@ -354,11 +358,46 @@ export default function CRMImportPage() {
     assignFileToInput(salesFileInputRef.current, droppedFile);
   };
 
+  const onPreviewSales = async () => {
+    if (!salesFile) {
+      toast({
+        title: "Archivo requerido",
+        description: "Selecciona un archivo .xlsx o .csv para previsualizar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsPreviewing(true);
+      const report = await previewCrmImport(salesFile, { importType: "sales" });
+      setSalesPreviewSummary(normalizeSummary(report));
+      toast({ title: "Vista previa lista" });
+    } catch (error) {
+      toast({
+        title: "No se pudo previsualizar",
+        description: getApiErrorMessage(error, "CRM / Importación ventas"),
+        variant: "destructive",
+      });
+    } finally {
+      setIsPreviewing(false);
+    }
+  };
+
   const onImportSales = async () => {
     if (!salesFile) {
       toast({
         title: "Archivo requerido",
         description: "Selecciona un archivo CSV o Excel para importar ventas.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!salesPreviewSummary) {
+      toast({
+        title: "Primero previsualiza",
+        description: "Debes revisar la vista previa antes de importar ventas.",
         variant: "destructive",
       });
       return;
@@ -371,6 +410,7 @@ export default function CRMImportPage() {
         description: response.message ?? "Las ventas fueron enviadas para procesamiento.",
       });
       setSalesFile(null);
+      setSalesPreviewSummary(null);
       assignFileToInput(salesFileInputRef.current, null);
     } catch (error) {
       toast({
@@ -535,11 +575,25 @@ export default function CRMImportPage() {
                 </AlertDescription>
               </Alert>
 
+              {salesPreviewSummary && !importSalesMutation.isLoading && (
+                <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-6">
+                  <Badge variant="outline">Total: {salesPreviewSummary.total}</Badge>
+                  <Badge variant="outline">Insertadas: {salesPreviewSummary.inserted}</Badge>
+                  <Badge variant="outline">Actualizadas: {salesPreviewSummary.updated}</Badge>
+                  <Badge variant="outline">Omitidas: {salesPreviewSummary.skipped}</Badge>
+                  <Badge variant="outline">Fallidas: {salesPreviewSummary.failed}</Badge>
+                  <Badge variant="outline">Estado: {salesPreviewSummary.status}</Badge>
+                </div>
+              )}
+
               <div className="flex flex-wrap gap-2">
-                <Button type="button" variant="outline" onClick={downloadSalesTemplate}>
+                <Button type="button" variant="outline" onClick={downloadSalesTemplate} disabled={isPreviewing || importSalesMutation.isLoading}>
                   Descargar Plantilla CSV
                 </Button>
-                <Button type="button" onClick={onImportSales} disabled={!salesFile || importSalesMutation.isLoading}>
+                <Button type="button" variant="outline" onClick={onPreviewSales} disabled={!salesFile || isPreviewing || importSalesMutation.isLoading}>
+                  {isPreviewing ? "Previsualizando..." : "Previsualizar"}
+                </Button>
+                <Button type="button" onClick={onImportSales} disabled={!salesFile || !salesPreviewSummary || importSalesMutation.isLoading || isPreviewing}>
                   {importSalesMutation.isLoading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
