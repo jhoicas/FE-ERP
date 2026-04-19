@@ -620,14 +620,7 @@ export default function CRMPage() {
         </p>
       </div>
 
-      <CustomersTable
-        externalActions={
-          <Button type="button" variant="outline" size="sm" onClick={() => setImportOpen(true)}>
-            <Upload className="mr-2 h-4 w-4" />
-            Importar Data
-          </Button>
-        }
-      />
+      <CustomersTable />
 
       <Dialog
         open={importOpen}
