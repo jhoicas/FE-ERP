@@ -235,15 +235,25 @@ export type ImportStatusResponse = ImportReportResponse;
 
 export interface ImportPreviewResponse extends ImportReportResponse {}
 
+export interface ImportCustomerColumnMappings {
+  category_name?: string;
+}
+
 export interface ImportSalesResponse {
   status?: string;
   message?: string;
   [key: string]: unknown;
 }
 
-export async function importCustomersFile(file: File): Promise<ImportCustomersResponse> {
+export async function importCustomersFile(
+  file: File,
+  columnMappings?: ImportCustomerColumnMappings,
+): Promise<ImportCustomersResponse> {
   const formData = new FormData();
   formData.append("file", file);
+  if (columnMappings && Object.keys(columnMappings).length > 0) {
+    formData.append("columnMappings", JSON.stringify(columnMappings));
+  }
 
   try {
     const { data } = await apiClient.post(`${CRM_BASE}/import`, formData, {
@@ -499,9 +509,15 @@ function normalizeImportReport(data: unknown): ImportReportResponse {
   };
 }
 
-export async function previewImportCustomersFile(file: File): Promise<ImportPreviewResponse> {
+export async function previewImportCustomersFile(
+  file: File,
+  columnMappings?: ImportCustomerColumnMappings,
+): Promise<ImportPreviewResponse> {
   const formData = new FormData();
   formData.append("file", file);
+  if (columnMappings && Object.keys(columnMappings).length > 0) {
+    formData.append("columnMappings", JSON.stringify(columnMappings));
+  }
 
   try {
     const { data } = await apiClient.post(`${CRM_BASE}/import/preview`, formData, {

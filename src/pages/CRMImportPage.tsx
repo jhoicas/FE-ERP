@@ -42,7 +42,43 @@ const SALES_HEADERS = [
   "Precio_Unitario",
 ] as const;
 
-const CUSTOMER_HEADERS = ["name", "email", "phone", "tax_id", "fecha_nacimiento"] as const;
+const CUSTOMER_HEADERS = ["name", "tax_id", "email", "phone", "fecha_nacimiento", "categoria"] as const;
+const DEFAULT_CUSTOMER_CATEGORY_HEADER = "Categoria";
+
+function normalizeHeaderValue(value: string): string {
+  return value
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[\s_-]+/g, "");
+}
+
+async function resolveCustomerCategoryHeader(file: File): Promise<string> {
+  const isCsv = file.name.toLowerCase().endsWith(".csv");
+  if (!isCsv) {
+    return DEFAULT_CUSTOMER_CATEGORY_HEADER;
+  }
+
+  const content = await file.text();
+  const firstLine = content
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => line.length > 0);
+
+  if (!firstLine) {
+    return DEFAULT_CUSTOMER_CATEGORY_HEADER;
+  }
+
+  const delimiter = firstLine.includes(";") ? ";" : ",";
+  const headers = firstLine.split(delimiter).map((header) => header.replace(/^"|"$/g, "").trim());
+  const matchedHeader = headers.find((header) => {
+    const normalized = normalizeHeaderValue(header);
+    return normalized === "categoria" || normalized === "category";
+  });
+
+  return matchedHeader ?? DEFAULT_CUSTOMER_CATEGORY_HEADER;
+}
 
 function normalizeSummary(report: ImportReportResponse): ImportSummary {
   const rows = report.Rows ?? [];
@@ -84,7 +120,7 @@ function downloadSalesTemplate(): void {
 function downloadCustomersTemplate(): void {
   const rows = [
     CUSTOMER_HEADERS.join(","),
-    "Juan Perez,juan.perez@correo.com,3180000000,900123456-7,20-05-1990",
+    "Juan Perez,900123456-7,juan.perez@correo.com,3180000000,20-05-1990,VIP",
   ];
 
   const blob = new Blob([`\uFEFF${rows.join("\n")}`], { type: "text/csv;charset=utf-8;" });
@@ -218,7 +254,10 @@ export default function CRMImportPage() {
 
     try {
       setIsPreviewing(true);
-      const report = await previewImportCustomersFile(customersFile);
+      const categoryHeader = await resolveCustomerCategoryHeader(customersFile);
+      const report = await previewImportCustomersFile(customersFile, {
+        category_name: categoryHeader,
+      });
       setPreviewSummary(normalizeSummary(report));
       setFinalSummary(null);
       toast({ title: "Vista previa lista" });
@@ -256,7 +295,10 @@ export default function CRMImportPage() {
       setIsImportingCustomers(true);
       setCustomersProgress(0);
       setFinalSummary(null);
-      const response = await importCustomersFile(customersFile);
+      const categoryHeader = await resolveCustomerCategoryHeader(customersFile);
+      const response = await importCustomersFile(customersFile, {
+        category_name: categoryHeader,
+      });
       setCustomersJobId(response.jobID);
     } catch (error) {
       setIsImportingCustomers(false);
@@ -354,6 +396,9 @@ export default function CRMImportPage() {
               <Alert className="border-sky-200 bg-sky-50/70">
                 <AlertTitle>Estructura sugerida para importación de clientes</AlertTitle>
                 <AlertDescription>
+                  <p className="text-sm text-muted-foreground">
+                    Columnas requeridas: Nombre, Tax_ID, Email, Telefono, Categoria, Fecha_Nacimiento.
+                  </p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {CUSTOMER_HEADERS.map((column) => (
                       <Badge key={column} variant="outline" className="bg-white">
@@ -362,7 +407,7 @@ export default function CRMImportPage() {
                     ))}
                   </div>
                   <p className="mt-3 text-xs text-muted-foreground">
-                    El campo <code>fecha_nacimiento</code> debe enviarse en formato <code>DD-MM-YYYY</code>.
+                    El campo <code>fecha_nacimiento</code> debe enviarse en formato <code>DD-MM-YYYY</code>. La columna <code>Categoria</code> se mapea al campo <code>category_name</code> para el backend.
                   </p>
                 </AlertDescription>
               </Alert>
