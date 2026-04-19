@@ -42,7 +42,7 @@ const SALES_HEADERS = [
   "Precio_Unitario",
 ] as const;
 
-const CUSTOMER_HEADERS = ["name", "email", "phone", "tax_id"] as const;
+const CUSTOMER_HEADERS = ["name", "email", "phone", "tax_id", "fecha_nacimiento"] as const;
 
 function normalizeSummary(report: ImportReportResponse): ImportSummary {
   return {
@@ -77,7 +77,7 @@ function downloadSalesTemplate(): void {
 function downloadCustomersTemplate(): void {
   const rows = [
     CUSTOMER_HEADERS.join(","),
-    "Juan Perez,juan.perez@correo.com,3180000000,900123456-7",
+    "Juan Perez,juan.perez@correo.com,3180000000,900123456-7,20-05-1990",
   ];
 
   const blob = new Blob([`\uFEFF${rows.join("\n")}`], { type: "text/csv;charset=utf-8;" });
@@ -314,6 +314,9 @@ export default function CRMImportPage() {
                       </Badge>
                     ))}
                   </div>
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    El campo <code>fecha_nacimiento</code> debe enviarse en formato <code>DD-MM-YYYY</code>.
+                  </p>
                 </AlertDescription>
               </Alert>
 
