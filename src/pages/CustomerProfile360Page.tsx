@@ -6,8 +6,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ArrowLeft,
   Crown,
-  Mail,
-  Phone,
   FileText,
   Gift,
   User,
@@ -254,15 +252,37 @@ function formatDateTime(iso: string) {
   }
 }
 
+function formatBirthDisplay(value?: string | null): string | null {
+  if (value == null || String(value).trim() === "") return null;
+  const raw = String(value).trim();
+  const dateOnly = raw.includes("T") ? raw.slice(0, 10) : raw.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOnly)) {
+    return raw;
+  }
+  try {
+    return new Date(`${dateOnly}T12:00:00`).toLocaleDateString("es-CO", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    });
+  } catch {
+    return dateOnly;
+  }
+}
+
 function ProfileHeader({
   name,
   email,
+  phone,
+  birthDateDisplay,
   categoryName,
   ltv,
   tierBadge,
 }: {
   name: string;
   email?: string | null;
+  phone?: string | null;
+  birthDateDisplay?: string | null;
   categoryName?: string;
   ltv: string;
   tierBadge?: ReturnType<typeof getCustomerTierBadge>;
@@ -298,6 +318,12 @@ function ProfileHeader({
             )}
           </CardTitle>
           <p className="text-xs text-muted-foreground">{email ?? "Sin email"}</p>
+          <p className="text-xs text-muted-foreground">
+            {phone?.trim() ? phone.trim() : "Sin teléfono"}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {birthDateDisplay ?? "Sin fecha de nacimiento"}
+          </p>
           <div className="flex flex-wrap items-center gap-2 text-xs mt-1">
             <span className="text-muted-foreground">Categoría:</span>
             <CategoryBadge name={categoryName} />
@@ -1002,6 +1028,8 @@ export default function CustomerProfile360Page() {
           <ProfileHeader
             name={customer.name}
             email={customer.email}
+            phone={customer.phone}
+            birthDateDisplay={formatBirthDisplay(customer.birthdate ?? customer.birth_date)}
             categoryName={category_name}
             ltv={ltv}
             tierBadge={tierBadge}

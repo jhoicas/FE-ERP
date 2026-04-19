@@ -10,6 +10,8 @@ export interface CustomerResponse {
   tax_id: string;
   email?: string;
   phone?: string;
+  /** Fecha de nacimiento (p. ej. YYYY-MM-DD); alias que puede enviar profile360 */
+  birthdate?: string | null;
   birth_date?: string | null;
   categoryName?: string;
   category_name?: string | null;

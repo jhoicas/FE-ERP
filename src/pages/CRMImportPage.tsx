@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent, type DragEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import { Loader2, Upload } from "lucide-react";
 
 import ExplainableAcronym from "@/components/shared/ExplainableAcronym";
@@ -43,6 +43,17 @@ const SALES_HEADERS = [
 ] as const;
 
 const CUSTOMER_HEADERS = ["nombre", "email", "telefono", "documento", "fecha_nacimiento", "categoria"] as const;
+
+function assignFileToInput(input: HTMLInputElement | null, file: File | null): void {
+  if (!input) return;
+  if (!file) {
+    input.value = "";
+    return;
+  }
+  const dataTransfer = new DataTransfer();
+  dataTransfer.items.add(file);
+  input.files = dataTransfer.files;
+}
 
 function normalizeSummary(report: ImportReportResponse): ImportSummary {
   const rows = report.Rows ?? [];
@@ -111,6 +122,10 @@ export default function CRMImportPage() {
   const [finalSummary, setFinalSummary] = useState<ImportSummary | null>(null);
 
   const [salesFile, setSalesFile] = useState<File | null>(null);
+
+  const customersFileInputRef = useRef<HTMLInputElement>(null);
+  const salesFileInputRef = useRef<HTMLInputElement>(null);
+  const [isSalesDropTargetActive, setIsSalesDropTargetActive] = useState(false);
 
   const importSalesMutation = useImportSales();
 
@@ -196,14 +211,33 @@ export default function CRMImportPage() {
 
   const onCustomersDragOver = (event: DragEvent<HTMLLabelElement>) => {
     event.preventDefault();
+    event.stopPropagation();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = "copy";
+    }
+  };
+
+  const onCustomersDragEnter = (event: DragEvent<HTMLLabelElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = "copy";
+    }
   };
 
   const onCustomersDrop = (event: DragEvent<HTMLLabelElement>) => {
     event.preventDefault();
+    event.stopPropagation();
     if (isImportingCustomers) return;
 
     const droppedFile = event.dataTransfer.files?.[0] ?? null;
     onCustomersFileSelect(droppedFile);
+    assignFileToInput(customersFileInputRef.current, droppedFile);
+  };
+
+  const onCustomersDragLeave = (event: DragEvent<HTMLLabelElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
   };
 
   const onPreviewCustomers = async () => {
@@ -274,6 +308,52 @@ export default function CRMImportPage() {
     setSalesFile(file);
   };
 
+  const onSalesFileSelect = (file: File | null) => {
+    setSalesFile(file);
+  };
+
+  const onSalesDragOver = (event: DragEvent<HTMLLabelElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = "copy";
+    }
+  };
+
+  const onSalesDragEnter = (event: DragEvent<HTMLLabelElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = "copy";
+    }
+    const { currentTarget, relatedTarget } = event;
+    if (relatedTarget instanceof Node && currentTarget.contains(relatedTarget)) {
+      return;
+    }
+    setIsSalesDropTargetActive(true);
+  };
+
+  const onSalesDragLeave = (event: DragEvent<HTMLLabelElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const { currentTarget, relatedTarget } = event;
+    if (relatedTarget instanceof Node && currentTarget.contains(relatedTarget)) {
+      return;
+    }
+    setIsSalesDropTargetActive(false);
+  };
+
+  const onSalesDrop = (event: DragEvent<HTMLLabelElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsSalesDropTargetActive(false);
+    if (importSalesMutation.isLoading) return;
+
+    const droppedFile = event.dataTransfer.files?.[0] ?? null;
+    onSalesFileSelect(droppedFile);
+    assignFileToInput(salesFileInputRef.current, droppedFile);
+  };
+
   const onImportSales = async () => {
     if (!salesFile) {
       toast({
@@ -291,6 +371,7 @@ export default function CRMImportPage() {
         description: response.message ?? "Las ventas fueron enviadas para procesamiento.",
       });
       setSalesFile(null);
+      assignFileToInput(salesFileInputRef.current, null);
     } catch (error) {
       toast({
         title: "No se pudo importar ventas",
@@ -330,13 +411,16 @@ export default function CRMImportPage() {
             <CardContent className="space-y-4">
               <label
                 className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border bg-muted/20 p-8 text-center hover:bg-muted/40"
+                onDragEnter={onCustomersDragEnter}
                 onDragOver={onCustomersDragOver}
+                onDragLeave={onCustomersDragLeave}
                 onDrop={onCustomersDrop}
               >
                 <Upload className="mb-2 h-8 w-8 text-muted-foreground" />
                 <p className="text-sm font-medium">Arrastra tu archivo o haz clic para seleccionar</p>
                 <p className="text-xs text-muted-foreground">Formatos permitidos: .csv, .xlsx, .xls</p>
                 <Input
+                  ref={customersFileInputRef}
                   type="file"
                   accept=".csv,.xlsx,.xls"
                   className="hidden"
@@ -412,11 +496,18 @@ export default function CRMImportPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border bg-muted/20 p-8 text-center hover:bg-muted/40">
+              <label
+                className={`flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border bg-muted/20 p-8 text-center hover:bg-muted/40${isSalesDropTargetActive ? " border-primary bg-primary/5" : ""}`}
+                onDragEnter={onSalesDragEnter}
+                onDragOver={onSalesDragOver}
+                onDragLeave={onSalesDragLeave}
+                onDrop={onSalesDrop}
+              >
                 <Upload className="mb-2 h-8 w-8 text-muted-foreground" />
                 <p className="text-sm font-medium">Arrastra tu archivo o haz clic para seleccionar</p>
                 <p className="text-xs text-muted-foreground">Formatos permitidos: .csv, .xlsx, .xls</p>
                 <Input
+                  ref={salesFileInputRef}
                   type="file"
                   accept=".csv,.xlsx,.xls"
                   className="hidden"
