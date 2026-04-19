@@ -31,6 +31,7 @@ import CategoryBenefitsPage from "@/pages/CategoryBenefitsPage";
 import MarketingAIPage from "@/pages/MarketingAIPage";
 import AiCampaignGenerator from "@/features/crm/components/AiCampaignGenerator";
 import CampaignsListPage from "@/pages/CampaignsListPage";
+import AuditLogsPage from "@/pages/AuditLogsPage";
 import SettingsPage from "@/pages/SettingsPage";
 import LoginPage from "@/pages/LoginPage";
 import AdminPage from "@/pages/AdminPage";
@@ -301,6 +302,14 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={["marketing", "admin"]}>
                   <CampaignsListPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/crm/audit-logs"
+              element={
+                <ProtectedRoute allowedRoles={["admin", "crm"]}>
+                  <AuditLogsPage />
                 </ProtectedRoute>
               }
             />

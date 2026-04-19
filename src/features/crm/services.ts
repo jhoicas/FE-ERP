@@ -55,6 +55,10 @@ import type {
   CreateCrmAutomationRequest,
   UpdateCrmAutomationRequest,
   CreateCampaignRequest,
+  UpdateCampaignRequest,
+  UpdateCampaignTemplateRequest,
+  GetAuditLogsParams,
+  AuditLogsResponse,
   AutomationResponse,
   CreateAutomationRequest,
   UpdateAutomationRequest,
@@ -82,6 +86,31 @@ const CrmAutomationSchema = z.object({
     .default({}),
   is_active: z.coerce.boolean(),
 }).passthrough();
+
+const AuditLogSchema = z
+  .object({
+    id: z.union([z.string(), z.number()]).transform(String),
+    user_id: z.union([z.string(), z.number()]).transform(String),
+    action: z.string(),
+    entity_name: z.string(),
+    entity_id: z.union([z.string(), z.number()]).transform(String),
+    changes: z.record(z.string(), z.unknown()).default({}),
+    created_at: z.string(),
+  })
+  .passthrough();
+
+const AuditLogsResponseSchema = z
+  .object({
+    items: z.array(AuditLogSchema).optional(),
+    logs: z.array(AuditLogSchema).optional(),
+    data: z.array(AuditLogSchema).optional(),
+    rows: z.array(AuditLogSchema).optional(),
+    total: z.coerce.number().optional(),
+    limit: z.coerce.number().optional(),
+    offset: z.coerce.number().optional(),
+    metrics: z.record(z.string(), z.unknown()).optional(),
+  })
+  .passthrough();
 
 const CRM_BASE = "/api/crm";
 const CUSTOMERS_BASE = "/api/crm/customers";
@@ -1000,6 +1029,26 @@ export async function createCampaignTemplate(body: {
   }
 }
 
+export async function updateTemplate(
+  templateId: string,
+  body: UpdateCampaignTemplateRequest,
+): Promise<CampaignTemplate> {
+  const payload = z
+    .object({
+      name: z.string().min(1).optional(),
+      subject: z.string().min(1).optional(),
+      body: z.string().min(1).optional(),
+    })
+    .parse(body);
+
+  try {
+    const { data } = await apiClient.put(`${CRM_BASE}/campaign-templates/${templateId}`, payload);
+    return CampaignTemplateSchema.parse(data) as CampaignTemplate;
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}
+
 export async function createCampaign(body: CreateCampaignRequest): Promise<unknown> {
   try {
     const { data } = await apiClient.post(`${CRM_BASE}/campaigns`, {
@@ -1307,6 +1356,66 @@ export async function executeCampaign(
       `${CRM_BASE}/campaigns/${campaignId}/execute`,
     );
     return z.object({ status: z.string() }).parse(data) as { status: string };
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}
+
+export async function updateCampaign(
+  campaignId: string,
+  body: UpdateCampaignRequest,
+): Promise<CampaignResponseDTO> {
+  const payload = z
+    .object({
+      name: z.string().min(1).optional(),
+      description: z.string().optional(),
+      subject: z.string().optional(),
+      body: z.string().optional(),
+      status: z.string().optional(),
+      is_active: z.boolean().optional(),
+    })
+    .parse(body);
+
+  try {
+    const { data } = await apiClient.put(`${CRM_BASE}/campaigns/${campaignId}`, payload);
+    return CampaignResponseSchema.parse(data);
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}
+
+export async function getAuditLogs(params?: GetAuditLogsParams): Promise<AuditLogsResponse> {
+  try {
+    const { data } = await apiClient.get(`${CRM_BASE}/audit-logs`, {
+      params: {
+        start_date: params?.start_date,
+        end_date: params?.end_date,
+        user_id: params?.user_id,
+        entity: params?.entity,
+        limit: params?.limit ?? 20,
+        offset: params?.offset ?? 0,
+      },
+    });
+
+    const parsed = AuditLogsResponseSchema.parse(data);
+    const rawItems = parsed.items ?? parsed.logs ?? parsed.data ?? parsed.rows ?? [];
+    const items = rawItems.map((item) => ({
+      id: String(item.id ?? ""),
+      user_id: String(item.user_id ?? ""),
+      action: String(item.action ?? ""),
+      entity_name: String(item.entity_name ?? ""),
+      entity_id: String(item.entity_id ?? ""),
+      changes: (item.changes ?? {}) as Record<string, unknown>,
+      created_at: String(item.created_at ?? ""),
+    }));
+
+    return {
+      items,
+      total: parsed.total ?? items.length,
+      limit: parsed.limit ?? (params?.limit ?? 20),
+      offset: parsed.offset ?? (params?.offset ?? 0),
+      metrics: parsed.metrics ?? {},
+    };
   } catch (error) {
     return throwOnApiError(error);
   }

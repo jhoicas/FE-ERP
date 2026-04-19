@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   PlayCircle,
@@ -6,10 +7,16 @@ import {
   MessageSquare,
   Loader2,
   Megaphone,
+  MoreHorizontal,
+  Pencil,
+  Pause,
+  Play,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -21,7 +28,21 @@ import {
 } from "@/components/ui/table";
 import { toast } from "@/hooks/use-toast";
 import { getCampaigns, executeCampaign } from "@/features/crm/services";
+import { useUpdateCampaign } from "@/features/crm/hooks/use-crm";
 import type { CampaignResponseDTO } from "@/features/crm/schemas";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -122,6 +143,10 @@ function statusBadge(status: string | null | undefined) {
 
 export default function CampaignsListPage() {
   const queryClient = useQueryClient();
+  const updateCampaignMutation = useUpdateCampaign();
+  const [editingCampaign, setEditingCampaign] = useState<CampaignResponseDTO | null>(null);
+  const [editingName, setEditingName] = useState("");
+  const [editingDescription, setEditingDescription] = useState("");
 
   const campaignsQuery = useQuery({
     queryKey: ["crm", "campaigns", "list"],
@@ -151,6 +176,73 @@ export default function CampaignsListPage() {
   const isExecutable = (status: string | null | undefined) => {
     const s = (status ?? "").toLowerCase();
     return s === "pending" || s === "scheduled";
+  };
+
+  const isPaused = (status: string | null | undefined) => {
+    const s = (status ?? "").toLowerCase();
+    return s === "paused" || s === "inactive";
+  };
+
+  const openEditDialog = (campaign: CampaignResponseDTO) => {
+    setEditingCampaign(campaign);
+    setEditingName(campaign.name ?? "");
+    setEditingDescription(campaign.description ?? "");
+  };
+
+  const handleSaveCampaign = () => {
+    if (!editingCampaign) return;
+
+    updateCampaignMutation.mutate(
+      {
+        campaignId: editingCampaign.id,
+        payload: {
+          name: editingName.trim(),
+          description: editingDescription.trim(),
+        },
+      },
+      {
+        onSuccess: () => {
+          toast({
+            title: "Campaña actualizada",
+            description: "Los cambios se guardaron correctamente.",
+          });
+          setEditingCampaign(null);
+        },
+        onError: (error: Error) => {
+          toast({
+            title: "No se pudo actualizar",
+            description: error.message,
+            variant: "destructive",
+          });
+        },
+      },
+    );
+  };
+
+  const handleToggleCampaignStatus = (campaign: CampaignResponseDTO) => {
+    const nextStatus = isPaused(campaign.status) ? "ACTIVE" : "PAUSED";
+
+    updateCampaignMutation.mutate(
+      {
+        campaignId: campaign.id,
+        payload: { status: nextStatus },
+      },
+      {
+        onSuccess: () => {
+          toast({
+            title: "Estado actualizado",
+            description: `La campaña quedó en estado ${nextStatus}.`,
+          });
+        },
+        onError: (error: Error) => {
+          toast({
+            title: "No se pudo cambiar el estado",
+            description: error.message,
+            variant: "destructive",
+          });
+        },
+      },
+    );
   };
 
   return (
@@ -215,24 +307,46 @@ export default function CampaignsListPage() {
                       </TableCell>
                       <TableCell>{statusBadge(campaign.status)}</TableCell>
                       <TableCell className="text-right">
-                        {isExecutable(campaign.status) ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="gap-1.5 border-primary/30 hover:bg-primary/10 hover:text-primary"
-                            disabled={executeMutation.isPending}
-                            onClick={() => executeMutation.mutate(campaign.id)}
-                          >
-                            {executeMutation.isPending ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <PlayCircle className="h-4 w-4" />
-                            )}
-                            Ejecutar
-                          </Button>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        )}
+                        <div className="flex justify-end gap-2">
+                          {isExecutable(campaign.status) && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="gap-1.5 border-primary/30 hover:bg-primary/10 hover:text-primary"
+                              disabled={executeMutation.isPending}
+                              onClick={() => executeMutation.mutate(campaign.id)}
+                            >
+                              {executeMutation.isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <PlayCircle className="h-4 w-4" />
+                              )}
+                              Ejecutar
+                            </Button>
+                          )}
+
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" aria-label="Acciones de campaña">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => openEditDialog(campaign)}>
+                                <Pencil className="mr-2 h-4 w-4" />
+                                Editar
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleToggleCampaignStatus(campaign)}>
+                                {isPaused(campaign.status) ? (
+                                  <Play className="mr-2 h-4 w-4" />
+                                ) : (
+                                  <Pause className="mr-2 h-4 w-4" />
+                                )}
+                                {isPaused(campaign.status) ? "Activar" : "Pausar"}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -242,6 +356,44 @@ export default function CampaignsListPage() {
           </>
         )}
       </Card>
+
+      <Dialog open={editingCampaign != null} onOpenChange={(open) => !open && setEditingCampaign(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar campaña</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="campaign-name">Nombre</Label>
+              <Input
+                id="campaign-name"
+                value={editingName}
+                onChange={(event) => setEditingName(event.target.value)}
+                placeholder="Nombre de la campaña"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="campaign-description">Descripción</Label>
+              <Input
+                id="campaign-description"
+                value={editingDescription}
+                onChange={(event) => setEditingDescription(event.target.value)}
+                placeholder="Descripción"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setEditingCampaign(null)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveCampaign} disabled={updateCampaignMutation.isPending}>
+              {updateCampaignMutation.isPending ? "Guardando..." : "Guardar cambios"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

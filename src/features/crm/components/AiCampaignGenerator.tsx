@@ -1431,6 +1431,17 @@ export default function AiCampaignGenerator() {
 
                 <Button
                   type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-9"
+                  onClick={() => setSaveTemplateOpen(true)}
+                  disabled={!canSaveTemplate}
+                >
+                  Guardar como Plantilla
+                </Button>
+
+                <Button
+                  type="button"
                   size="lg"
                   className="w-full sm:w-auto px-12 h-14 text-xl font-black rounded-2xl shadow-2xl hover:scale-105 active:scale-95 transition-all gap-3 bg-primary"
                   onClick={createCampaignForm.handleSubmit((values) => createCampaignMutation.mutate(values))}

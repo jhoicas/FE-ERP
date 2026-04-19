@@ -54,6 +54,7 @@ const APP_MENU_CONFIG = [
       { id: "crm-categorias", label: "Categorías", frontend_route: "/crm/categories" },
       { id: "crm-campanas", label: "Campañas", frontend_route: "/crm/campaigns" },
       { id: "crm-campanas-historial", label: "Historial Campañas", frontend_route: "/crm/campaigns/list" },
+      { id: "crm-audit-logs", label: "Bitácoras", frontend_route: "/crm/audit-logs" },
       { id: "crm-tareas", label: "Tareas", frontend_route: "/crm/tasks" },
       { id: "crm-tickets", label: "Tickets", frontend_route: "/crm/tickets" },
       { id: "crm.inbox", label: "Inbox", frontend_route: "/crm/inbox" },

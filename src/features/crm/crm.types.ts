@@ -102,6 +102,65 @@ export interface CreateCampaignRequest {
   scheduled_at: string;
 }
 
+export interface UpdateCampaignTemplateRequest {
+  name?: string;
+  subject?: string;
+  body?: string;
+}
+
+export interface UpdateCampaignRequest {
+  name?: string;
+  description?: string;
+  subject?: string;
+  body?: string;
+  status?: string;
+  is_active?: boolean;
+}
+
+export interface AuditLog {
+  id: string;
+  user_id: string;
+  action: string;
+  entity_name: string;
+  entity_id: string;
+  changes: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface AuditLogMetric {
+  key: string;
+  label: string;
+  value: number | string;
+}
+
+export interface AuditLogsMetrics {
+  total_changes?: number;
+  most_modified_entity?: string;
+  changes_by_day?: Array<{
+    date: string;
+    count: number;
+  }>;
+  cards?: AuditLogMetric[];
+  [key: string]: unknown;
+}
+
+export interface GetAuditLogsParams {
+  start_date?: string;
+  end_date?: string;
+  user_id?: string;
+  entity?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface AuditLogsResponse {
+  items: AuditLog[];
+  total: number;
+  limit: number;
+  offset: number;
+  metrics: AuditLogsMetrics;
+}
+
 export type CrmAutomationType = "BIRTHDAY" | "REPURCHASE";
 
 export interface CrmAutomationConfig {
