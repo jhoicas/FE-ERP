@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import { z } from "zod";
 import { FolderTree, Pencil, Plus, Trash2 } from "lucide-react";
+
+import { useTableSearch } from "@/hooks/use-debounce";
 
 import {
   createCrmCategoryHub,
@@ -33,6 +36,20 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+import {
   Table,
   TableBody,
   TableCell,
@@ -55,6 +72,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 const CRM_CATEGORIES_HUB_QK = ["crm-categories-hub"] as const;
 const CRM_PRODUCTS_HUB_QK = ["crm-products-hub"] as const;
 
+const PAGE_SIZE_OPTIONS = [5, 10, 20, 50] as const;
+
 const categoryFormSchema = z.object({
   name: z.string().min(1, "El nombre es obligatorio"),
 });
@@ -75,13 +94,56 @@ function formatCreatedAt(iso: string): string {
 export default function CrmAnalyticsProductCategoriesTab() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialSearch = searchParams.get("ch_search") ?? "";
+
   const [createOpen, setCreateOpen] = useState(false);
   const [editCategory, setEditCategory] = useState<CrmCategoryProductHub | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
+  const [pageSize, setPageSize] = useState(() => {
+    const n = Number(searchParams.get("ch_pageSize"));
+    return PAGE_SIZE_OPTIONS.includes(n as (typeof PAGE_SIZE_OPTIONS)[number]) ? n : 5;
+  });
+  const [offset, setOffset] = useState(() => {
+    const o = Number(searchParams.get("ch_offset"));
+    return Number.isFinite(o) && o >= 0 ? o : 0;
+  });
+
+  const { searchTerm: search, setSearchTerm: setSearch, debouncedSearchTerm: debouncedSearch } =
+    useTableSearch(initialSearch, 400);
+
+  useEffect(() => {
+    setOffset(0);
+  }, [debouncedSearch]);
+
+  useEffect(() => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (search.trim()) next.set("ch_search", search.trim());
+        else next.delete("ch_search");
+
+        if (offset > 0) next.set("ch_offset", String(offset));
+        else next.delete("ch_offset");
+
+        if (pageSize !== 5) next.set("ch_pageSize", String(pageSize));
+        else next.delete("ch_pageSize");
+
+        return next;
+      },
+      { replace: true },
+    );
+  }, [search, offset, pageSize, setSearchParams]);
+
   const listQuery = useQuery({
-    queryKey: CRM_CATEGORIES_HUB_QK,
-    queryFn: () => listCrmCategoriesHub({ limit: 500, offset: 0 }),
+    queryKey: [...CRM_CATEGORIES_HUB_QK, "list", pageSize, offset, debouncedSearch],
+    queryFn: () =>
+      listCrmCategoriesHub({
+        limit: pageSize,
+        offset,
+        search: debouncedSearch || undefined,
+      }),
   });
 
   const createForm = useForm<CategoryFormValues>({
@@ -146,7 +208,11 @@ export default function CrmAnalyticsProductCategoriesTab() {
     },
   });
 
-  const items = listQuery.data ?? [];
+  const items = listQuery.data?.items ?? [];
+  const total = listQuery.data?.total;
+  const hasMore =
+    typeof total === "number" ? offset + items.length < total : items.length === pageSize;
+  const hasPrev = offset > 0;
 
   const openEdit = (c: CrmCategoryProductHub) => {
     setEditCategory(c);
@@ -165,7 +231,16 @@ export default function CrmAnalyticsProductCategoriesTab() {
           Nueva
         </Button>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-3">
+        <div className="w-full sm:max-w-sm">
+          <Input
+            placeholder="Buscar por nombre…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-8 text-xs"
+          />
+        </div>
+
         {listQuery.isLoading ? (
           <Skeleton className="h-40 w-full" />
         ) : listQuery.isError ? (
@@ -173,49 +248,108 @@ export default function CrmAnalyticsProductCategoriesTab() {
             {getApiErrorMessage(listQuery.error, "CRM / Hub categorías")}
           </p>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nombre</TableHead>
-                <TableHead>Fecha de creación</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {items.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={3} className="text-center text-muted-foreground py-8">
-                    No hay categorías en el Hub.
-                  </TableCell>
+          <div className="rounded-lg border overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50 hover:bg-muted/50">
+                  <TableHead className="text-xs">Nombre</TableHead>
+                  <TableHead className="text-xs">Fecha de creación</TableHead>
+                  <TableHead className="text-right text-xs">Acciones</TableHead>
                 </TableRow>
-              ) : (
-                items.map((c) => (
-                  <TableRow key={c.id}>
-                    <TableCell className="font-medium">{c.name}</TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {formatCreatedAt(c.created_at)}
-                    </TableCell>
-                    <TableCell className="text-right space-x-2">
-                      <Button type="button" variant="outline" size="sm" onClick={() => openEdit(c)}>
-                        <Pencil className="h-3.5 w-3.5 mr-1" />
-                        Editar
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive"
-                        onClick={() => setDeleteId(c.id)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5 mr-1" />
-                        Eliminar
-                      </Button>
+              </TableHeader>
+              <TableBody>
+                {items.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-center text-muted-foreground py-8 text-sm">
+                      No hay categorías que coincidan con los filtros.
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                ) : (
+                  items.map((c) => (
+                    <TableRow key={c.id} className="hover:bg-muted/40">
+                      <TableCell className="font-medium">{c.name}</TableCell>
+                      <TableCell className="text-muted-foreground text-sm">
+                        {formatCreatedAt(c.created_at)}
+                      </TableCell>
+                      <TableCell className="text-right space-x-2">
+                        <Button type="button" variant="outline" size="sm" onClick={() => openEdit(c)}>
+                          <Pencil className="h-3.5 w-3.5 mr-1" />
+                          Editar
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive"
+                          onClick={() => setDeleteId(c.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5 mr-1" />
+                          Eliminar
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+
+            {items.length > 0 && (
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t px-3 py-3">
+                <p className="text-xs text-muted-foreground">
+                  Mostrando {offset + 1}–{offset + items.length}
+                  {typeof total === "number" && total > 0 ? ` de ${total}` : ""}
+                </p>
+                <div className="flex flex-wrap items-center gap-4">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>Filas por página</span>
+                    <Select
+                      value={String(pageSize)}
+                      onValueChange={(value) => {
+                        const size = Number(value);
+                        setOffset(0);
+                        setPageSize(size);
+                      }}
+                    >
+                      <SelectTrigger className="h-8 w-16 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PAGE_SIZE_OPTIONS.map((size) => (
+                          <SelectItem key={size} value={String(size)}>
+                            {size}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Pagination>
+                    <PaginationContent>
+                      <PaginationItem>
+                        <PaginationPrevious
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            if (hasPrev) setOffset((o) => Math.max(0, o - pageSize));
+                          }}
+                          className={!hasPrev ? "pointer-events-none opacity-50" : ""}
+                        />
+                      </PaginationItem>
+                      <PaginationItem>
+                        <PaginationNext
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            if (hasMore) setOffset((o) => o + pageSize);
+                          }}
+                          className={!hasMore ? "pointer-events-none opacity-50" : ""}
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </CardContent>
 

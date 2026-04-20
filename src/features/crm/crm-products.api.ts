@@ -47,24 +47,68 @@ function parseProduct(data: unknown): CrmProductHub {
   };
 }
 
-function parseList(data: unknown): CrmProductHub[] {
+export type CrmProductHubListResult = {
+  items: CrmProductHub[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+function parseProductHubListResponse(
+  data: unknown,
+  requestedLimit: number,
+  requestedOffset: number,
+): CrmProductHubListResult {
   if (Array.isArray(data)) {
-    return data.map(parseProduct);
+    const items = data.map(parseProduct);
+    return {
+      items,
+      total: items.length,
+      limit: requestedLimit,
+      offset: requestedOffset,
+    };
   }
-  const record = data as { items?: unknown; data?: unknown; rows?: unknown };
+  const record = data as {
+    items?: unknown;
+    data?: unknown;
+    rows?: unknown;
+    total?: unknown;
+    limit?: unknown;
+    offset?: unknown;
+  };
   const raw = record.items ?? record.data ?? record.rows ?? [];
-  return Array.isArray(raw) ? raw.map(parseProduct) : [];
+  const items = Array.isArray(raw) ? raw.map(parseProduct) : [];
+  const total = typeof record.total === "number" ? record.total : items.length;
+  const limit = typeof record.limit === "number" ? record.limit : requestedLimit;
+  const offset = typeof record.offset === "number" ? record.offset : requestedOffset;
+  return { items, total, limit, offset };
 }
 
 export async function listCrmProductsHub(params?: {
   limit?: number;
   offset?: number;
-}): Promise<CrmProductHub[]> {
+  /** Búsqueda por código o nombre (si el backend lo soporta). */
+  search?: string;
+  category_id?: string;
+  /** Solo productos sin categoría (si el backend lo soporta). */
+  uncategorized?: boolean;
+  is_active?: boolean;
+}): Promise<CrmProductHubListResult> {
+  const limit = params?.limit ?? 500;
+  const offset = params?.offset ?? 0;
   try {
-    const { data } = await apiClient.get(BASE, {
-      params: { limit: params?.limit ?? 500, offset: params?.offset ?? 0 },
-    });
-    return parseList(data);
+    const queryParams: Record<string, string | number | boolean | undefined> = {
+      limit,
+      offset,
+    };
+    const s = params?.search?.trim();
+    if (s) queryParams.search = s;
+    if (params?.category_id) queryParams.category_id = params.category_id;
+    if (params?.uncategorized) queryParams.uncategorized = true;
+    if (typeof params?.is_active === "boolean") queryParams.is_active = params.is_active;
+
+    const { data } = await apiClient.get(BASE, { params: queryParams });
+    return parseProductHubListResponse(data, limit, offset);
   } catch (error) {
     return throwOnApiError(error);
   }

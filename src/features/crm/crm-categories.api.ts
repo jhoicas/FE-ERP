@@ -37,24 +37,58 @@ function parseCategory(data: unknown): CrmCategoryProductHub {
   };
 }
 
-function parseList(data: unknown): CrmCategoryProductHub[] {
+export type CrmCategoryHubListResult = {
+  items: CrmCategoryProductHub[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+function parseCategoryHubListResponse(
+  data: unknown,
+  requestedLimit: number,
+  requestedOffset: number,
+): CrmCategoryHubListResult {
   if (Array.isArray(data)) {
-    return data.map(parseCategory);
+    const items = data.map(parseCategory);
+    return {
+      items,
+      total: items.length,
+      limit: requestedLimit,
+      offset: requestedOffset,
+    };
   }
-  const record = data as { items?: unknown; data?: unknown; rows?: unknown };
+  const record = data as {
+    items?: unknown;
+    data?: unknown;
+    rows?: unknown;
+    total?: unknown;
+    limit?: unknown;
+    offset?: unknown;
+  };
   const raw = record.items ?? record.data ?? record.rows ?? [];
-  return Array.isArray(raw) ? raw.map(parseCategory) : [];
+  const items = Array.isArray(raw) ? raw.map(parseCategory) : [];
+  const total = typeof record.total === "number" ? record.total : items.length;
+  const limit = typeof record.limit === "number" ? record.limit : requestedLimit;
+  const offset = typeof record.offset === "number" ? record.offset : requestedOffset;
+  return { items, total, limit, offset };
 }
 
 export async function listCrmCategoriesHub(params?: {
   limit?: number;
   offset?: number;
-}): Promise<CrmCategoryProductHub[]> {
+  /** Filtrar por nombre (si el backend lo soporta). */
+  search?: string;
+}): Promise<CrmCategoryHubListResult> {
+  const limit = params?.limit ?? 500;
+  const offset = params?.offset ?? 0;
   try {
-    const { data } = await apiClient.get(BASE, {
-      params: { limit: params?.limit ?? 500, offset: params?.offset ?? 0 },
-    });
-    return parseList(data);
+    const queryParams: Record<string, string | number | undefined> = { limit, offset };
+    const s = params?.search?.trim();
+    if (s) queryParams.search = s;
+
+    const { data } = await apiClient.get(BASE, { params: queryParams });
+    return parseCategoryHubListResponse(data, limit, offset);
   } catch (error) {
     return throwOnApiError(error);
   }
