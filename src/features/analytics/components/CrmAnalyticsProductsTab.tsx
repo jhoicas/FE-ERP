@@ -81,7 +81,8 @@ function resolveCategoryId(value: string): string | null {
   return value === NO_CATEGORY ? null : value;
 }
 
-function formatUnitCost(value: string | number): string {
+function formatUnitCost(value: string | number | null): string {
+  if (value == null || String(value).trim() === "") return "—";
   const n = typeof value === "number" ? value : Number(String(value).replace(",", "."));
   if (Number.isNaN(n)) return String(value);
   return n.toLocaleString("es-CO", {
@@ -91,8 +92,9 @@ function formatUnitCost(value: string | number): string {
   });
 }
 
-function unitCostToPayload(value: string): string | number {
+function unitCostToPayload(value: string): string | number | null {
   const trimmed = value.trim();
+  if (trimmed.length === 0) return null;
   const n = Number(trimmed.replace(",", "."));
   return Number.isFinite(n) ? n : trimmed;
 }
@@ -233,7 +235,7 @@ export default function CrmAnalyticsProductsTab() {
     editForm.reset({
       product_code: p.product_code,
       product_name: p.product_name,
-      unit_cost: String(p.unit_cost),
+      unit_cost: p.unit_cost == null ? "" : String(p.unit_cost),
       category_id: cat,
       is_active: p.is_active !== false,
     });

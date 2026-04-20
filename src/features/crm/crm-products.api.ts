@@ -26,7 +26,7 @@ export const crmProductHubSchema = z
     category_id: z.string().nullable().optional(),
     product_code: z.string(),
     product_name: z.string(),
-    unit_cost: z.union([z.string(), z.number()]),
+    unit_cost: z.union([z.string(), z.number(), z.null()]),
     is_active: z.coerce.boolean(),
     created_at: z.string(),
   })

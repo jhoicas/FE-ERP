@@ -8,7 +8,7 @@ export interface CrmProductHub {
   category_id: string | null;
   product_code: string;
   product_name: string;
-  unit_cost: string | number;
+  unit_cost: string | number | null;
   is_active: boolean;
   created_at: string;
 }
@@ -16,7 +16,7 @@ export interface CrmProductHub {
 export interface CreateCrmProductHubRequest {
   product_code: string;
   product_name: string;
-  unit_cost: string | number;
+  unit_cost: string | number | null;
   category_id?: string | null;
   is_active?: boolean;
 }
@@ -24,7 +24,7 @@ export interface CreateCrmProductHubRequest {
 export interface UpdateCrmProductHubRequest {
   product_code?: string;
   product_name?: string;
-  unit_cost?: string | number;
+  unit_cost?: string | number | null;
   category_id?: string | null;
   is_active?: boolean;
 }
