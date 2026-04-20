@@ -1035,6 +1035,28 @@ export async function getCrmAnalytics(): Promise<CrmAnalyticsDTO> {
         })
       : [];
 
+    const rawMonthly =
+      payload?.evolucionMensual ??
+      payload?.evolucion_mensual ??
+      payload?.monthlyEvolution ??
+      payload?.monthly_evolution ??
+      [];
+
+    const normalizedMonthly = Array.isArray(rawMonthly)
+      ? rawMonthly.map((item) => {
+          const row = item as {
+            mes?: unknown;
+            ventas?: unknown;
+            variacion?: unknown;
+          };
+          return {
+            mes: String(row.mes ?? ""),
+            ventas: Number(row.ventas ?? 0),
+            variacion: row.variacion as string | number | undefined,
+          };
+        })
+      : [];
+
     const normalized = {
       kpis: {
         totalClientes: rawKpis.totalClientes ?? rawKpis.total_clientes ?? 0,
@@ -1043,12 +1065,7 @@ export async function getCrmAnalytics(): Promise<CrmAnalyticsDTO> {
         clientesVip: rawKpis.clientesVip ?? rawKpis.clientes_vip ?? 0,
       },
       segmentacion: normalizedSegmentation,
-      evolucionMensual:
-        payload?.evolucionMensual ??
-        payload?.evolucion_mensual ??
-        payload?.monthlyEvolution ??
-        payload?.monthly_evolution ??
-        [],
+      evolucionMensual: normalizedMonthly,
     };
 
     return CrmAnalyticsSchema.parse(normalized);

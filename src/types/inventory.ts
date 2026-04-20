@@ -56,6 +56,8 @@ export interface CreateProductRequest {
   unspsc_code?: string;
   unit_measure: string;
   attributes?: unknown;
+  category_id?: string;
+  is_active?: boolean;
 }
 
 export interface UpdateProductRequest {
@@ -66,6 +68,8 @@ export interface UpdateProductRequest {
   unspsc_code?: string;
   unit_measure?: string;
   attributes?: unknown;
+  category_id?: string;
+  is_active?: boolean;
 }
 
 export interface ProductResponse {
@@ -82,6 +86,9 @@ export interface ProductResponse {
   attributes: unknown;
   created_at: string;
   updated_at: string;
+  category_id?: string;
+  category_name?: string;
+  is_active?: boolean;
 }
 
 export interface ProductListResponse {

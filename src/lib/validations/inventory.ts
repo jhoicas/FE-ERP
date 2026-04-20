@@ -58,6 +58,8 @@ export const createProductRequestSchema: z.ZodType<CreateProductRequest> =
     unspsc_code: z.string().optional(),
     unit_measure: z.string().min(1, "La unidad de medida es obligatoria"),
     attributes: z.unknown().optional(),
+    category_id: z.string().optional(),
+    is_active: z.boolean().optional(),
   });
 
 export const updateProductRequestSchema: z.ZodType<UpdateProductRequest> =
@@ -69,6 +71,8 @@ export const updateProductRequestSchema: z.ZodType<UpdateProductRequest> =
     unspsc_code: z.string().optional(),
     unit_measure: z.string().optional(),
     attributes: z.unknown().optional(),
+    category_id: z.string().optional(),
+    is_active: z.boolean().optional(),
   });
 
 export const createWarehouseRequestSchema: z.ZodType<CreateWarehouseRequest> =
@@ -79,21 +83,26 @@ export const createWarehouseRequestSchema: z.ZodType<CreateWarehouseRequest> =
 
 // ========= Response schemas =========
 
-export const productResponseSchema: z.ZodType<ProductResponse> = z.object({
-  id: z.string(),
-  company_id: z.string(),
-  sku: z.string(),
-  name: z.string(),
-  description: z.string(),
-  price: z.string(),
-  cost: z.string(),
-  tax_rate: z.string(),
-  unspsc_code: z.string(),
-  unit_measure: z.string(),
-  attributes: z.unknown(),
-  created_at: z.string(),
-  updated_at: z.string(),
-});
+export const productResponseSchema: z.ZodType<ProductResponse> = z
+  .object({
+    id: z.string(),
+    company_id: z.string(),
+    sku: z.string(),
+    name: z.string(),
+    description: z.string(),
+    price: z.string(),
+    cost: z.string(),
+    tax_rate: z.string(),
+    unspsc_code: z.string(),
+    unit_measure: z.string(),
+    attributes: z.unknown(),
+    created_at: z.string(),
+    updated_at: z.string(),
+    category_id: z.string().optional(),
+    category_name: z.string().optional(),
+    is_active: z.coerce.boolean().optional(),
+  })
+  .passthrough();
 
 export const productListResponseSchema: z.ZodType<ProductListResponse> =
   z.object({

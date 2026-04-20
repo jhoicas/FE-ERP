@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+/**
+ * Analítica CRM (`/api/crm/analytics`): los esquemas y DTO viven en `@/features/crm/schemas`
+ * y la normalización en `getCrmAnalytics` (`@/features/crm/services`).
+ */
+
 // API returns numeric fields as strings — use z.coerce.number() throughout
 export const MarginByChannelSchema = z.object({
   channel_id: z.string(),

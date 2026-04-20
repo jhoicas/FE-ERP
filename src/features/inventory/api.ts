@@ -107,6 +107,16 @@ export async function updateProduct(
   }
 }
 
+export async function deactivateProduct(id: string, accessToken?: string): Promise<void> {
+  try {
+    await apiClient.put(`/api/products/${id}/deactivate`, {}, {
+      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+    });
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}
+
 // ========= Bodegas =========
 
 export async function createWarehouse(

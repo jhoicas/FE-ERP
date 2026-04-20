@@ -106,12 +106,14 @@ export type CrmAnalyticsKpisDTO = z.infer<typeof CrmAnalyticsKpisSchema>;
 export const CrmAnalyticsMonthlySchema = z.object({
   mes: z.string(),
   ventas: z.coerce.number(),
+  variacion: z.union([z.string(), z.number()]).optional(),
 });
 
 export type CrmAnalyticsMonthlyDTO = z.infer<typeof CrmAnalyticsMonthlySchema>;
 
 export const CrmAnalyticsSegmentationSchema = z.object({
-  segmento: CrmSegmentSchema,
+  /** El backend puede enviar segmentos dinámicos (p. ej. SIN_SEGMENTO), no solo el enum de campañas */
+  segmento: z.string(),
   clientes: z.coerce.number(),
   porcentaje: z.union([z.string(), z.number()]).transform((value) =>
     typeof value === "number" ? `${value}%` : value,
