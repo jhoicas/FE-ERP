@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Loader2, MessageSquare, Send } from "lucide-react";
+import { Check, Copy, Loader2, MessageSquare, Send } from "lucide-react";
 
 import { askAiAnalyst } from "@/features/crm/services";
 import type { AiChatMessage } from "@/features/crm/crm.types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
 import {
   Table,
   TableBody,
@@ -18,6 +19,7 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 type RowData = Record<string, unknown>;
+const DATA_PAGE_SIZE = 10;
 
 function formatCellValue(value: unknown): string {
   if (value == null) return "—";
@@ -56,27 +58,49 @@ function AssistantDataPanel({
   data?: RowData[];
   sql?: string;
 }) {
+  const { toast } = useToast();
+  const [page, setPage] = useState(1);
+  const [copiedSql, setCopiedSql] = useState(false);
+
+  const handleCopySql = async () => {
+    if (!sql?.trim()) return;
+    await navigator.clipboard.writeText(sql);
+    toast({ title: "SQL copiado al portapapeles" });
+    setCopiedSql(true);
+    setTimeout(() => setCopiedSql(false), 1500);
+  };
+
   if (!data || data.length === 0) {
     if (!sql) return null;
     return (
       <div className="mt-3">
-        <Collapsible>
-          <CollapsibleTrigger asChild>
-            <Button variant="outline" size="sm" className="text-xs">
-              Ver SQL ejecutado
-            </Button>
-          </CollapsibleTrigger>
-          <CollapsibleContent className="mt-2">
-            <pre className="rounded-md bg-slate-950 p-3 text-xs text-slate-100 overflow-x-auto">
-              <code>{sql}</code>
-            </pre>
-          </CollapsibleContent>
-        </Collapsible>
+        <div className="flex gap-2">
+          <Button type="button" variant="outline" size="sm" className="text-xs" onClick={handleCopySql}>
+            {copiedSql ? <Check className="h-3.5 w-3.5 mr-1" /> : <Copy className="h-3.5 w-3.5 mr-1" />}
+            Copiar SQL
+          </Button>
+          <Collapsible>
+            <CollapsibleTrigger asChild>
+              <Button variant="outline" size="sm" className="text-xs">
+                Ver SQL ejecutado
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-2">
+              <pre className="rounded-md bg-slate-950 p-3 text-xs text-slate-100 overflow-x-auto">
+                <code>{sql}</code>
+              </pre>
+            </CollapsibleContent>
+          </Collapsible>
+        </div>
       </div>
     );
   }
 
   const headers = Object.keys(data[0]);
+  const totalPages = Math.max(1, Math.ceil(data.length / DATA_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageStart = (currentPage - 1) * DATA_PAGE_SIZE;
+  const pageRows = data.slice(pageStart, pageStart + DATA_PAGE_SIZE);
 
   return (
     <div className="mt-3 space-y-3">
@@ -92,7 +116,7 @@ function AssistantDataPanel({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data.map((row, rowIdx) => (
+            {pageRows.map((row, rowIdx) => (
               <TableRow key={`row-${rowIdx}`}>
                 {headers.map((header) => (
                   <TableCell key={`${rowIdx}-${header}`} className="text-xs">
@@ -117,20 +141,59 @@ function AssistantDataPanel({
         </Button>
 
         {sql && (
-          <Collapsible>
-            <CollapsibleTrigger asChild>
-              <Button type="button" variant="outline" size="sm" className="text-xs">
-                Ver SQL ejecutado
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="mt-2">
-              <pre className="rounded-md bg-slate-950 p-3 text-xs text-slate-100 overflow-x-auto">
-                <code>{sql}</code>
-              </pre>
-            </CollapsibleContent>
-          </Collapsible>
+          <>
+            <Button type="button" variant="outline" size="sm" className="text-xs" onClick={handleCopySql}>
+              {copiedSql ? <Check className="h-3.5 w-3.5 mr-1" /> : <Copy className="h-3.5 w-3.5 mr-1" />}
+              Copiar SQL
+            </Button>
+            <Collapsible>
+              <CollapsibleTrigger asChild>
+                <Button type="button" variant="outline" size="sm" className="text-xs">
+                  Ver SQL ejecutado
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mt-2">
+                <pre className="rounded-md bg-slate-950 p-3 text-xs text-slate-100 overflow-x-auto">
+                  <code>{sql}</code>
+                </pre>
+              </CollapsibleContent>
+            </Collapsible>
+          </>
         )}
       </div>
+
+      {data.length > DATA_PAGE_SIZE && (
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span>
+            Mostrando {pageStart + 1}–{Math.min(pageStart + DATA_PAGE_SIZE, data.length)} de {data.length}
+          </span>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              disabled={currentPage <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              Anterior
+            </Button>
+            <span className="px-2 py-1 border rounded-md">
+              {currentPage}/{totalPages}
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              disabled={currentPage >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            >
+              Siguiente
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -218,17 +281,20 @@ export default function AiChatAnalyst() {
                     : "bg-card text-card-foreground border-border";
 
                 return (
-                  <div
-                    key={message.id}
-                    className={`flex ${isUser ? "justify-end" : "justify-start"}`}
-                  >
-                    <div
-                      className={`max-w-[90%] rounded-xl border px-3 py-2 text-sm shadow-sm sm:max-w-[80%] ${bubbleClass}`}
-                    >
-                      <p className="whitespace-pre-wrap">{message.content}</p>
-                      {!isUser && !message.isError && (
-                        <AssistantDataPanel data={message.data} sql={message.sql} />
-                      )}
+                  <div key={message.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+                    <div className="max-w-[90%] sm:max-w-[80%]">
+                      <div className={`rounded-xl border px-3 py-2 text-sm shadow-sm ${bubbleClass}`}>
+                        <p className="whitespace-pre-wrap">{message.content}</p>
+                        {!isUser && !message.isError && (
+                          <AssistantDataPanel data={message.data} sql={message.sql} />
+                        )}
+                      </div>
+                      <p className="mt-1 text-[11px] text-muted-foreground px-1">
+                        {new Date(message.timestamp).toLocaleTimeString("es-CO", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </p>
                     </div>
                   </div>
                 );

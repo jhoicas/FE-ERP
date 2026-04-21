@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Mail, MessageSquare, Smartphone, Sparkles, Copy, Send, Loader2, Save, FolderOpen, Phone } from "lucide-react";
 import apiClient from "@/lib/api/client";
+import { AI_PROVIDER_LABEL } from "@/lib/constants/ai";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -1105,9 +1106,7 @@ export default function AiCampaignGenerator() {
               <p className="text-xs text-muted-foreground">Deja que la IA redacte un mensaje persuasivo para ti.</p>
             </div>
           </div>
-          <Badge variant="outline" className="text-[11px]">
-            Powered by Gemini 2.0
-          </Badge>
+          <Badge variant="outline" className="text-[11px]">{AI_PROVIDER_LABEL}</Badge>
         </div>
         <div className="p-8">
           <Form {...form}>

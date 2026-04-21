@@ -7,6 +7,7 @@ import { Sparkles, Megaphone, Clipboard, ClipboardCheck, Loader2, Brain } from "
 
 import { generateCampaignCopy, summarizeTimeline } from "@/features/crm/services";
 import apiClient from "@/lib/api/client";
+import { AI_PROVIDER_LABEL } from "@/lib/constants/ai";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -276,9 +277,7 @@ export default function MarketingAIPage() {
             Genera copys de campaña y resúmenes inteligentes del timeline de tus clientes para preparar mejores mensajes.
           </p>
         </div>
-        <Badge variant="outline" className="text-[11px]">
-          Powered by Gemini 2.0
-        </Badge>
+        <Badge variant="outline" className="text-[11px]">{AI_PROVIDER_LABEL}</Badge>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
