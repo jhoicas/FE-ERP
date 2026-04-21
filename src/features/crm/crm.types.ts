@@ -296,7 +296,7 @@ export interface TaskAlert {
 }
 
 export interface CampaignCopyResponse {
-  text: string;
+  answer: string;
 }
 
 export interface SummarizeTimelineResponse {
@@ -484,7 +484,9 @@ export interface AiChatMessage {
   role: "user" | "assistant";
   content: string;
   timestamp: string;
-  data?: Record<string, any>[]; // Para respuestas con datos tabulares
+  data?: Record<string, unknown>[]; // Para respuestas con datos tabulares
+  sql?: string;
+  isError?: boolean;
 }
 
 /**
@@ -502,13 +504,9 @@ export interface AiAnalystRequest {
  * Contiene texto y opcionalmente datos para renderizar en tabla/gráfico
  */
 export interface AiAnalystResponse {
-  text: string;
-  data?: Record<string, any>[]; // Array de objetos para tabla o gráfico
-  chartType?: "bar" | "line" | "pie" | "area"; // Sugerencia de tipo de gráfico
-  chartConfig?: {
-    xAxis: string; // Nombre del campo para eje X
-    yAxis: string; // Nombre del campo para eje Y
-  };
+  answer: string;
+  data?: Record<string, unknown>[]; // Array de objetos para tabla
+  sql?: string;
 }
 
 /**

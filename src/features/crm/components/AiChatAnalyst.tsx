@@ -1,24 +1,9 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import {
-  BarChart,
-  Bar,
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
-  Cell,
-  AreaChart,
-  Area,
-  CartesianGrid,
-  Tooltip,
-  XAxis,
-  YAxis,
-  Legend,
-  ResponsiveContainer,
-  PieChart as RechartsPieChart,
-} from "recharts";
-import { Loader2, Send, MessageSquare } from "lucide-react";
+import { Loader2, MessageSquare, Send } from "lucide-react";
+
+import { askAiAnalyst } from "@/features/crm/services";
+import type { AiChatMessage } from "@/features/crm/crm.types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -30,294 +15,264 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { askAiAnalyst } from "../services";
-import type { AiChatMessage } from "../crm.types";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
-const CHART_COLORS = [
-  "#3b82f6",
-  "#ef4444",
-  "#10b981",
-  "#f59e0b",
-  "#8b5cf6",
-  "#ec4899",
-  "#06b6d4",
-  "#6366f1",
-];
+type RowData = Record<string, unknown>;
+
+function formatCellValue(value: unknown): string {
+  if (value == null) return "—";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+function escapeCsvValue(value: unknown): string {
+  const raw = formatCellValue(value).replace(/"/g, '""');
+  return `"${raw}"`;
+}
+
+function downloadCsvFromRows(rows: RowData[], filename: string): void {
+  if (rows.length === 0) return;
+  const headers = Object.keys(rows[0]);
+  const csvLines = [
+    headers.map((header) => escapeCsvValue(header)).join(","),
+    ...rows.map((row) => headers.map((header) => escapeCsvValue(row[header])).join(",")),
+  ];
+  const csvContent = csvLines.join("\n");
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function AssistantDataPanel({
+  data,
+  sql,
+}: {
+  data?: RowData[];
+  sql?: string;
+}) {
+  if (!data || data.length === 0) {
+    if (!sql) return null;
+    return (
+      <div className="mt-3">
+        <Collapsible>
+          <CollapsibleTrigger asChild>
+            <Button variant="outline" size="sm" className="text-xs">
+              Ver SQL ejecutado
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-2">
+            <pre className="rounded-md bg-slate-950 p-3 text-xs text-slate-100 overflow-x-auto">
+              <code>{sql}</code>
+            </pre>
+          </CollapsibleContent>
+        </Collapsible>
+      </div>
+    );
+  }
+
+  const headers = Object.keys(data[0]);
+
+  return (
+    <div className="mt-3 space-y-3">
+      <div className="overflow-x-auto rounded-md border bg-background">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              {headers.map((header) => (
+                <TableHead key={header} className="text-xs font-semibold">
+                  {header}
+                </TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {data.map((row, rowIdx) => (
+              <TableRow key={`row-${rowIdx}`}>
+                {headers.map((header) => (
+                  <TableCell key={`${rowIdx}-${header}`} className="text-xs">
+                    {formatCellValue(row[header])}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      <div className="flex gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="text-xs"
+          onClick={() => downloadCsvFromRows(data, "crm-ai-resultados.csv")}
+        >
+          Exportar a CSV
+        </Button>
+
+        {sql && (
+          <Collapsible>
+            <CollapsibleTrigger asChild>
+              <Button type="button" variant="outline" size="sm" className="text-xs">
+                Ver SQL ejecutado
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-2">
+              <pre className="rounded-md bg-slate-950 p-3 text-xs text-slate-100 overflow-x-auto">
+                <code>{sql}</code>
+              </pre>
+            </CollapsibleContent>
+          </Collapsible>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function AiChatAnalyst() {
   const [messages, setMessages] = useState<AiChatMessage[]>([]);
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const scrollToBottom = useCallback(() => {
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, []);
+  }, [messages]);
 
   const askMutation = useMutation({
     mutationFn: askAiAnalyst,
     onSuccess: (response) => {
       const assistantMessage: AiChatMessage = {
-        id: `msg-${Date.now()}`,
+        id: `assistant-${Date.now()}`,
         role: "assistant",
-        content: response.text,
+        content: response.answer ?? "",
         timestamp: new Date().toISOString(),
         data: response.data,
+        sql: response.sql,
       };
       setMessages((prev) => [...prev, assistantMessage]);
-      scrollToBottom();
+    },
+    onError: () => {
+      const errorMessage: AiChatMessage = {
+        id: `assistant-error-${Date.now()}`,
+        role: "assistant",
+        content:
+          "Hubo un error al consultar la base de datos o generar el SQL. Por favor intenta de nuevo.",
+        timestamp: new Date().toISOString(),
+        isError: true,
+      };
+      setMessages((prev) => [...prev, errorMessage]);
     },
   });
 
-  const handleSend = useCallback(() => {
-    if (!input.trim()) return;
+  const handleSend = () => {
+    const question = input.trim();
+    if (!question || askMutation.isPending) return;
 
     const userMessage: AiChatMessage = {
-      id: `msg-${Date.now()}`,
+      id: `user-${Date.now()}`,
       role: "user",
-      content: input,
+      content: question,
       timestamp: new Date().toISOString(),
     };
 
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
+    askMutation.mutate(question);
+  };
 
-    askMutation.mutate(input);
-  }, [input, askMutation]);
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && e.ctrlKey) {
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
       handleSend();
     }
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <MessageSquare className="h-5 w-5 text-blue-600" />
-        <h2 className="text-lg font-semibold">Asistente de IA</h2>
-      </div>
-
-      <Card className="flex flex-col bg-gradient-to-br from-slate-50 to-slate-100">
-        {/* Chat history */}
-        <CardContent className="flex-1 overflow-y-auto p-4 space-y-4 max-h-96">
-          {messages.length === 0 ? (
-            <div className="flex items-center justify-center h-32 text-center text-slate-500">
-              <div>
-                <MessageSquare className="h-12 w-12 mx-auto mb-2 opacity-30" />
-                <p className="text-sm">
-                  Inicia una conversación preguntando sobre tus datos CRM...
-                </p>
-              </div>
+    <Card className="bg-gradient-to-br from-slate-50 to-slate-100">
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <MessageSquare className="h-4 w-4 text-primary" />
+          IA Analyst
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="h-[28rem] overflow-y-auto rounded-md border bg-background p-4">
+          {messages.length === 0 && !askMutation.isPending ? (
+            <div className="flex h-full items-center justify-center text-center text-sm text-muted-foreground">
+              Inicia el chat preguntando por tus datos del CRM.
             </div>
           ) : (
-            messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-              >
-                <div
-                  className={`max-w-xs lg:max-w-md xl:max-w-lg ${
-                    msg.role === "user"
-                      ? "bg-blue-600 text-white rounded-lg rounded-tr-none"
-                      : "bg-white text-slate-900 rounded-lg rounded-tl-none shadow-sm border border-slate-200"
-                  } p-3 text-sm`}
-                >
-                  <p className="mb-2">{msg.content}</p>
+            <div className="space-y-3">
+              {messages.map((message) => {
+                const isUser = message.role === "user";
+                const bubbleClass = message.isError
+                  ? "bg-red-50 text-red-900 border-red-200"
+                  : isUser
+                    ? "bg-primary text-primary-foreground border-primary/30"
+                    : "bg-card text-card-foreground border-border";
 
-                  {/* Render data visualization if available */}
-                  {msg.data && msg.data.length > 0 && msg.role === "assistant" && (
-                    <RenderDataVisualization data={msg.data} />
-                  )}
-
+                return (
                   <div
-                    className={`text-xs ${
-                      msg.role === "user" ? "text-blue-100" : "text-slate-500"
-                    } mt-1`}
+                    key={message.id}
+                    className={`flex ${isUser ? "justify-end" : "justify-start"}`}
                   >
-                    {new Date(msg.timestamp).toLocaleTimeString("es-CO", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
+                    <div
+                      className={`max-w-[90%] rounded-xl border px-3 py-2 text-sm shadow-sm sm:max-w-[80%] ${bubbleClass}`}
+                    >
+                      <p className="whitespace-pre-wrap">{message.content}</p>
+                      {!isUser && !message.isError && (
+                        <AssistantDataPanel data={message.data} sql={message.sql} />
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {askMutation.isPending && (
+                <div className="flex justify-start">
+                  <div className="max-w-[90%] rounded-xl border border-border bg-card px-3 py-2 text-sm shadow-sm sm:max-w-[80%]">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Consultando base de datos...</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))
-          )}
-
-          {askMutation.isPending && (
-            <div className="flex justify-start">
-              <div className="bg-white text-slate-900 rounded-lg rounded-tl-none shadow-sm border border-slate-200 p-3 flex items-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span className="text-sm">IA analizando...</span>
-              </div>
+              )}
             </div>
           )}
 
           <div ref={messagesEndRef} />
-        </CardContent>
-
-        {/* Input area */}
-        <div className="border-t border-slate-200 p-4 bg-white">
-          <div className="flex gap-2">
-            <Textarea
-              placeholder="Pregunta sobre tus datos... (Ctrl+Enter para enviar)"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              disabled={askMutation.isPending}
-              className="resize-none min-h-12"
-              rows={2}
-            />
-            <Button
-              onClick={handleSend}
-              disabled={askMutation.isPending || !input.trim()}
-              size="lg"
-              className="self-end"
-            >
-              {askMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Send className="h-4 w-4" />
-              )}
-            </Button>
-          </div>
         </div>
-      </Card>
-    </div>
+
+        <div className="flex items-end gap-2">
+          <Textarea
+            placeholder="Escribe tu pregunta... (Enter para enviar, Shift+Enter para salto de línea)"
+            value={input}
+            onChange={(event) => setInput(event.target.value)}
+            onKeyDown={handleKeyDown}
+            disabled={askMutation.isPending}
+            className="min-h-16 resize-none"
+          />
+          <Button
+            type="button"
+            onClick={handleSend}
+            disabled={askMutation.isPending || !input.trim()}
+            size="icon"
+          >
+            {askMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
-}
-
-/**
- * RenderDataVisualization: Detecta el tipo de datos y renderiza tabla o gráfico
- */
-function RenderDataVisualization({
-  data,
-}: {
-  data: Record<string, any>[];
-}) {
-  const guessChartType = useCallback(() => {
-    if (data.length === 0) return "table";
-
-    const firstRow = data[0];
-    const keys = Object.keys(firstRow);
-
-    // Si tiene menos de 3 campos y uno parece ser categoría, usa pie
-    if (keys.length === 2) {
-      const values = Object.values(firstRow);
-      if (values.some((v) => typeof v === "number")) {
-        return "pie";
-      }
-    }
-
-    // Si tiene 1 categoría + 1-3 valores numéricos, usa bar
-    const numericCount = keys.filter((k) => {
-      return data.every((row) => typeof row[k] === "number");
-    }).length;
-
-    if (numericCount >= 1) {
-      return numericCount === 1 ? "bar" : "bar";
-    }
-
-    // Default: tabla
-    return "table";
-  }, [data]);
-
-  const chartType = useMemo(() => guessChartType(), [guessChartType]);
-
-  if (data.length === 0) return null;
-
-  switch (chartType) {
-    case "pie": {
-      const keys = Object.keys(data[0]);
-      const labelKey = keys.find((k) => typeof data[0][k] === "string") || keys[0];
-      const valueKey = keys.find((k) => k !== labelKey) || keys[1];
-
-      return (
-        <div className="mt-3 h-64 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <RechartsPieChart>
-              <Pie
-                data={data}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={(entry) => `${entry[labelKey]}`}
-                outerRadius={60}
-                fill="#3b82f6"
-                dataKey={valueKey}
-              >
-                {data.map((_, index) => (
-                  <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(value: unknown) => Number(value).toLocaleString("es-CO")} />
-            </RechartsPieChart>
-          </ResponsiveContainer>
-        </div>
-      );
-    }
-
-    case "bar": {
-      const keys = Object.keys(data[0]);
-      const catKey = keys.find((k) => typeof data[0][k] === "string") || keys[0];
-      const numKey = keys.find((k) => k !== catKey && typeof data[0][k] === "number") || keys[1];
-
-      return (
-        <div className="mt-3 h-64 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey={catKey} />
-              <YAxis />
-              <Tooltip
-                formatter={(value: unknown) => Number(value).toLocaleString("es-CO")}
-              />
-              <Bar dataKey={numKey} fill="#3b82f6" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      );
-    }
-
-    default: {
-      // Table view
-      const keys = Object.keys(data[0]);
-      return (
-        <div className="mt-3 max-h-64 overflow-x-auto">
-          <Table className="text-xs">
-            <TableHeader>
-              <TableRow className="border-slate-300">
-                {keys.map((key) => (
-                  <TableHead key={key} className="text-slate-600">
-                    {key}
-                  </TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.slice(0, 5).map((row, idx) => (
-                <TableRow key={idx} className="border-slate-200">
-                  {keys.map((key) => (
-                    <TableCell key={key} className="text-slate-700">
-                      {typeof row[key] === "number"
-                        ? row[key].toLocaleString("es-CO", {
-                            maximumFractionDigits: 2,
-                          })
-                        : String(row[key])}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          {data.length > 5 && (
-            <p className="text-xs text-slate-500 mt-2">
-              ... y {data.length - 5} filas más
-            </p>
-          )}
-        </div>
-      );
-    }
-  }
 }

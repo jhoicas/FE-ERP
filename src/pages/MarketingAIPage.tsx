@@ -256,9 +256,9 @@ export default function MarketingAIPage() {
   });
 
   const handleCopy = async () => {
-    if (!campaignMutation.data?.text) return;
+    if (!campaignMutation.data?.answer) return;
     try {
-      await navigator.clipboard.writeText(campaignMutation.data.text);
+      await navigator.clipboard.writeText(campaignMutation.data.answer);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -276,6 +276,9 @@ export default function MarketingAIPage() {
             Genera copys de campaña y resúmenes inteligentes del timeline de tus clientes para preparar mejores mensajes.
           </p>
         </div>
+        <Badge variant="outline" className="text-[11px]">
+          Powered by Gemini 2.0
+        </Badge>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -492,15 +495,15 @@ export default function MarketingAIPage() {
               </div>
             )}
 
-            {!campaignMutation.isPending && campaignMutation.data?.text && (
+            {!campaignMutation.isPending && campaignMutation.data?.answer && (
               <Textarea
                 className="h-64 resize-none"
-                value={campaignMutation.data.text}
+                value={campaignMutation.data.answer}
                 readOnly
               />
             )}
 
-            {!campaignMutation.isPending && !campaignMutation.data?.text && (
+            {!campaignMutation.isPending && !campaignMutation.data?.answer && (
               <p className="text-sm text-muted-foreground">
                 Completa el formulario de la izquierda y genera el primer copy de campaña con IA.
               </p>
@@ -515,7 +518,7 @@ export default function MarketingAIPage() {
               variant="outline"
               size="sm"
               onClick={handleCopy}
-              disabled={!campaignMutation.data?.text}
+              disabled={!campaignMutation.data?.answer}
             >
               {copied ? (
                 <>

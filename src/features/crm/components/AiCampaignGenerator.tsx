@@ -534,8 +534,8 @@ export default function AiCampaignGenerator() {
         `- No inventes secciones tipo "[Llamada a la acción...]" ni agregues enlaces si no fueron solicitados.`,
       ].join(" ");
 
-      const { text } = await generateCampaignCopy({ prompt: fullPrompt });
-      return text;
+      const { answer } = await generateCampaignCopy({ prompt: fullPrompt });
+      return answer;
     },
     onSuccess: (generatedText, values) => {
       const currentChannel = createCampaignForm.getValues("channel");
@@ -582,10 +582,10 @@ export default function AiCampaignGenerator() {
       );
 
       const prompt = buildAutomationPrompt(segment, segmentCustomers.length > 0 ? segmentCustomers : allCustomers);
-      const { text } = await generateCampaignCopy({ prompt });
-      const subject = suggestSubjectFromGeneratedText(text, `Campaña ${segment}`);
+      const { answer } = await generateCampaignCopy({ prompt });
+      const subject = suggestSubjectFromGeneratedText(answer, `Campaña ${segment}`);
 
-      return { prompt, subject, body: text, segment };
+      return { prompt, subject, body: answer, segment };
     },
     onSuccess: ({ prompt, subject, body, segment }) => {
       setGeneratedText(body);
@@ -1105,6 +1105,9 @@ export default function AiCampaignGenerator() {
               <p className="text-xs text-muted-foreground">Deja que la IA redacte un mensaje persuasivo para ti.</p>
             </div>
           </div>
+          <Badge variant="outline" className="text-[11px]">
+            Powered by Gemini 2.0
+          </Badge>
         </div>
         <div className="p-8">
           <Form {...form}>

@@ -224,8 +224,8 @@ export default function CampaignAutomations() {
     aiGenerateMutation.mutate(
       { prompt: createTemplatePrompt.trim() },
       {
-        onSuccess: ({ text }) => {
-          const result = extractAiSubjectAndBody(text);
+        onSuccess: ({ answer }) => {
+          const result = extractAiSubjectAndBody(answer);
           setCreateTemplateDraft((prev) => ({
             ...prev,
             subject: result.subject,

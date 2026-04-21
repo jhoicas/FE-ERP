@@ -874,14 +874,47 @@ export async function updateTicket(
   }
 }
 
-export async function generateCampaignCopy(body: { prompt: string }): Promise<{ text: string }> {
+function normalizeAiTextResponse(data: unknown): { answer: string } {
+  const payload = z
+    .object({
+      answer: z.string().optional(),
+      text: z.string().optional(),
+      content: z.string().optional(),
+      result: z.string().optional(),
+      data: z.record(z.unknown()).optional(),
+    })
+    .passthrough()
+    .parse(data);
+
+  if (typeof payload.answer === "string" && payload.answer.trim()) {
+    return { answer: payload.answer.trim() };
+  }
+  if (typeof payload.text === "string" && payload.text.trim()) {
+    return { answer: payload.text.trim() };
+  }
+  if (typeof payload.content === "string" && payload.content.trim()) {
+    return { answer: payload.content.trim() };
+  }
+  if (typeof payload.result === "string" && payload.result.trim()) {
+    return { answer: payload.result.trim() };
+  }
+
+  const nestedMessage = payload.data?.message;
+  if (typeof nestedMessage === "string" && nestedMessage.trim()) {
+    return { answer: nestedMessage.trim() };
+  }
+
+  throw new Error("La respuesta de IA no contiene texto generado.");
+}
+
+export async function generateCampaignCopy(body: { prompt: string }): Promise<{ answer: string }> {
   const payload = campaignCopySchema.parse(body);
   try {
-    const { data } = await apiClient.post<{ text: string }>(
+    const { data } = await apiClient.post(
       `${CRM_BASE}/ai/campaign-copy`,
       payload
     );
-    return data;
+    return normalizeAiTextResponse(data);
   } catch (error) {
     return throwOnApiError(error);
   }
@@ -1307,13 +1340,9 @@ export async function deactivateSupplier(supplierId: string): Promise<void> {
  * Retorna texto de análisis + opcionalmente datos tabulares y configuración de gráfico
  */
 export async function askAiAnalyst(question: string): Promise<{
-  text: string;
-  data?: Record<string, any>[];
-  chartType?: "bar" | "line" | "pie" | "area";
-  chartConfig?: {
-    xAxis: string;
-    yAxis: string;
-  };
+  answer: string;
+  data?: Record<string, unknown>[];
+  sql?: string;
 }> {
   try {
     const { data } = await apiClient.post(`${CRM_BASE}/ai/ask`, { question });
