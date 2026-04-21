@@ -4,13 +4,12 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { z } from "zod";
-import { FolderTree, Pencil, Plus, Trash2 } from "lucide-react";
+import { FolderTree, Pencil, Plus } from "lucide-react";
 
 import { useTableSearch } from "@/hooks/use-debounce";
 
 import {
   createCrmCategoryHub,
-  deleteCrmCategoryHub,
   listCrmCategoriesHub,
   updateCrmCategoryHub,
 } from "@/features/crm/crm-categories.api";
@@ -18,6 +17,7 @@ import type { CrmCategoryProductHub } from "@/features/crm/crm-hub.types";
 import { getApiErrorMessage } from "@/lib/api/errors";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
@@ -73,6 +73,7 @@ const CRM_CATEGORIES_HUB_QK = ["crm-categories-hub"] as const;
 const CRM_PRODUCTS_HUB_QK = ["crm-products-hub"] as const;
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50] as const;
+type CategoryStatusFilter = "all" | "active" | "inactive";
 
 const categoryFormSchema = z.object({
   name: z.string().min(1, "El nombre es obligatorio"),
@@ -96,10 +97,14 @@ export default function CrmAnalyticsProductCategoriesTab() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialSearch = searchParams.get("ch_search") ?? "";
+  const initialStatus = searchParams.get("ch_status");
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editCategory, setEditCategory] = useState<CrmCategoryProductHub | null>(null);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [statusCategory, setStatusCategory] = useState<CrmCategoryProductHub | null>(null);
+  const [statusFilter, setStatusFilter] = useState<CategoryStatusFilter>(() =>
+    initialStatus === "active" || initialStatus === "inactive" ? initialStatus : "all",
+  );
 
   const [pageSize, setPageSize] = useState(() => {
     const n = Number(searchParams.get("ch_pageSize"));
@@ -115,7 +120,7 @@ export default function CrmAnalyticsProductCategoriesTab() {
 
   useEffect(() => {
     setOffset(0);
-  }, [debouncedSearch]);
+  }, [debouncedSearch, statusFilter]);
 
   useEffect(() => {
     setSearchParams(
@@ -129,20 +134,23 @@ export default function CrmAnalyticsProductCategoriesTab() {
 
         if (pageSize !== 5) next.set("ch_pageSize", String(pageSize));
         else next.delete("ch_pageSize");
+        if (statusFilter !== "all") next.set("ch_status", statusFilter);
+        else next.delete("ch_status");
 
         return next;
       },
       { replace: true },
     );
-  }, [search, offset, pageSize, setSearchParams]);
+  }, [search, offset, pageSize, statusFilter, setSearchParams]);
 
   const listQuery = useQuery({
-    queryKey: [...CRM_CATEGORIES_HUB_QK, "list", pageSize, offset, debouncedSearch],
+    queryKey: [...CRM_CATEGORIES_HUB_QK, "list", pageSize, offset, debouncedSearch, statusFilter],
     queryFn: () =>
       listCrmCategoriesHub({
         limit: pageSize,
         offset,
         search: debouncedSearch || undefined,
+        is_active: statusFilter === "all" ? undefined : statusFilter === "active",
       }),
   });
 
@@ -191,17 +199,18 @@ export default function CrmAnalyticsProductCategoriesTab() {
     },
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => deleteCrmCategoryHub(id),
+  const statusMutation = useMutation({
+    mutationFn: ({ id, is_active }: { id: string; is_active: boolean }) =>
+      updateCrmCategoryHub(id, { is_active }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: CRM_CATEGORIES_HUB_QK });
       queryClient.invalidateQueries({ queryKey: CRM_PRODUCTS_HUB_QK });
-      toast({ title: "Categoría eliminada" });
-      setDeleteId(null);
+      toast({ title: statusCategory?.is_active ? "Categoría desactivada" : "Categoría activada" });
+      setStatusCategory(null);
     },
     onError: (e) => {
       toast({
-        title: "No se pudo eliminar",
+        title: "No se pudo actualizar estado",
         description: getApiErrorMessage(e, "CRM / Hub categorías"),
         variant: "destructive",
       });
@@ -232,13 +241,33 @@ export default function CrmAnalyticsProductCategoriesTab() {
         </Button>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="w-full sm:max-w-sm">
-          <Input
-            placeholder="Buscar por nombre…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="h-8 text-xs"
-          />
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="w-full sm:max-w-sm">
+            <Input
+              placeholder="Buscar por nombre…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-8 text-xs"
+            />
+          </div>
+          <div className="w-full sm:w-40">
+            <Select
+              value={statusFilter}
+              onValueChange={(value) => {
+                setOffset(0);
+                setStatusFilter(value as CategoryStatusFilter);
+              }}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Estado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="active">Activos</SelectItem>
+                <SelectItem value="inactive">Inactivos</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {listQuery.isLoading ? (
@@ -253,6 +282,7 @@ export default function CrmAnalyticsProductCategoriesTab() {
               <TableHeader>
                 <TableRow className="bg-muted/50 hover:bg-muted/50">
                   <TableHead className="text-xs">Nombre</TableHead>
+                  <TableHead className="text-xs">Estado</TableHead>
                   <TableHead className="text-xs">Fecha de creación</TableHead>
                   <TableHead className="text-right text-xs">Acciones</TableHead>
                 </TableRow>
@@ -260,7 +290,7 @@ export default function CrmAnalyticsProductCategoriesTab() {
               <TableBody>
                 {items.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={3} className="text-center text-muted-foreground py-8 text-sm">
+                    <TableCell colSpan={4} className="text-center text-muted-foreground py-8 text-sm">
                       No hay categorías que coincidan con los filtros.
                     </TableCell>
                   </TableRow>
@@ -268,6 +298,11 @@ export default function CrmAnalyticsProductCategoriesTab() {
                   items.map((c) => (
                     <TableRow key={c.id} className="hover:bg-muted/40">
                       <TableCell className="font-medium">{c.name}</TableCell>
+                      <TableCell>
+                        <Badge variant={c.is_active === false ? "secondary" : "default"}>
+                          {c.is_active === false ? "Inactivo" : "Activo"}
+                        </Badge>
+                      </TableCell>
                       <TableCell className="text-muted-foreground text-sm">
                         {formatCreatedAt(c.created_at)}
                       </TableCell>
@@ -280,11 +315,10 @@ export default function CrmAnalyticsProductCategoriesTab() {
                           type="button"
                           variant="ghost"
                           size="sm"
-                          className="text-destructive"
-                          onClick={() => setDeleteId(c.id)}
+                          className={c.is_active === false ? "text-primary" : "text-destructive"}
+                          onClick={() => setStatusCategory(c)}
                         >
-                          <Trash2 className="h-3.5 w-3.5 mr-1" />
-                          Eliminar
+                          {c.is_active === false ? "Activar" : "Desactivar"}
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -428,23 +462,36 @@ export default function CrmAnalyticsProductCategoriesTab() {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
+      <AlertDialog open={!!statusCategory} onOpenChange={(o) => !o && setStatusCategory(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar categoría?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {statusCategory?.is_active === false ? "¿Activar categoría?" : "¿Desactivar categoría?"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Esta acción no se puede deshacer. Los productos del Hub que usen esta categoría pueden
-              quedar sin referencia válida.
+              {statusCategory?.is_active === false
+                ? "La categoría volverá a estar disponible para usarla en productos del Hub."
+                : "La categoría quedará inactiva. Podrás activarla nuevamente cuando lo necesites."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => deleteId && deleteMutation.mutate(deleteId)}
-              disabled={deleteMutation.isPending}
+              className={
+                statusCategory?.is_active === false
+                  ? undefined
+                  : "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              }
+              onClick={() =>
+                statusCategory &&
+                statusMutation.mutate({
+                  id: statusCategory.id,
+                  is_active: statusCategory.is_active === false,
+                })
+              }
+              disabled={statusMutation.isPending}
             >
-              Eliminar
+              {statusCategory?.is_active === false ? "Activar" : "Desactivar"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

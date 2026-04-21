@@ -24,6 +24,7 @@ export const crmCategoryHubSchema = z
   .object({
     id: z.string(),
     name: z.string(),
+    is_active: z.coerce.boolean().optional(),
     created_at: z.string(),
   })
   .passthrough();
@@ -33,6 +34,7 @@ function parseCategory(data: unknown): CrmCategoryProductHub {
   return {
     id: c.id,
     name: c.name,
+    is_active: c.is_active ?? true,
     created_at: c.created_at,
   };
 }
@@ -79,13 +81,16 @@ export async function listCrmCategoriesHub(params?: {
   offset?: number;
   /** Filtrar por nombre (si el backend lo soporta). */
   search?: string;
+  /** Filtrar por estado (si el backend lo soporta). */
+  is_active?: boolean;
 }): Promise<CrmCategoryHubListResult> {
   const limit = params?.limit ?? 500;
   const offset = params?.offset ?? 0;
   try {
-    const queryParams: Record<string, string | number | undefined> = { limit, offset };
+    const queryParams: Record<string, string | number | boolean | undefined> = { limit, offset };
     const s = params?.search?.trim();
     if (s) queryParams.search = s;
+    if (typeof params?.is_active === "boolean") queryParams.is_active = params.is_active;
 
     const { data } = await apiClient.get(BASE, { params: queryParams });
     return parseCategoryHubListResponse(data, limit, offset);
@@ -115,10 +120,3 @@ export async function updateCrmCategoryHub(
   }
 }
 
-export async function deleteCrmCategoryHub(id: string): Promise<void> {
-  try {
-    await apiClient.delete(`${BASE}/${id}`);
-  } catch (error) {
-    return throwOnApiError(error);
-  }
-}

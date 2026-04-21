@@ -32,6 +32,7 @@ export interface UpdateCrmProductHubRequest {
 export interface CrmCategoryProductHub {
   id: string;
   name: string;
+  is_active: boolean;
   created_at: string;
 }
 
@@ -41,4 +42,5 @@ export interface CreateCrmCategoryHubRequest {
 
 export interface UpdateCrmCategoryHubRequest {
   name?: string;
+  is_active?: boolean;
 }
