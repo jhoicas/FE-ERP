@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { useDianEnvironment } from "@/hooks/use-dian-environment";
 import { getMenuTitleForPath } from "@/features/auth/permissions";
 import { useRbacMenu } from "@/features/auth/useRbacMenu";
+import { useCompanyScreens } from "@/features/auth/useCompanyScreens";
 
 const titles: Record<string, string> = {
   "/": "Dashboard",
@@ -19,28 +20,15 @@ export default function AppHeader() {
   const location = useLocation();
   const { environment } = useDianEnvironment();
   const { data: menu } = useRbacMenu();
-  const hasBillingEnabled = (menu?.modules ?? []).some((module) => {
-    const moduleRoute = module.frontend_route?.trim().replace(/\/+$/, "") ?? "";
-    const moduleName = `${module.name ?? ""} ${module.label ?? ""} ${module.title ?? ""}`.toLowerCase();
-    const moduleMatches =
-      moduleRoute === "/billing" ||
-      moduleRoute.startsWith("/billing/") ||
-      moduleRoute === "/facturacion" ||
-      moduleRoute.startsWith("/facturacion/") ||
-      moduleName.includes("billing") ||
-      moduleName.includes("factur");
-
-    if (moduleMatches) return true;
-
-    return (module.screens ?? []).some((screen) => {
-      const route = screen.frontend_route?.trim().replace(/\/+$/, "") ?? "";
-      return (
-        route === "/billing" ||
-        route.startsWith("/billing/") ||
-        route === "/facturacion" ||
-        route.startsWith("/facturacion/")
-      );
-    });
+  const { data: activeScreenRoutes = [] } = useCompanyScreens();
+  const hasBillingEnabled = activeScreenRoutes.some((route) => {
+    const normalizedRoute = route.trim().replace(/\/+$/, "");
+    return (
+      normalizedRoute === "/billing" ||
+      normalizedRoute.startsWith("/billing/") ||
+      normalizedRoute === "/facturacion" ||
+      normalizedRoute.startsWith("/facturacion/")
+    );
   });
   const menuTitle = getMenuTitleForPath(menu, location.pathname);
   const title = Object.entries(titles).find(([path]) =>
