@@ -19,6 +19,29 @@ export default function AppHeader() {
   const location = useLocation();
   const { environment } = useDianEnvironment();
   const { data: menu } = useRbacMenu();
+  const hasBillingEnabled = (menu?.modules ?? []).some((module) => {
+    const moduleRoute = module.frontend_route?.trim().replace(/\/+$/, "") ?? "";
+    const moduleName = `${module.name ?? ""} ${module.label ?? ""} ${module.title ?? ""}`.toLowerCase();
+    const moduleMatches =
+      moduleRoute === "/billing" ||
+      moduleRoute.startsWith("/billing/") ||
+      moduleRoute === "/facturacion" ||
+      moduleRoute.startsWith("/facturacion/") ||
+      moduleName.includes("billing") ||
+      moduleName.includes("factur");
+
+    if (moduleMatches) return true;
+
+    return (module.screens ?? []).some((screen) => {
+      const route = screen.frontend_route?.trim().replace(/\/+$/, "") ?? "";
+      return (
+        route === "/billing" ||
+        route.startsWith("/billing/") ||
+        route === "/facturacion" ||
+        route.startsWith("/facturacion/")
+      );
+    });
+  });
   const menuTitle = getMenuTitleForPath(menu, location.pathname);
   const title = Object.entries(titles).find(([path]) =>
     path === "/" ? location.pathname === "/" : location.pathname.startsWith(path)
@@ -28,16 +51,18 @@ export default function AppHeader() {
   return (
     <header className="h-14 border-b flex items-center gap-4 px-6">
       <h1 className="text-sm font-semibold">{resolvedTitle}</h1>
-      <Badge
-        variant="outline"
-        className={
-          environment === "production"
-            ? "border-success/40 bg-success/15 text-success"
-            : "border-warning/40 bg-warning/15 text-warning"
-        }
-      >
-        {environment === "production" ? "DIAN: PRODUCCIÓN" : "DIAN: PRUEBAS"}
-      </Badge>
+      {hasBillingEnabled && (
+        <Badge
+          variant="outline"
+          className={
+            environment === "production"
+              ? "border-success/40 bg-success/15 text-success"
+              : "border-warning/40 bg-warning/15 text-warning"
+          }
+        >
+          {environment === "production" ? "DIAN: PRODUCCIÓN" : "DIAN: PRUEBAS"}
+        </Badge>
+      )}
       <div className="flex-1 max-w-md ml-auto relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input placeholder="Buscar productos, clientes, facturas…" className="pl-9 h-9 text-sm" />

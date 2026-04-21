@@ -159,6 +159,18 @@ export default function AppSidebar() {
     });
   };
 
+  const hasBillingEnabled = useMemo(() => {
+    return activeScreenRoutes.some((route) => {
+      const normalizedRoute = route.trim().replace(/\/+$/, "");
+      return (
+        normalizedRoute === "/billing" ||
+        normalizedRoute.startsWith("/billing/") ||
+        normalizedRoute === "/facturacion" ||
+        normalizedRoute.startsWith("/facturacion/")
+      );
+    });
+  }, [activeScreenRoutes]);
+
   // --- 3. LÓGICA DE FILTRADO ESTRICTO ---
   // Filtrado dinámico usando activeScreenRoutes
   const visibleModules = useMemo(() => {
@@ -243,25 +255,27 @@ export default function AppSidebar() {
         </button>
       </div>
 
-      <div className="px-2 py-2">
-        <Badge
-          variant="outline"
-          className={cn(
-            "w-full justify-center text-xs",
-            environment === "production"
-              ? "border-success/40 bg-success/15 text-success"
-              : "border-warning/40 bg-warning/15 text-warning",
-          )}
-        >
-          {collapsed
-            ? environment === "production"
-              ? "PROD"
-              : "TEST"
-            : environment === "production"
-              ? "DIAN: PRODUCCIÓN"
-              : "DIAN: PRUEBAS"}
-        </Badge>
-      </div>
+      {hasBillingEnabled && (
+        <div className="px-2 py-2">
+          <Badge
+            variant="outline"
+            className={cn(
+              "w-full justify-center text-xs",
+              environment === "production"
+                ? "border-success/40 bg-success/15 text-success"
+                : "border-warning/40 bg-warning/15 text-warning",
+            )}
+          >
+            {collapsed
+              ? environment === "production"
+                ? "PROD"
+                : "TEST"
+              : environment === "production"
+                ? "DIAN: PRODUCCIÓN"
+                : "DIAN: PRUEBAS"}
+          </Badge>
+        </div>
+      )}
 
       <nav className="flex-1 py-3 px-2 space-y-1">
         {isLoading && (
