@@ -1,13 +1,25 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Check, Copy, Loader2, MessageSquare, Send } from "lucide-react";
+import { Loader2, MessageSquare, Send } from "lucide-react";
+import {
+  Bar,
+  BarChart,
+  Cell,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 import { askAiAnalyst } from "@/features/crm/services";
 import type { AiChatMessage } from "@/features/crm/crm.types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/hooks/use-toast";
 import {
   Table,
   TableBody,
@@ -16,10 +28,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 type RowData = Record<string, unknown>;
 const DATA_PAGE_SIZE = 10;
+const CHART_COLORS = ["#2563eb", "#0ea5e9", "#14b8a6", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6"];
 
 function formatCellValue(value: unknown): string {
   if (value == null) return "—";
@@ -51,51 +63,69 @@ function downloadCsvFromRows(rows: RowData[], filename: string): void {
   URL.revokeObjectURL(url);
 }
 
+function getChartAxes(data: RowData[]): { xKey: string; yKey: string } | null {
+  if (data.length === 0) return null;
+  const first = data[0];
+  const keys = Object.keys(first);
+  const xKey = keys.find((key) => typeof first[key] === "string");
+  const yKey = keys.find((key) => typeof first[key] === "number");
+  if (!xKey || !yKey) return null;
+  return { xKey, yKey };
+}
+
+function ChartPanel({
+  chartType,
+  data,
+}: {
+  chartType?: "bar" | "pie" | "line" | "none";
+  data: RowData[];
+}) {
+  const axes = useMemo(() => getChartAxes(data), [data]);
+  if (!chartType || chartType === "none" || !axes) return null;
+  const { xKey, yKey } = axes;
+
+  return (
+    <div className="h-64 w-full rounded-md border bg-background p-2">
+      <ResponsiveContainer width="100%" height="100%">
+        {chartType === "bar" ? (
+          <BarChart data={data}>
+            <XAxis dataKey={xKey} tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 11 }} />
+            <Tooltip />
+            <Bar dataKey={yKey} fill={CHART_COLORS[0]} radius={[6, 6, 0, 0]} />
+          </BarChart>
+        ) : chartType === "line" ? (
+          <LineChart data={data}>
+            <XAxis dataKey={xKey} tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 11 }} />
+            <Tooltip />
+            <Line type="monotone" dataKey={yKey} stroke={CHART_COLORS[0]} strokeWidth={2} dot={{ r: 3 }} />
+          </LineChart>
+        ) : (
+          <PieChart>
+            <Pie data={data} dataKey={yKey} nameKey={xKey} outerRadius={82}>
+              {data.map((_, idx) => (
+                <Cell key={`cell-${idx}`} fill={CHART_COLORS[idx % CHART_COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip />
+          </PieChart>
+        )}
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 function AssistantDataPanel({
   data,
-  sql,
+  chartType,
 }: {
   data?: RowData[];
-  sql?: string;
+  chartType?: "bar" | "pie" | "line" | "none";
 }) {
-  const { toast } = useToast();
+  if (!data || data.length === 0) return null;
+
   const [page, setPage] = useState(1);
-  const [copiedSql, setCopiedSql] = useState(false);
-
-  const handleCopySql = async () => {
-    if (!sql?.trim()) return;
-    await navigator.clipboard.writeText(sql);
-    toast({ title: "SQL copiado al portapapeles" });
-    setCopiedSql(true);
-    setTimeout(() => setCopiedSql(false), 1500);
-  };
-
-  if (!data || data.length === 0) {
-    if (!sql) return null;
-    return (
-      <div className="mt-3">
-        <div className="flex gap-2">
-          <Button type="button" variant="outline" size="sm" className="text-xs" onClick={handleCopySql}>
-            {copiedSql ? <Check className="h-3.5 w-3.5 mr-1" /> : <Copy className="h-3.5 w-3.5 mr-1" />}
-            Copiar SQL
-          </Button>
-          <Collapsible>
-            <CollapsibleTrigger asChild>
-              <Button variant="outline" size="sm" className="text-xs">
-                Ver SQL ejecutado
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="mt-2">
-              <pre className="rounded-md bg-slate-950 p-3 text-xs text-slate-100 overflow-x-auto">
-                <code>{sql}</code>
-              </pre>
-            </CollapsibleContent>
-          </Collapsible>
-        </div>
-      </div>
-    );
-  }
-
   const headers = Object.keys(data[0]);
   const totalPages = Math.max(1, Math.ceil(data.length / DATA_PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -104,6 +134,8 @@ function AssistantDataPanel({
 
   return (
     <div className="mt-3 space-y-3">
+      <ChartPanel chartType={chartType} data={data} />
+
       <div className="overflow-x-auto rounded-md border bg-background">
         <Table>
           <TableHeader>
@@ -139,27 +171,6 @@ function AssistantDataPanel({
         >
           Exportar a CSV
         </Button>
-
-        {sql && (
-          <>
-            <Button type="button" variant="outline" size="sm" className="text-xs" onClick={handleCopySql}>
-              {copiedSql ? <Check className="h-3.5 w-3.5 mr-1" /> : <Copy className="h-3.5 w-3.5 mr-1" />}
-              Copiar SQL
-            </Button>
-            <Collapsible>
-              <CollapsibleTrigger asChild>
-                <Button type="button" variant="outline" size="sm" className="text-xs">
-                  Ver SQL ejecutado
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="mt-2">
-                <pre className="rounded-md bg-slate-950 p-3 text-xs text-slate-100 overflow-x-auto">
-                  <code>{sql}</code>
-                </pre>
-              </CollapsibleContent>
-            </Collapsible>
-          </>
-        )}
       </div>
 
       {data.length > DATA_PAGE_SIZE && (
@@ -168,27 +179,11 @@ function AssistantDataPanel({
             Mostrando {pageStart + 1}–{Math.min(pageStart + DATA_PAGE_SIZE, data.length)} de {data.length}
           </span>
           <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2 text-xs"
-              disabled={currentPage <= 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-            >
+            <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" disabled={currentPage <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
               Anterior
             </Button>
-            <span className="px-2 py-1 border rounded-md">
-              {currentPage}/{totalPages}
-            </span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2 text-xs"
-              disabled={currentPage >= totalPages}
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            >
+            <span className="px-2 py-1 border rounded-md">{currentPage}/{totalPages}</span>
+            <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" disabled={currentPage >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>
               Siguiente
             </Button>
           </div>
@@ -198,7 +193,7 @@ function AssistantDataPanel({
   );
 }
 
-export default function AiChatAnalyst() {
+export default function AiChatAnalystV2() {
   const [messages, setMessages] = useState<AiChatMessage[]>([]);
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -216,44 +211,30 @@ export default function AiChatAnalyst() {
         content: response.answer ?? "",
         timestamp: new Date().toISOString(),
         data: response.data,
-        sql: response.sql,
+        chartType: response.chartType ?? "none",
       };
       setMessages((prev) => [...prev, assistantMessage]);
     },
     onError: () => {
-      const errorMessage: AiChatMessage = {
-        id: `assistant-error-${Date.now()}`,
-        role: "assistant",
-        content:
-          "Hubo un error al consultar la base de datos o generar el SQL. Por favor intenta de nuevo.",
-        timestamp: new Date().toISOString(),
-        isError: true,
-      };
-      setMessages((prev) => [...prev, errorMessage]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `assistant-error-${Date.now()}`,
+          role: "assistant",
+          content: "Hubo un error al consultar la base de datos o generar el SQL. Por favor intenta de nuevo.",
+          timestamp: new Date().toISOString(),
+          isError: true,
+        },
+      ]);
     },
   });
 
   const handleSend = () => {
     const question = input.trim();
     if (!question || askMutation.isPending) return;
-
-    const userMessage: AiChatMessage = {
-      id: `user-${Date.now()}`,
-      role: "user",
-      content: question,
-      timestamp: new Date().toISOString(),
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
+    setMessages((prev) => [...prev, { id: `user-${Date.now()}`, role: "user", content: question, timestamp: new Date().toISOString() }]);
     setInput("");
     askMutation.mutate(question);
-  };
-
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      handleSend();
-    }
   };
 
   return (
@@ -267,39 +248,25 @@ export default function AiChatAnalyst() {
       <CardContent className="space-y-3">
         <div className="h-[28rem] overflow-y-auto rounded-md border bg-background p-4">
           {messages.length === 0 && !askMutation.isPending ? (
-            <div className="flex h-full items-center justify-center text-center text-sm text-muted-foreground">
-              Inicia el chat preguntando por tus datos del CRM.
-            </div>
+            <div className="flex h-full items-center justify-center text-center text-sm text-muted-foreground">Inicia el chat preguntando por tus datos del CRM.</div>
           ) : (
             <div className="space-y-3">
               {messages.map((message) => {
                 const isUser = message.role === "user";
-                const bubbleClass = message.isError
-                  ? "bg-red-50 text-red-900 border-red-200"
-                  : isUser
-                    ? "bg-primary text-primary-foreground border-primary/30"
-                    : "bg-card text-card-foreground border-border";
-
                 return (
                   <div key={message.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
                     <div className="max-w-[90%] sm:max-w-[80%]">
-                      <div className={`rounded-xl border px-3 py-2 text-sm shadow-sm ${bubbleClass}`}>
+                      <div className={`rounded-xl border px-3 py-2 text-sm shadow-sm ${message.isError ? "bg-red-50 text-red-900 border-red-200" : isUser ? "bg-primary text-primary-foreground border-primary/30" : "bg-card text-card-foreground border-border"}`}>
                         <p className="whitespace-pre-wrap">{message.content}</p>
-                        {!isUser && !message.isError && (
-                          <AssistantDataPanel data={message.data} sql={message.sql} />
-                        )}
+                        {!isUser && !message.isError && <AssistantDataPanel data={message.data} chartType={message.chartType} />}
                       </div>
                       <p className="mt-1 text-[11px] text-muted-foreground px-1">
-                        {new Date(message.timestamp).toLocaleTimeString("es-CO", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                        {new Date(message.timestamp).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}
                       </p>
                     </div>
                   </div>
                 );
               })}
-
               {askMutation.isPending && (
                 <div className="flex justify-start">
                   <div className="max-w-[90%] rounded-xl border border-border bg-card px-3 py-2 text-sm shadow-sm sm:max-w-[80%]">
@@ -312,7 +279,6 @@ export default function AiChatAnalyst() {
               )}
             </div>
           )}
-
           <div ref={messagesEndRef} />
         </div>
 
@@ -321,21 +287,17 @@ export default function AiChatAnalyst() {
             placeholder="Escribe tu pregunta... (Enter para enviar, Shift+Enter para salto de línea)"
             value={input}
             onChange={(event) => setInput(event.target.value)}
-            onKeyDown={handleKeyDown}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                handleSend();
+              }
+            }}
             disabled={askMutation.isPending}
             className="min-h-16 resize-none"
           />
-          <Button
-            type="button"
-            onClick={handleSend}
-            disabled={askMutation.isPending || !input.trim()}
-            size="icon"
-          >
-            {askMutation.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
+          <Button type="button" onClick={handleSend} disabled={askMutation.isPending || !input.trim()} size="icon">
+            {askMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </Button>
         </div>
       </CardContent>

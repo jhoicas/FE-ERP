@@ -1342,7 +1342,7 @@ export async function deactivateSupplier(supplierId: string): Promise<void> {
 export async function askAiAnalyst(question: string): Promise<{
   answer: string;
   data?: Record<string, unknown>[];
-  sql?: string;
+  chartType?: "bar" | "pie" | "line" | "none";
 }> {
   try {
     const { data } = await apiClient.post(`${CRM_BASE}/ai/ask`, { question });

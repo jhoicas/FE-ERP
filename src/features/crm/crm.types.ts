@@ -485,7 +485,7 @@ export interface AiChatMessage {
   content: string;
   timestamp: string;
   data?: Record<string, unknown>[]; // Para respuestas con datos tabulares
-  sql?: string;
+  chartType?: "bar" | "pie" | "line" | "none";
   isError?: boolean;
 }
 
@@ -506,7 +506,7 @@ export interface AiAnalystRequest {
 export interface AiAnalystResponse {
   answer: string;
   data?: Record<string, unknown>[]; // Array de objetos para tabla
-  sql?: string;
+  chartType?: "bar" | "pie" | "line" | "none";
 }
 
 /**
