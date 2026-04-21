@@ -23,7 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { getCrmAnalytics } from "@/features/crm/services";
-import AiChatAnalyst from "@/features/crm/components/AiChatAnalystV2";
+import AiChatAnalyst from "@/features/crm/components/AiChatAnalystV3";
 
 const tooltipStyle = {
   backgroundColor: "hsl(var(--card))",
