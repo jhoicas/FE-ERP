@@ -279,15 +279,6 @@ export default function CRMImportPage() {
       return;
     }
 
-    if (!previewSummary) {
-      toast({
-        title: "Primero previsualiza",
-        description: "Debes revisar la vista previa antes de importar.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     try {
       setIsImportingCustomers(true);
       setCustomersProgress(0);
@@ -519,7 +510,7 @@ export default function CRMImportPage() {
                 <Button type="button" variant="outline" onClick={onPreviewCustomers} disabled={!customersFile || isPreviewing || isImportingCustomers}>
                   {isPreviewing ? "Previsualizando..." : "Previsualizar"}
                 </Button>
-                <Button type="button" onClick={onImportCustomers} disabled={!customersFile || !previewSummary || isImportingCustomers || isPreviewing}>
+                <Button type="button" onClick={onImportCustomers} disabled={!customersFile || isImportingCustomers || isPreviewing}>
                   {isImportingCustomers ? "Importando..." : "Importar clientes"}
                 </Button>
               </div>
