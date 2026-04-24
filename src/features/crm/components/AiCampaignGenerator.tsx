@@ -481,6 +481,17 @@ export default function AiCampaignGenerator() {
     enabled: templatesOpen,
   });
 
+  const campaignAudienceOptions = useMemo(
+    () =>
+      (categoriesQuery.data ?? [])
+        .filter((category) => Boolean(category.id) && Boolean(category.name))
+        .map((category) => ({
+          id: category.id,
+          name: category.name,
+        })),
+    [categoriesQuery.data],
+  );
+
     const previewDirectoryQuery = useQuery({
       queryKey: ["crm", "customers", "campaign-preview-directory", resolvedRecipients.length],
       queryFn: () => getCustomers(),
@@ -800,7 +811,6 @@ export default function AiCampaignGenerator() {
     }
   };
 
-  const selectedAudience = form.watch("category_id");
   const previewChannel = createCampaignForm.watch("channel");
   
   // Observar los campos del editor en tiempo real (Paso 4)
@@ -816,10 +826,8 @@ export default function AiCampaignGenerator() {
   
   const isSmsOverLimit = previewChannel === "SMS" && (watchedBody?.length ?? 0) > 150;
   
-  const selectedCategory = (categoriesQuery.data ?? []).find((c) => c.id === selectedAudience);
-  const selectedSegmentLabel = selectedAudience === "all"
-    ? "Todos los clientes"
-    : selectedCategory?.name ?? "Segmento no encontrado";
+  const selectedCategory = (categoriesQuery.data ?? []).find((c) => c.id === selectedCategoryId);
+  const selectedSegmentLabel = selectedCategory?.name ?? "Segmento no encontrado";
 
   const campaignBodyPreview = (watchedBody ?? "")
     .split(/\r?\n/)
@@ -847,7 +855,7 @@ export default function AiCampaignGenerator() {
       channel: previewChannel,
       subject: watchedSubject?.trim() || "",
       body: watchedBody,
-      category_id: selectedAudience === "all" ? null : selectedAudience || null,
+      category_id: selectedCategoryId || null,
     });
   };
 
@@ -1042,24 +1050,38 @@ export default function AiCampaignGenerator() {
                 name="segment"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-base font-semibold">¿A quién va dirigida?</FormLabel>
+                    <FormLabel className="text-base font-semibold">¿A qué categoría va dirigida?</FormLabel>
                     <Select 
                       onValueChange={(val) => {
                         field.onChange(val);
-                        const catId = getCategoryIdFromSegment(val as CrmSegment);
-                        if (catId) setSelectedCategoryId(catId);
+                        setSelectedCategoryId(val);
                       }} 
                       value={field.value}
                     >
                       <FormControl>
                         <SelectTrigger className="h-12 text-lg">
-                          <SelectValue placeholder="Selecciona un segmento" />
+                          <SelectValue placeholder="Selecciona una categoría" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {SEGMENT_OPTIONS.map((segment) => (
-                          <SelectItem key={segment} value={segment}>
-                            {segment}
+                        {categoriesQuery.isLoading && (
+                          <SelectItem value="loading" disabled>
+                            Cargando categorías...
+                          </SelectItem>
+                        )}
+                        {categoriesQuery.isError && (
+                          <SelectItem value="error" disabled>
+                            Error al cargar categorías
+                          </SelectItem>
+                        )}
+                        {!categoriesQuery.isLoading && !categoriesQuery.isError && campaignAudienceOptions.length === 0 && (
+                          <SelectItem value="empty" disabled>
+                            No hay categorías disponibles
+                          </SelectItem>
+                        )}
+                        {campaignAudienceOptions.map((category) => (
+                          <SelectItem key={category.id} value={category.id}>
+                            {category.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
