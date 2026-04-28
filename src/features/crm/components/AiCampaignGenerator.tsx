@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Mail, MessageSquare, Smartphone, Sparkles, Copy, Send, Loader2, Save, FolderOpen, Phone } from "lucide-react";
+import { AlertTriangle, Mail, MessageSquare, Smartphone, Sparkles, Copy, Send, Loader2, Save, FolderOpen, Phone, Tags } from "lucide-react";
 import apiClient from "@/lib/api/client";
 import { AI_PROVIDER_LABEL } from "@/lib/constants/ai";
 import { Button } from "@/components/ui/button";
@@ -80,6 +80,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { CreateCampaignSchema as CampaignCreateSchema } from "@/features/crm/schemas";
 
 const schema = z.object({
@@ -125,6 +126,15 @@ type PreviewContact = RecipientDTO &
   };
 
 const RECIPIENTS_PREVIEW_PAGE_SIZE = 10;
+
+const MERGE_TAGS = [
+  { tag: "{{firstName}}", label: "Nombre del cliente" },
+  { tag: "{{email}}", label: "Correo" },
+  { tag: "{{phone}}", label: "Telefono" },
+  { tag: "{{categoria}}", label: "Categoria actual" },
+  { tag: "{{segmento}}", label: "Segmento" },
+  { tag: "{{beneficiosCategoria}}", label: "Beneficios de su categoria" },
+] as const;
 
 type FormValues = z.infer<typeof schema>;
 type CreateCampaignValues = z.infer<typeof CampaignCreateSchema>;
@@ -846,6 +856,23 @@ export default function AiCampaignGenerator() {
     });
   };
 
+  const handleInsertMergeTag = (tag: string) => {
+    const currentBody = createCampaignForm.getValues("body") ?? "";
+    const spacer = currentBody.length > 0 && !currentBody.endsWith(" ") ? " " : "";
+    const nextBody = `${currentBody}${spacer}${tag}`.trimStart();
+
+    createCampaignForm.setValue("body", nextBody, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setGeneratedText(nextBody);
+
+    toast({
+      title: "Variable agregada",
+      description: `Se inserto ${tag} en el mensaje.`,
+    });
+  };
+
   const saveTemplateMutation = useMutation<CampaignTemplate, Error, CreateCampaignTemplateRequest>({
     mutationFn: async (payload) => createCampaignTemplate(payload),
     onSuccess: () => {
@@ -1531,6 +1558,43 @@ export default function AiCampaignGenerator() {
                             }}
                           />
                         </FormControl>
+                        <div className="rounded-xl border border-dashed bg-muted/20 p-3">
+                          <div className="mb-2 flex items-center gap-2">
+                            <Tags className="h-4 w-4 text-primary" />
+                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                              Variables disponibles
+                            </p>
+                          </div>
+                          <p className="mb-3 text-xs text-muted-foreground">
+                            Estas variables se reemplazan automaticamente con los datos reales del cliente al enviar la campana.
+                          </p>
+                          <TooltipProvider>
+                            <div className="flex flex-wrap gap-2">
+                              {MERGE_TAGS.map((item) => (
+                                <Tooltip key={item.tag}>
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleInsertMergeTag(item.tag)}
+                                      className="rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30"
+                                      aria-label={`Insertar variable ${item.tag}`}
+                                    >
+                                      <Badge
+                                        variant="outline"
+                                        className="cursor-pointer hover:bg-muted"
+                                      >
+                                        {item.tag}
+                                      </Badge>
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p className="text-xs">{item.label}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              ))}
+                            </div>
+                          </TooltipProvider>
+                        </div>
                         {previewChannel === "SMS" && (
                           <div className="flex justify-between mt-2 px-2">
                             <p className={cn("text-xs font-medium", isSmsOverLimit ? "text-destructive" : "text-muted-foreground")}>
