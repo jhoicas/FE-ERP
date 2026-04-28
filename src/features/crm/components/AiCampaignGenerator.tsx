@@ -235,6 +235,35 @@ function buildPreviewContact(recipient: RecipientDTO | null, customer?: Customer
   };
 }
 
+function resolveAudienceCategoryLabel(recipient: RecipientDTO, customer?: CustomerDTO | null): string {
+  const merged = {
+    ...(customer ?? {}),
+    ...recipient,
+  } as Record<string, unknown>;
+
+  const categoryLabel = pickFirstString(merged, [
+    "category_description",
+    "categoryDescription",
+    "category_name",
+    "categoryName",
+    "main_category",
+    "categoria",
+    "segment",
+    "segmento",
+  ]);
+
+  if (!categoryLabel) {
+    return "General";
+  }
+
+  const normalized = categoryLabel.trim().toLowerCase();
+  if (normalized === "category" || normalized === "segment") {
+    return "General";
+  }
+
+  return categoryLabel;
+}
+
 function formatPhone(phone?: string | null): string {
   if (!phone) return "—";
   return phone;
@@ -280,6 +309,55 @@ function replacePreviewVars(text: string, contact: PreviewContact | null): strin
 
 function limitSmsText(text: string): string {
   return text.length > 150 ? text.slice(0, 150) : text;
+}
+
+function normalizeSmsMessage(text: string): string {
+  const withoutSubjectLabels = text
+    .replace(/\*\*+\s*asunto\s*:?\s*\*\*+/gi, " ")
+    .replace(/^asunto\s*:\s*.*$/gim, " ")
+    .replace(/^subject\s*:\s*.*$/gim, " ")
+    .replace(/^[-=]{2,}$/gim, " ");
+
+  const compactMessage = withoutSubjectLabels
+    .replace(/\r?\n+/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  return limitSmsText(compactMessage);
+}
+
+const ALLOWED_TEMPLATE_KEYS = new Set([
+  "nombre",
+  "name",
+  "firstname",
+  "lastname",
+  "email",
+  "phone",
+  "telefono",
+  "segmento",
+  "segment",
+  "categoria",
+  "categoryname",
+  "category_name",
+  "totalsales",
+  "totalcomprado",
+  "total_purchased",
+  "ltv",
+]);
+
+function sanitizeGeneratedTemplateVariables(text: string): string {
+  const sanitizedCurly = text.replace(/{{\s*([^}]+)\s*}}/g, (_, rawKey: string) => {
+    const normalized = rawKey.trim().toLowerCase().replace(/\s+/g, "");
+    return ALLOWED_TEMPLATE_KEYS.has(normalized) ? `{{${rawKey.trim()}}}` : "[Nombre]";
+  });
+
+  return sanitizedCurly.replace(/\[([^\]]+)\]/g, (_, rawKey: string) => {
+    const normalized = rawKey.trim().toLowerCase().replace(/\s+/g, "");
+    if (normalized === "nombre" || normalized === "name" || normalized === "firstname") {
+      return "[Nombre]";
+    }
+    return ALLOWED_TEMPLATE_KEYS.has(normalized) ? `[${rawKey.trim()}]` : "[Nombre]";
+  });
 }
 
 function PreviewEmptyState({ channel }: { channel: "EMAIL" | "SMS" | "WHATSAPP" }) {
@@ -534,16 +612,24 @@ export default function AiCampaignGenerator() {
 
   const mutation = useMutation<string, Error, FormValues>({
     mutationFn: async (values) => {
+      const channel = createCampaignForm.getValues("channel");
+      const isSmsChannel = channel === "SMS";
       const fullPrompt = [
         `Genera un copy de campaña en español para una campaña de marketing.`,
         `Tema de la campaña: ${values.prompt}.`,
         `Público objetivo: ${values.target_audience}.`,
         `Tono deseado: ${values.tone}.`,
-        `Incluye un asunto atractivo y un cuerpo de email listo para enviar.`,
+        isSmsChannel
+          ? `Genera SOLO un mensaje SMS en texto plano (sin markdown) y de maximo 150 caracteres.`
+          : `Incluye un asunto atractivo y un cuerpo de email listo para enviar.`,
         `Reglas estrictas:`,
-        `- Debes incluir el placeholder [Nombre] para personalizar el saludo al cliente (por ejemplo: "Hola [Nombre], ...").`,
-        `- No agregues placeholders adicionales entre corchetes (solo [Nombre]).`,
+        `- Debes incluir placeholders SOLO de esta lista: [Nombre], {{name}}, {{firstName}}, {{lastName}}, {{email}}, {{phone}}, {{segmento}}, {{categoria}}, {{totalComprado}}.`,
+        `- No uses ninguna variable distinta a las anteriores.`,
         `- No inventes secciones tipo "[Llamada a la acción...]" ni agregues enlaces si no fueron solicitados.`,
+        `- No inventes datos del cliente; solo usa placeholders reemplazables.`,
+        isSmsChannel
+          ? `- Prohibido incluir "Asunto", "Subject", saludos largos o separadores tipo ---; responde solo con el mensaje final.`
+          : `- Puedes usar estructura de email cuando aplique.`,
       ].join(" ");
 
       const { answer } = await generateCampaignCopy({ prompt: fullPrompt });
@@ -551,7 +637,10 @@ export default function AiCampaignGenerator() {
     },
     onSuccess: (generatedText, values) => {
       const currentChannel = createCampaignForm.getValues("channel");
-      const finalGeneratedText = currentChannel === "SMS" ? limitSmsText(generatedText) : generatedText;
+      const sanitizedGeneratedText = sanitizeGeneratedTemplateVariables(generatedText);
+      const finalGeneratedText = currentChannel === "SMS"
+        ? normalizeSmsMessage(sanitizedGeneratedText)
+        : sanitizedGeneratedText;
 
       // Actualizar estado global
       setGeneratedText(finalGeneratedText);
@@ -559,7 +648,9 @@ export default function AiCampaignGenerator() {
       // Inyectar en el formulario de creación (Paso 4)
       createCampaignForm.setValue("body", finalGeneratedText, { shouldDirty: true, shouldValidate: true });
       
-      const suggestedSubject = suggestSubjectFromGeneratedText(generatedText, values.prompt);
+      const suggestedSubject = currentChannel === "SMS"
+        ? ""
+        : suggestSubjectFromGeneratedText(finalGeneratedText, values.prompt);
       
       // Reflejar el contenido generado en el formulario del Paso 4.
       createCampaignForm.setValue("subject", suggestedSubject, { shouldDirty: true, shouldValidate: true });
@@ -597,7 +688,12 @@ export default function AiCampaignGenerator() {
       const { answer } = await generateCampaignCopy({ prompt });
       const subject = suggestSubjectFromGeneratedText(answer, `Campaña ${segment}`);
 
-      return { prompt, subject, body: answer, segment };
+      return {
+        prompt,
+        subject,
+        body: sanitizeGeneratedTemplateVariables(answer),
+        segment,
+      };
     },
     onSuccess: ({ prompt, subject, body, segment }) => {
       setGeneratedText(body);
@@ -1249,7 +1345,7 @@ export default function AiCampaignGenerator() {
                   <TableHead className="font-bold">Cliente</TableHead>
                   <TableHead className={cn("font-bold", isEmailChannel ? "bg-primary/5 text-primary" : "text-muted-foreground")}>Email</TableHead>
                   <TableHead className={cn("font-bold", isPhoneChannel ? "bg-primary/5 text-primary" : "text-muted-foreground")}>Teléfono</TableHead>
-                  <TableHead className="font-bold">Segmento</TableHead>
+                  <TableHead className="font-bold">Categoría</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1261,6 +1357,10 @@ export default function AiCampaignGenerator() {
                   </TableRow>
                 ) : (
                   pagedRecipients.map((recipient) => {
+                    const matchingCustomer = previewDirectoryQuery.data?.find(
+                      (customer) => customer.id === recipient.customer_id,
+                    );
+                    const audienceCategoryLabel = resolveAudienceCategoryLabel(recipient, matchingCustomer);
                     const email = recipient.email?.trim() ?? "";
                     const phone = recipient.phone?.trim() ?? "";
                     const hasMissingEmail = !recipient.email || recipient.email.trim() === "";
@@ -1296,7 +1396,7 @@ export default function AiCampaignGenerator() {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="font-normal">{recipient.segment ?? "General"}</Badge>
+                            <Badge variant="outline" className="font-normal">{audienceCategoryLabel}</Badge>
                             {missingRequired && (
                               <span className="inline-flex items-center gap-1 text-xs font-medium text-destructive">
                                 <AlertTriangle className="h-3.5 w-3.5" />
@@ -1434,7 +1534,7 @@ export default function AiCampaignGenerator() {
                         {previewChannel === "SMS" && (
                           <div className="flex justify-between mt-2 px-2">
                             <p className={cn("text-xs font-medium", isSmsOverLimit ? "text-destructive" : "text-muted-foreground")}>
-                              {field.value.length} / 160 caracteres
+                              {field.value.length} / 150 caracteres
                             </p>
                             {isSmsOverLimit && <p className="text-xs text-destructive font-bold">¡Atención! Excede 1 SMS.</p>}
                           </div>

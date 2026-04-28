@@ -83,10 +83,10 @@ export const CreateCampaignSchema = z.object({
       path: ["subject"],
     });
   }
-  if (data.channel === "SMS" && data.body.length > 160) {
+  if (data.channel === "SMS" && data.body.length > 150) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: "El contenido de un SMS no puede exceder 160 caracteres",
+      message: "El contenido de un SMS no puede exceder 150 caracteres",
       path: ["body"],
     });
   }
