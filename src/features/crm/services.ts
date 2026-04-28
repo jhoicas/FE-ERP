@@ -3,6 +3,8 @@ import apiClient from "@/lib/api/client";
 import { isApiError, type ApiError } from "@/types/crm";
 import type {
   CampaignTemplate,
+  CampaignDetailsResponse,
+  CampaignRecipientDetail,
   Profile360Response,
   CategoryResponse,
   BenefitResponse,
@@ -1463,6 +1465,58 @@ export async function executeCampaign(
       `${CRM_BASE}/campaigns/${campaignId}/execute`,
     );
     return z.object({ status: z.string() }).parse(data) as { status: string };
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}
+
+/**
+ * GET /api/crm/campaigns/:id – Obtiene detalle de campaña y destinatarios.
+ */
+export async function getCampaignDetails(id: string): Promise<CampaignDetailsResponse> {
+  try {
+    const { data } = await apiClient.get(`${CRM_BASE}/campaigns/${id}`);
+    const payload = (data ?? {}) as Record<string, unknown>;
+
+    const recipientsRaw =
+      (payload.recipients as unknown[]) ??
+      (payload.items as unknown[]) ??
+      (payload.deliveries as unknown[]) ??
+      [];
+
+    const recipients: CampaignRecipientDetail[] = Array.isArray(recipientsRaw)
+      ? recipientsRaw.map((item) => {
+          const row = (item ?? {}) as Record<string, unknown>;
+          return {
+            id: typeof row.id === "string" ? row.id : undefined,
+            customer_id: typeof row.customer_id === "string" ? row.customer_id : undefined,
+            name: typeof row.name === "string" ? row.name : null,
+            email: typeof row.email === "string" ? row.email : null,
+            phone: typeof row.phone === "string" ? row.phone : null,
+            channel: typeof row.channel === "string" ? row.channel : null,
+            status: typeof row.status === "string" ? row.status.toUpperCase() : null,
+            sent_at: typeof row.sent_at === "string" ? row.sent_at : null,
+            created_at: typeof row.created_at === "string" ? row.created_at : null,
+            updated_at: typeof row.updated_at === "string" ? row.updated_at : null,
+          };
+        })
+      : [];
+
+    return {
+      id: String(payload.id ?? id),
+      company_id: typeof payload.company_id === "string" ? payload.company_id : undefined,
+      name: String(payload.name ?? "Campaña"),
+      description: typeof payload.description === "string" ? payload.description : null,
+      subject: typeof payload.subject === "string" ? payload.subject : null,
+      body: typeof payload.body === "string" ? payload.body : null,
+      status: typeof payload.status === "string" ? payload.status : null,
+      channel: typeof payload.channel === "string" ? payload.channel : null,
+      scheduled_at: typeof payload.scheduled_at === "string" ? payload.scheduled_at : null,
+      created_by: typeof payload.created_by === "string" ? payload.created_by : null,
+      created_at: typeof payload.created_at === "string" ? payload.created_at : null,
+      updated_at: typeof payload.updated_at === "string" ? payload.updated_at : null,
+      recipients,
+    };
   } catch (error) {
     return throwOnApiError(error);
   }

@@ -69,6 +69,35 @@ export interface CampaignTemplate {
   created_at: string;
 }
 
+export interface CampaignRecipientDetail {
+  id?: string;
+  customer_id?: string;
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  channel?: string | null;
+  status?: "SENT" | "FAILED" | "QUEUED" | string | null;
+  sent_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface CampaignDetailsResponse {
+  id: string;
+  company_id?: string;
+  name: string;
+  description?: string | null;
+  subject?: string | null;
+  body?: string | null;
+  status?: string | null;
+  channel?: string | null;
+  scheduled_at?: string | null;
+  created_by?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  recipients: CampaignRecipientDetail[];
+}
+
 export interface TaskResponse {
   id: string;
   company_id: string;
