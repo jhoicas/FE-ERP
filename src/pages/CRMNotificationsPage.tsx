@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import DOMPurify from "dompurify";
 import { BellRing, Eye, Loader2, Sparkles } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -148,10 +149,18 @@ function DatePickerWithRange({
 }
 
 export default function CRMNotificationsPage() {
-  const [dateRange, setDateRange] = useState<DateRangeValue>({ from: "", to: "" });
-  const [selectedType, setSelectedType] = useState<"ALL" | CrmNotificationType>("ALL");
-  const [pageIndex, setPageIndex] = useState(0);
-  const [pageSize, setPageSize] = useState<number>(10);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialFrom = searchParams.get("from") ?? "";
+  const initialTo = searchParams.get("to") ?? "";
+  const initialType = (searchParams.get("type") as "ALL" | CrmNotificationType | null) ?? "ALL";
+  const initialPageIndex = Math.max(Number(searchParams.get("pageIndex") ?? "0") || 0, 0);
+  const initialPageSizeRaw = Number(searchParams.get("pageSize") ?? "10");
+  const initialPageSize = PAGE_SIZE_OPTIONS.includes(initialPageSizeRaw as 10 | 20 | 50) ? initialPageSizeRaw : 10;
+
+  const [dateRange, setDateRange] = useState<DateRangeValue>({ from: initialFrom, to: initialTo });
+  const [selectedType, setSelectedType] = useState<"ALL" | CrmNotificationType>(initialType);
+  const [pageIndex, setPageIndex] = useState(initialPageIndex);
+  const [pageSize, setPageSize] = useState<number>(initialPageSize);
   const [selectedNotification, setSelectedNotification] = useState<CrmNotificationLog | null>(null);
 
   const offset = pageIndex * pageSize;
@@ -159,6 +168,28 @@ export default function CRMNotificationsPage() {
   useEffect(() => {
     setPageIndex(0);
   }, [dateRange.from, dateRange.to, selectedType]);
+
+  useEffect(() => {
+    const nextParams = new URLSearchParams();
+
+    if (dateRange.from) {
+      nextParams.set("from", dateRange.from);
+    }
+    if (dateRange.to) {
+      nextParams.set("to", dateRange.to);
+    }
+    if (selectedType !== "ALL") {
+      nextParams.set("type", selectedType);
+    }
+    if (pageIndex > 0) {
+      nextParams.set("pageIndex", String(pageIndex));
+    }
+    if (pageSize !== 10) {
+      nextParams.set("pageSize", String(pageSize));
+    }
+
+    setSearchParams(nextParams, { replace: true });
+  }, [dateRange.from, dateRange.to, selectedType, pageIndex, pageSize, setSearchParams]);
 
   const notificationsQuery = useQuery({
     queryKey: ["crm", "notifications", dateRange.from, dateRange.to, selectedType, pageIndex, pageSize],
@@ -219,6 +250,21 @@ export default function CRMNotificationsPage() {
               </SelectContent>
             </Select>
           </div>
+        </div>
+        <div className="mt-4 flex justify-end">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setDateRange({ from: "", to: "" });
+              setSelectedType("ALL");
+              setPageIndex(0);
+              setPageSize(10);
+            }}
+          >
+            Limpiar filtros
+          </Button>
         </div>
       </Card>
 
