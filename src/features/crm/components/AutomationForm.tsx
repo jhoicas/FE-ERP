@@ -2,9 +2,11 @@ import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { Sparkles } from "lucide-react";
 
 import { useAutomationFormData } from "@/features/crm/hooks/use-automation-form-data";
 import type { CreateCrmAutomationRequest, CrmAutomation } from "@/features/crm/crm.types";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -28,12 +30,20 @@ const automationFormSchema = z
   .object({
     name: z.string().min(3, "Ingresa un nombre de al menos 3 caracteres."),
     type: z.enum(["BIRTHDAY", "REPURCHASE"]),
-    template_id: z.string().min(1, "Selecciona una plantilla de correo."),
+    template_id: z.string().optional(),
     productId: z.string().optional(),
     daysSincePurchase: z.coerce.number().optional(),
   })
   .superRefine((values, ctx) => {
     if (values.type === "REPURCHASE") {
+      if (!values.template_id) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["template_id"],
+          message: "Selecciona una plantilla de correo.",
+        });
+      }
+
       if (!values.productId) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -92,7 +102,7 @@ export default function AutomationForm({
     onSubmit({
       name: values.name,
       type: values.type,
-      template_id: values.template_id,
+      template_id: values.type === "REPURCHASE" ? values.template_id : undefined,
       config:
         values.type === "REPURCHASE"
           ? {
@@ -143,7 +153,7 @@ export default function AutomationForm({
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="BIRTHDAY">Cumpleaños</SelectItem>
+                  <SelectItem value="BIRTHDAY">Cumpleaños (IA Dinámica)</SelectItem>
                   <SelectItem value="REPURCHASE">Recompra</SelectItem>
                 </SelectContent>
               </Select>
@@ -152,34 +162,48 @@ export default function AutomationForm({
           )}
         />
 
-        <FormField
-          control={form.control}
-          name="template_id"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Plantilla de Correo</FormLabel>
-              {templatesQuery.isLoading ? (
-                <Skeleton className="h-10 w-full" />
-              ) : (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecciona una plantilla" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {(templatesQuery.data ?? []).map((template) => (
-                      <SelectItem key={template.id} value={template.id}>
-                        {template.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        {selectedType === "REPURCHASE" && (
+          <FormField
+            control={form.control}
+            name="template_id"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Plantilla de Correo</FormLabel>
+                {templatesQuery.isLoading ? (
+                  <Skeleton className="h-10 w-full" />
+                ) : (
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecciona una plantilla" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {(templatesQuery.data ?? []).map((template) => (
+                        <SelectItem key={template.id} value={template.id}>
+                          {template.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
+
+        {selectedType === "BIRTHDAY" && (
+          <Alert className="border-primary/30 bg-primary/5">
+            <Sparkles className="h-4 w-4 text-primary" />
+            <AlertTitle>Cumpleaños (IA Dinámica)</AlertTitle>
+            <AlertDescription className="text-sm leading-relaxed">
+              La Inteligencia Artificial redactará un mensaje único para cada cliente en su cumpleaños, analizando sus
+              productos favoritos e incluyendo un descuento basado en el límite de su categoría actual. Se enviará todos
+              los días a las 9:00 AM.
+            </AlertDescription>
+          </Alert>
+        )}
 
         {selectedType === "REPURCHASE" && (
           <div className="space-y-4 rounded-md border border-border/70 bg-muted/30 p-3">

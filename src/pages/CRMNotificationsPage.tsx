@@ -1,0 +1,313 @@
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import DOMPurify from "dompurify";
+import { BellRing, Eye, Loader2, Sparkles } from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { getCrmNotifications } from "@/features/crm/services";
+import type { CrmNotificationLog } from "@/types/crm";
+
+type DateRangeValue = {
+  from: string;
+  to: string;
+};
+
+function formatDateTime(value?: string | null): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("es-CO", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function notificationTypeBadge(type?: string | null) {
+  const normalized = (type ?? "").toUpperCase();
+  if (normalized === "BIRTHDAY") {
+    return (
+      <Badge
+        variant="outline"
+        className="border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-300"
+      >
+        BIRTHDAY
+      </Badge>
+    );
+  }
+  if (normalized === "CAMPAIGN") {
+    return (
+      <Badge
+        variant="outline"
+        className="border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-300"
+      >
+        CAMPAIGN
+      </Badge>
+    );
+  }
+  return <Badge variant="secondary">{normalized || "—"}</Badge>;
+}
+
+function statusBadge(status?: string | null) {
+  const normalized = (status ?? "").toLowerCase();
+  if (normalized === "success" || normalized === "sent" || normalized === "completed") {
+    return (
+      <Badge
+        variant="outline"
+        className="border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+      >
+        Exito
+      </Badge>
+    );
+  }
+  if (normalized === "error" || normalized === "failed") {
+    return (
+      <Badge
+        variant="outline"
+        className="border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300"
+      >
+        Error
+      </Badge>
+    );
+  }
+  return <Badge variant="secondary">{status ?? "—"}</Badge>;
+}
+
+function DatePickerWithRange({
+  value,
+  onChange,
+}: {
+  value: DateRangeValue;
+  onChange: (value: DateRangeValue) => void;
+}) {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="space-y-2">
+        <Label htmlFor="start-date">Fecha inicial</Label>
+        <Input
+          id="start-date"
+          type="date"
+          value={value.from}
+          onChange={(event) => onChange({ ...value, from: event.target.value })}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="end-date">Fecha final</Label>
+        <Input
+          id="end-date"
+          type="date"
+          value={value.to}
+          onChange={(event) => onChange({ ...value, to: event.target.value })}
+        />
+      </div>
+    </div>
+  );
+}
+
+export default function CRMNotificationsPage() {
+  const [dateRange, setDateRange] = useState<DateRangeValue>({ from: "", to: "" });
+  const [typeFilter, setTypeFilter] = useState<"ALL" | "BIRTHDAY" | "CAMPAIGN">("ALL");
+  const [selectedNotification, setSelectedNotification] = useState<CrmNotificationLog | null>(null);
+
+  const notificationsQuery = useQuery({
+    queryKey: ["crm", "notifications", dateRange.from, dateRange.to, typeFilter],
+    queryFn: () =>
+      getCrmNotifications({
+        start_date: dateRange.from || undefined,
+        end_date: dateRange.to || undefined,
+        types: typeFilter === "ALL" ? undefined : [typeFilter],
+        limit: 200,
+        offset: 0,
+      }),
+  });
+
+  const sanitizedHtml = useMemo(
+    () => DOMPurify.sanitize(selectedNotification?.body_html ?? ""),
+    [selectedNotification?.body_html],
+  );
+
+  return (
+    <div className="space-y-6 p-6">
+      <div className="flex items-center gap-3">
+        <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+          <BellRing className="h-5 w-5 text-primary" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Bitacora de Notificaciones</h1>
+          <p className="text-sm text-muted-foreground">
+            Historial de correos y mensajes enviados desde automatizaciones y campanas.
+          </p>
+        </div>
+      </div>
+
+      <Card className="erp-card p-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="md:col-span-2">
+            <DatePickerWithRange value={dateRange} onChange={setDateRange} />
+          </div>
+          <div className="space-y-2">
+            <Label>Tipo de notificacion</Label>
+            <Select
+              value={typeFilter}
+              onValueChange={(value: "ALL" | "BIRTHDAY" | "CAMPAIGN") => setTypeFilter(value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Todos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Todos</SelectItem>
+                <SelectItem value="BIRTHDAY">Cumpleanos</SelectItem>
+                <SelectItem value="CAMPAIGN">Campana</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </Card>
+
+      <Card className="erp-card overflow-hidden">
+        {notificationsQuery.isLoading && (
+          <div className="p-6 space-y-3">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <Skeleton key={index} className="h-10 w-full" />
+            ))}
+          </div>
+        )}
+
+        {notificationsQuery.isError && (
+          <div className="p-6 text-sm text-destructive text-center">
+            No se pudo cargar la bitacora: {(notificationsQuery.error as Error).message}
+          </div>
+        )}
+
+        {!notificationsQuery.isLoading && !notificationsQuery.isError && (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Fecha / Hora</TableHead>
+                <TableHead>Tipo</TableHead>
+                <TableHead>Cliente</TableHead>
+                <TableHead>Asunto</TableHead>
+                <TableHead className="text-right">Accion</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(notificationsQuery.data?.items ?? []).length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                    No hay notificaciones para los filtros seleccionados.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                (notificationsQuery.data?.items ?? []).map((notification) => (
+                  <TableRow key={notification.id}>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {formatDateTime(notification.sent_at ?? notification.created_at)}
+                    </TableCell>
+                    <TableCell>{notificationTypeBadge(notification.type)}</TableCell>
+                    <TableCell className="font-medium">
+                      {notification.customer_name ??
+                        notification.customer_email ??
+                        notification.customer_phone ??
+                        "—"}
+                    </TableCell>
+                    <TableCell className="max-w-[380px] truncate">
+                      {notification.subject ?? "Sin asunto"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        onClick={() => setSelectedNotification(notification)}
+                      >
+                        <Eye className="h-4 w-4" />
+                        Ver Mensaje
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        )}
+      </Card>
+
+      <Sheet
+        open={selectedNotification != null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedNotification(null);
+          }
+        }}
+      >
+        <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>{selectedNotification?.subject ?? "Detalle de notificacion"}</SheetTitle>
+            <SheetDescription>
+              Revisa el contenido enviado y el estado de la entrega.
+            </SheetDescription>
+          </SheetHeader>
+
+          {!selectedNotification ? (
+            <div className="mt-6 flex items-center gap-2 text-muted-foreground text-sm">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Cargando...
+            </div>
+          ) : (
+            <div className="mt-6 space-y-4">
+              <div className="rounded-xl border bg-muted/20 p-4 flex flex-wrap gap-2">
+                {notificationTypeBadge(selectedNotification.type)}
+                {statusBadge(selectedNotification.status)}
+              </div>
+
+              <Card className="p-4 space-y-3">
+                <div className="flex items-center gap-2 text-primary">
+                  <Sparkles className="h-4 w-4" />
+                  <p className="text-sm font-semibold">Mensaje renderizado</p>
+                </div>
+                {sanitizedHtml ? (
+                  <div
+                    className="prose prose-sm max-w-none dark:prose-invert"
+                    dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground">No hay contenido HTML disponible.</p>
+                )}
+              </Card>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+    </div>
+  );
+}

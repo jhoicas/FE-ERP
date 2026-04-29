@@ -5,6 +5,7 @@ import type {
   CampaignTemplate,
   CampaignDetailsResponse,
   CampaignRecipientDetail,
+  CrmNotificationLog,
   Profile360Response,
   CategoryResponse,
   BenefitResponse,
@@ -1222,7 +1223,7 @@ export async function createCrmAutomation(body: CreateCrmAutomationRequest): Pro
     .object({
       name: z.string().min(1),
       type: z.enum(["BIRTHDAY", "REPURCHASE"]),
-      template_id: z.string().min(1),
+      template_id: z.string().min(1).optional(),
       config: z
         .object({
           productId: z.string().optional(),
@@ -1231,6 +1232,15 @@ export async function createCrmAutomation(body: CreateCrmAutomationRequest): Pro
         .passthrough()
         .default({}),
       is_active: z.boolean().optional(),
+    })
+    .superRefine((values, ctx) => {
+      if (values.type === "REPURCHASE" && !values.template_id) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["template_id"],
+          message: "La plantilla es obligatoria para automatizaciones de recompra.",
+        });
+      }
     })
     .parse(body);
 
@@ -1516,6 +1526,58 @@ export async function getCampaignDetails(id: string): Promise<CampaignDetailsRes
       created_at: typeof payload.created_at === "string" ? payload.created_at : null,
       updated_at: typeof payload.updated_at === "string" ? payload.updated_at : null,
       recipients,
+    };
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}
+
+export async function getCrmNotifications(params?: {
+  start_date?: string;
+  end_date?: string;
+  types?: string[];
+  limit?: number;
+  offset?: number;
+}): Promise<{ items: CrmNotificationLog[]; total: number }> {
+  try {
+    const { data } = await apiClient.get(`${CRM_BASE}/notifications`, {
+      params: {
+        start_date: params?.start_date,
+        end_date: params?.end_date,
+        types: params?.types?.join(","),
+        limit: params?.limit ?? 100,
+        offset: params?.offset ?? 0,
+      },
+    });
+
+    const payload = (data ?? {}) as Record<string, unknown>;
+    const rawItems = Array.isArray(data)
+      ? data
+      : (Array.isArray(payload.items) ? payload.items : []);
+
+    const items: CrmNotificationLog[] = rawItems.map((item) => {
+      const row = (item ?? {}) as Record<string, unknown>;
+      return {
+        id: String(row.id ?? crypto.randomUUID()),
+        type: String(row.type ?? row.notification_type ?? "CAMPAIGN").toUpperCase(),
+        customer_name: typeof row.customer_name === "string" ? row.customer_name : null,
+        customer_email: typeof row.customer_email === "string" ? row.customer_email : null,
+        customer_phone: typeof row.customer_phone === "string" ? row.customer_phone : null,
+        subject: typeof row.subject === "string" ? row.subject : null,
+        body_html: typeof row.body_html === "string"
+          ? row.body_html
+          : typeof row.body === "string"
+            ? row.body
+            : null,
+        status: typeof row.status === "string" ? row.status : null,
+        sent_at: typeof row.sent_at === "string" ? row.sent_at : null,
+        created_at: typeof row.created_at === "string" ? row.created_at : null,
+      };
+    });
+
+    return {
+      items,
+      total: Number(payload.total ?? items.length),
     };
   } catch (error) {
     return throwOnApiError(error);

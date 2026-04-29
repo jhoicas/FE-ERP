@@ -182,7 +182,7 @@ export interface CrmAutomation {
   trigger?: string;
   channel?: CampaignChannel;
   status?: string;
-  template_id: string;
+  template_id?: string;
   config: CrmAutomationConfig;
   is_active: boolean;
 }
@@ -190,7 +190,7 @@ export interface CrmAutomation {
 export interface CreateCrmAutomationRequest {
   name: string;
   type: CrmAutomationType;
-  template_id: string;
+  template_id?: string;
   config: CrmAutomationConfig;
   is_active?: boolean;
 }

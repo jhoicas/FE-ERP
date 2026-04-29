@@ -98,6 +98,21 @@ export interface CampaignDetailsResponse {
   recipients: CampaignRecipientDetail[];
 }
 
+export type CrmNotificationType = "BIRTHDAY" | "CAMPAIGN" | string;
+
+export interface CrmNotificationLog {
+  id: string;
+  type: CrmNotificationType;
+  customer_name?: string | null;
+  customer_email?: string | null;
+  customer_phone?: string | null;
+  subject?: string | null;
+  body_html?: string | null;
+  status?: string | null;
+  sent_at?: string | null;
+  created_at?: string | null;
+}
+
 export interface TaskResponse {
   id: string;
   company_id: string;

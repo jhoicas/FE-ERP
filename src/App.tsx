@@ -32,6 +32,7 @@ import MarketingAIPage from "@/pages/MarketingAIPage";
 import AiCampaignGenerator from "@/features/crm/components/AiCampaignGenerator";
 import CampaignsListPage from "@/pages/CampaignsListPage";
 import AuditLogsPage from "@/pages/AuditLogsPage";
+import CRMNotificationsPage from "@/pages/CRMNotificationsPage";
 import CRMImportPage from "@/pages/CRMImportPage";
 import SettingsPage from "@/pages/SettingsPage";
 import LoginPage from "@/pages/LoginPage";
@@ -311,6 +312,14 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={["admin", "crm"]}>
                   <AuditLogsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/crm/notifications"
+              element={
+                <ProtectedRoute allowedRoles={["admin", "crm", "marketing"]}>
+                  <CRMNotificationsPage />
                 </ProtectedRoute>
               }
             />
