@@ -1535,7 +1535,7 @@ export async function getCampaignDetails(id: string): Promise<CampaignDetailsRes
 export async function getCrmNotifications(params?: {
   start_date?: string;
   end_date?: string;
-  types?: string[];
+  type?: string;
   limit?: number;
   offset?: number;
 }): Promise<{ items: CrmNotificationLog[]; total: number }> {
@@ -1544,7 +1544,7 @@ export async function getCrmNotifications(params?: {
       params: {
         start_date: params?.start_date,
         end_date: params?.end_date,
-        types: params?.types?.join(","),
+        type: params?.type,
         limit: params?.limit ?? 100,
         offset: params?.offset ?? 0,
       },

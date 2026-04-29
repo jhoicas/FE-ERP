@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import DOMPurify from "dompurify";
 import { BellRing, Eye, Loader2, Sparkles } from "lucide-react";
@@ -24,6 +24,13 @@ import {
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+import {
   Table,
   TableBody,
   TableCell,
@@ -32,12 +39,19 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { getCrmNotifications } from "@/features/crm/services";
-import type { CrmNotificationLog } from "@/types/crm";
+import type { CrmNotificationLog, CrmNotificationType } from "@/types/crm";
 
 type DateRangeValue = {
   from: string;
   to: string;
 };
+
+const PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
+const NOTIFICATION_TYPE_OPTIONS: Array<{ value: "ALL" | CrmNotificationType; label: string }> = [
+  { value: "ALL", label: "Todos" },
+  { value: "BIRTHDAY", label: "Cumpleanos" },
+  { value: "CAMPAIGN", label: "Campana" },
+];
 
 function formatDateTime(value?: string | null): string {
   if (!value) return "—";
@@ -135,20 +149,33 @@ function DatePickerWithRange({
 
 export default function CRMNotificationsPage() {
   const [dateRange, setDateRange] = useState<DateRangeValue>({ from: "", to: "" });
-  const [typeFilter, setTypeFilter] = useState<"ALL" | "BIRTHDAY" | "CAMPAIGN">("ALL");
+  const [selectedType, setSelectedType] = useState<"ALL" | CrmNotificationType>("ALL");
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState<number>(10);
   const [selectedNotification, setSelectedNotification] = useState<CrmNotificationLog | null>(null);
 
+  const offset = pageIndex * pageSize;
+
+  useEffect(() => {
+    setPageIndex(0);
+  }, [dateRange.from, dateRange.to, selectedType]);
+
   const notificationsQuery = useQuery({
-    queryKey: ["crm", "notifications", dateRange.from, dateRange.to, typeFilter],
+    queryKey: ["crm", "notifications", dateRange.from, dateRange.to, selectedType, pageIndex, pageSize],
     queryFn: () =>
       getCrmNotifications({
         start_date: dateRange.from || undefined,
         end_date: dateRange.to || undefined,
-        types: typeFilter === "ALL" ? undefined : [typeFilter],
-        limit: 200,
-        offset: 0,
+        type: selectedType === "ALL" ? undefined : selectedType,
+        limit: pageSize,
+        offset,
       }),
   });
+
+  const notifications = notificationsQuery.data?.items ?? [];
+  const total = typeof notificationsQuery.data?.total === "number" ? notificationsQuery.data.total : 0;
+  const hasPrev = pageIndex > 0;
+  const hasMore = offset + notifications.length < total;
 
   const sanitizedHtml = useMemo(
     () => DOMPurify.sanitize(selectedNotification?.body_html ?? ""),
@@ -177,16 +204,18 @@ export default function CRMNotificationsPage() {
           <div className="space-y-2">
             <Label>Tipo de notificacion</Label>
             <Select
-              value={typeFilter}
-              onValueChange={(value: "ALL" | "BIRTHDAY" | "CAMPAIGN") => setTypeFilter(value)}
+              value={selectedType}
+              onValueChange={(value) => setSelectedType(value as "ALL" | CrmNotificationType)}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Todos" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="ALL">Todos</SelectItem>
-                <SelectItem value="BIRTHDAY">Cumpleanos</SelectItem>
-                <SelectItem value="CAMPAIGN">Campana</SelectItem>
+                {NOTIFICATION_TYPE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -220,14 +249,14 @@ export default function CRMNotificationsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(notificationsQuery.data?.items ?? []).length === 0 ? (
+              {notifications.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
                     No hay notificaciones para los filtros seleccionados.
                   </TableCell>
                 </TableRow>
               ) : (
-                (notificationsQuery.data?.items ?? []).map((notification) => (
+                notifications.map((notification) => (
                   <TableRow key={notification.id}>
                     <TableCell className="text-sm text-muted-foreground">
                       {formatDateTime(notification.sent_at ?? notification.created_at)}
@@ -259,6 +288,62 @@ export default function CRMNotificationsPage() {
               )}
             </TableBody>
           </Table>
+        )}
+
+        {!notificationsQuery.isLoading && !notificationsQuery.isError && notifications.length > 0 && (
+          <div className="flex items-center justify-between border-t px-4 py-3 gap-4">
+            <p className="text-xs text-muted-foreground">
+              Mostrando {offset + 1}–{offset + notifications.length}
+              {total > 0 ? ` de ${total}` : ""}
+            </p>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span>Filas por pagina</span>
+                <Select
+                  value={String(pageSize)}
+                  onValueChange={(value) => {
+                    setPageIndex(0);
+                    setPageSize(Number(value));
+                  }}
+                >
+                  <SelectTrigger className="h-8 w-16 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PAGE_SIZE_OPTIONS.map((size) => (
+                      <SelectItem key={size} value={String(size)}>
+                        {size}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      href="#"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        if (hasPrev) setPageIndex((prev) => Math.max(0, prev - 1));
+                      }}
+                      className={!hasPrev ? "pointer-events-none opacity-50" : ""}
+                    />
+                  </PaginationItem>
+                  <PaginationItem>
+                    <PaginationNext
+                      href="#"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        if (hasMore) setPageIndex((prev) => prev + 1);
+                      }}
+                      className={!hasMore ? "pointer-events-none opacity-50" : ""}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
+          </div>
         )}
       </Card>
 
