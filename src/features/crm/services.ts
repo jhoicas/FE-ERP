@@ -1538,7 +1538,7 @@ export async function getCrmNotifications(params?: {
   type?: string;
   limit?: number;
   offset?: number;
-}): Promise<{ items: CrmNotificationLog[]; total: number }> {
+}): Promise<{ items: CrmNotificationLog[]; total: number; types: string[] }> {
   try {
     const { data } = await apiClient.get(`${CRM_BASE}/notifications`, {
       params: {
@@ -1575,9 +1575,20 @@ export async function getCrmNotifications(params?: {
       };
     });
 
+    const payloadTypes = Array.isArray(payload.types)
+      ? payload.types.map((value) => String(value).toUpperCase()).filter(Boolean)
+      : [];
+
+    const inferredTypes = Array.from(
+      new Set(items.map((item) => String(item.type ?? "").toUpperCase()).filter(Boolean)),
+    );
+
+    const types = Array.from(new Set([...payloadTypes, ...inferredTypes]));
+
     return {
       items,
       total: Number(payload.total ?? items.length),
+      types,
     };
   } catch (error) {
     return throwOnApiError(error);

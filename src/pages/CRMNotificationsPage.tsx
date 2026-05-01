@@ -48,11 +48,12 @@ type DateRangeValue = {
 };
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
-const NOTIFICATION_TYPE_OPTIONS: Array<{ value: "ALL" | CrmNotificationType; label: string }> = [
-  { value: "ALL", label: "Todos" },
-  { value: "BIRTHDAY", label: "Cumpleanos" },
-  { value: "CAMPAIGN", label: "Campana" },
-];
+function formatTypeLabel(type: string): string {
+  const normalized = type.toUpperCase();
+  if (normalized === "BIRTHDAY") return "Cumpleanos";
+  if (normalized === "CAMPAIGN") return "Campana";
+  return normalized;
+}
 
 function formatDateTime(value?: string | null): string {
   if (!value) return "—";
@@ -205,6 +206,14 @@ export default function CRMNotificationsPage() {
 
   const notifications = notificationsQuery.data?.items ?? [];
   const total = typeof notificationsQuery.data?.total === "number" ? notificationsQuery.data.total : 0;
+  const availableTypes = notificationsQuery.data?.types ?? [];
+  const typeOptions: Array<{ value: "ALL" | CrmNotificationType; label: string }> = [
+    { value: "ALL", label: "Todos" },
+    ...availableTypes.map((type) => ({
+      value: type as CrmNotificationType,
+      label: formatTypeLabel(type),
+    })),
+  ];
   const hasPrev = pageIndex > 0;
   const hasMore = offset + notifications.length < total;
 
@@ -242,7 +251,7 @@ export default function CRMNotificationsPage() {
                 <SelectValue placeholder="Todos" />
               </SelectTrigger>
               <SelectContent>
-                {NOTIFICATION_TYPE_OPTIONS.map((option) => (
+                {typeOptions.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
                   </SelectItem>
