@@ -103,6 +103,7 @@ export type CrmNotificationType = "BIRTHDAY" | "CAMPAIGN" | string;
 export interface CrmNotificationLog {
   id: string;
   type: CrmNotificationType;
+  customer_id?: string | null;
   customer_name?: string | null;
   customer_email?: string | null;
   customer_phone?: string | null;

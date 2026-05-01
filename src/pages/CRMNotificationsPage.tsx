@@ -39,7 +39,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { getCrmNotifications } from "@/features/crm/services";
+import { getCrmCustomer, getCrmNotifications } from "@/features/crm/services";
 import type { CrmNotificationLog, CrmNotificationType } from "@/types/crm";
 
 type DateRangeValue = {
@@ -55,6 +55,14 @@ function formatTypeLabel(type: string): string {
   return normalized;
 }
 
+/** Si el cuerpo tiene saludo tipo "Hola Nombre," usarlo como respaldo cuando no haya lookup de CRM. */
+function extractNameFromGreeting(body: string | null | undefined): string | null {
+  if (!body) return null;
+  const match = body.match(/^Hola\s+([^,\n]+)/i);
+  const name = match?.[1]?.trim();
+  return name && name.length > 0 ? name : null;
+}
+
 function formatDateTime(value?: string | null): string {
   if (!value) return "—";
   const date = new Date(value);
@@ -66,6 +74,16 @@ function formatDateTime(value?: string | null): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function toRfc3339StartOfDay(value: string): string | undefined {
+  if (!value) return undefined;
+  return new Date(`${value}T00:00:00.000Z`).toISOString();
+}
+
+function toRfc3339EndOfDay(value: string): string | undefined {
+  if (!value) return undefined;
+  return new Date(`${value}T23:59:59.999Z`).toISOString();
 }
 
 function notificationTypeBadge(type?: string | null) {
@@ -196,8 +214,8 @@ export default function CRMNotificationsPage() {
     queryKey: ["crm", "notifications", dateRange.from, dateRange.to, selectedType, pageIndex, pageSize],
     queryFn: () =>
       getCrmNotifications({
-        start_date: dateRange.from || undefined,
-        end_date: dateRange.to || undefined,
+        start_date: toRfc3339StartOfDay(dateRange.from),
+        end_date: toRfc3339EndOfDay(dateRange.to),
         type: selectedType === "ALL" ? undefined : selectedType,
         limit: pageSize,
         offset,
@@ -207,6 +225,49 @@ export default function CRMNotificationsPage() {
   const notifications = notificationsQuery.data?.items ?? [];
   const total = typeof notificationsQuery.data?.total === "number" ? notificationsQuery.data.total : 0;
   const availableTypes = notificationsQuery.data?.types ?? [];
+
+  const customerIdsKey = useMemo(() => {
+    const ids = [...new Set(notifications.map((n) => n.customer_id).filter(Boolean))] as string[];
+    return ids.sort().join(",");
+  }, [notifications]);
+
+  const customerNamesQuery = useQuery({
+    queryKey: ["crm", "notifications", "customer-names", customerIdsKey],
+    queryFn: async () => {
+      const ids = customerIdsKey ? customerIdsKey.split(",") : [];
+      const entries = await Promise.all(
+        ids.map(async (id) => {
+          try {
+            const customer = await getCrmCustomer(id);
+            return [id, customer.name.trim()] as const;
+          } catch {
+            return [id, null] as const;
+          }
+        }),
+      );
+      return Object.fromEntries(entries) as Record<string, string | null>;
+    },
+    enabled: customerIdsKey.length > 0,
+    staleTime: 60_000,
+  });
+
+  const resolveCustomerDisplay = (notification: CrmNotificationLog): string => {
+    const fromApi =
+      notification.customer_name?.trim() ||
+      notification.customer_email?.trim() ||
+      notification.customer_phone?.trim();
+    if (fromApi) return fromApi;
+
+    const customerId = notification.customer_id?.trim();
+    if (customerId && customerNamesQuery.data?.[customerId]) {
+      return customerNamesQuery.data[customerId] as string;
+    }
+
+    const fromBody = extractNameFromGreeting(notification.body_html);
+    if (fromBody) return fromBody;
+
+    return customerId ? `ID: ${customerId.slice(0, 8)}…` : "—";
+  };
   const typeOptions: Array<{ value: "ALL" | CrmNotificationType; label: string }> = [
     { value: "ALL", label: "Todos" },
     ...availableTypes.map((type) => ({
@@ -318,10 +379,23 @@ export default function CRMNotificationsPage() {
                     </TableCell>
                     <TableCell>{notificationTypeBadge(notification.type)}</TableCell>
                     <TableCell className="font-medium">
-                      {notification.customer_name ??
-                        notification.customer_email ??
-                        notification.customer_phone ??
-                        "—"}
+                      {(() => {
+                        const hasDirectContact =
+                          Boolean(notification.customer_name?.trim()) ||
+                          Boolean(notification.customer_email?.trim()) ||
+                          Boolean(notification.customer_phone?.trim());
+                        const hasGreetingName = Boolean(extractNameFromGreeting(notification.body_html));
+                        const showLookupPending =
+                          Boolean(notification.customer_id?.trim()) &&
+                          !hasDirectContact &&
+                          !hasGreetingName &&
+                          customerNamesQuery.isPending;
+                        return showLookupPending ? (
+                          <span className="text-muted-foreground text-sm">Cargando...</span>
+                        ) : (
+                          resolveCustomerDisplay(notification)
+                        );
+                      })()}
                     </TableCell>
                     <TableCell className="max-w-[380px] truncate">
                       {notification.subject ?? "Sin asunto"}

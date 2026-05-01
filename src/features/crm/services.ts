@@ -193,6 +193,18 @@ export async function getCustomers(): Promise<CustomerDTO[]> {
   return normalizeCustomerListResponse(response.data).items;
 }
 
+/**
+ * GET /api/crm/customers/:id — Perfil/detalle del cliente (para lookups puntuales).
+ */
+export async function getCrmCustomer(customerId: string): Promise<CustomerDTO> {
+  try {
+    const { data } = await apiClient.get(`${CUSTOMERS_BASE}/${customerId}`);
+    return CustomerSchema.parse(data);
+  } catch (error) {
+    return throwOnApiError(error);
+  }
+}
+
 export interface ImportCustomersResponse {
   jobID: string;
 }
@@ -1560,6 +1572,7 @@ export async function getCrmNotifications(params?: {
       return {
         id: String(row.id ?? crypto.randomUUID()),
         type: String(row.type ?? row.notification_type ?? "CAMPAIGN").toUpperCase(),
+        customer_id: typeof row.customer_id === "string" ? row.customer_id : null,
         customer_name: typeof row.customer_name === "string" ? row.customer_name : null,
         customer_email: typeof row.customer_email === "string" ? row.customer_email : null,
         customer_phone: typeof row.customer_phone === "string" ? row.customer_phone : null,
